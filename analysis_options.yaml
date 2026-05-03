@@ -1,0 +1,56 @@
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  exclude:
+    - "**/*.g.dart"
+    - "**/*.freezed.dart"
+  errors:
+    invalid_annotation_target: ignore
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_const_declarations
+    - prefer_final_fields
+    - prefer_final_locals
+    - avoid_print
+    - avoid_empty_else
+    - prefer_single_quotes
+    - sort_constructors_first
+    - sort_unnamed_constructors_first
+    - always_declare_return_types
+    - annotate_overrides
+    - avoid_init_to_null
+    - avoid_relative_lib_imports
+    - avoid_return_types_on_setters
+    - avoid_shadowing_type_parameters
+    - avoid_types_as_parameter_names
+    - camel_case_extensions
+    - camel_case_types
+    - curly_braces_in_flow_control_structures
+    - empty_catches
+    - empty_constructor_bodies
+    - empty_statements
+    - file_names
+    - library_prefixes
+    - no_duplicate_case_values
+    - null_check_on_nullable_type_parameter
+    - prefer_conditional_assignment
+    - prefer_contains
+    - prefer_equal_for_default_values
+    - prefer_is_empty
+    - prefer_is_not_empty
+    - prefer_is_not_operator
+    - prefer_null_aware_operators
+    - prefer_typing_uninitialized_variables
+    - provide_deprecation_message
+    - unnecessary_brace_in_string_interps
+    - unnecessary_const
+    - unnecessary_new
+    - unnecessary_null_in_if_null_operators
+    - unnecessary_parenthesis
+    - unnecessary_string_escapes
+    - unnecessary_string_interpolations
+    - unrelated_type_equality_checks
+    - valid_regexps
+    - use_key_in_widget_constructors

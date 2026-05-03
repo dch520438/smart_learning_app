@@ -1,0 +1,127 @@
+import 'dart:convert';
+import 'package:uuid/uuid.dart';
+
+/// 知识点模型
+class KnowledgePoint {
+  final String id;
+  final String title;
+  final String content;
+  final String subject;
+  final List<String> tags;
+  final String? categoryId;
+  final int difficulty; // 1-5
+  final int masteryLevel; // 0-100
+  final int reviewCount;
+  final int? lastReviewTime; // 时间戳
+  final bool isFavorite;
+  final int createdAt; // 时间戳
+  final int updatedAt; // 时间戳
+  final List<Map<String, dynamic>> attachments; // 附件列表
+
+  KnowledgePoint({
+    String? id,
+    required this.title,
+    required this.content,
+    required this.subject,
+    List<String>? tags,
+    this.categoryId,
+    this.difficulty = 1,
+    this.masteryLevel = 0,
+    this.reviewCount = 0,
+    this.lastReviewTime,
+    this.isFavorite = false,
+    int? createdAt,
+    int? updatedAt,
+    List<Map<String, dynamic>>? attachments,
+  })  : id = id ?? const Uuid().v4(),
+        tags = tags ?? [],
+        createdAt = createdAt ?? DateTime.now().millisecondsSinceEpoch,
+        updatedAt = updatedAt ?? DateTime.now().millisecondsSinceEpoch,
+        attachments = attachments ?? [];
+
+  /// 从JSON创建
+  factory KnowledgePoint.fromJson(Map<String, dynamic> json) {
+    return KnowledgePoint(
+      id: json['id'] as String,
+      title: json['title'] as String,
+      content: json['content'] as String,
+      subject: json['subject'] as String,
+      tags: (json['tags'] as List<dynamic>).cast<String>(),
+      categoryId: json['categoryId'] as String?,
+      difficulty: json['difficulty'] as int? ?? 1,
+      masteryLevel: json['masteryLevel'] as int? ?? 0,
+      reviewCount: json['reviewCount'] as int? ?? 0,
+      lastReviewTime: json['lastReviewTime'] as int?,
+      isFavorite: json['isFavorite'] as bool? ?? false,
+      createdAt: json['createdAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+      updatedAt: json['updatedAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+      attachments: (json['attachments'] as List<dynamic>?)
+              ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          [],
+    );
+  }
+
+  /// 转换为JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'content': content,
+      'subject': subject,
+      'tags': tags,
+      'categoryId': categoryId,
+      'difficulty': difficulty,
+      'masteryLevel': masteryLevel,
+      'reviewCount': reviewCount,
+      'lastReviewTime': lastReviewTime,
+      'isFavorite': isFavorite,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+      'attachments': attachments,
+    };
+  }
+
+  /// 复制并修改部分字段
+  KnowledgePoint copyWith({
+    String? id,
+    String? title,
+    String? content,
+    String? subject,
+    List<String>? tags,
+    String? categoryId,
+    int? difficulty,
+    int? masteryLevel,
+    int? reviewCount,
+    int? lastReviewTime,
+    bool? isFavorite,
+    int? createdAt,
+    int? updatedAt,
+    List<Map<String, dynamic>>? attachments,
+  }) {
+    return KnowledgePoint(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      subject: subject ?? this.subject,
+      tags: tags ?? this.tags,
+      categoryId: categoryId ?? this.categoryId,
+      difficulty: difficulty ?? this.difficulty,
+      masteryLevel: masteryLevel ?? this.masteryLevel,
+      reviewCount: reviewCount ?? this.reviewCount,
+      lastReviewTime: lastReviewTime ?? this.lastReviewTime,
+      isFavorite: isFavorite ?? this.isFavorite,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+      attachments: attachments ?? this.attachments,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'KnowledgePoint(id: $id, title: $title, subject: $subject, '
+        'difficulty: $difficulty, masteryLevel: $masteryLevel, '
+        'reviewCount: $reviewCount, isFavorite: $isFavorite, '
+        'tags: $tags, categoryId: $categoryId)';
+  }
+}

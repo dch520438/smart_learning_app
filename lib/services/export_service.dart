@@ -1,0 +1,577 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+
+import 'database_service.dart';
+import 'storage_service.dart';
+
+/// 数据导入导出服务
+/// 支持将数据导出为 JSON 文件，从 JSON 文件导入，以及选择性导出和数据恢复
+class ExportService {
+  // 单例模式
+  static final ExportService _instance = ExportService._internal();
+  factory ExportService() => _instance;
+  ExportService._internal();
+
+  final DatabaseService _dbService = DatabaseService();
+  final StorageService _storageService = StorageService();
+
+  // 模块名称常量
+  static const String moduleKnowledgePoints = 'knowledge_points';
+  static const String moduleNotes = 'notes';
+  static const String moduleMustRemembers = 'must_remembers';
+  static const String moduleWrongQuestions = 'wrong_questions';
+  static const String moduleMotherQuestions = 'mother_questions';
+  static const String moduleExams = 'exams';
+  static const String moduleExamResults = 'exam_results';
+  static const String moduleStudyRecords = 'study_records';
+  static const String moduleUserProfiles = 'user_profiles';
+  static const String moduleMindMapData = 'mind_map_data';
+
+  /// 所有可用模块
+  static const List<String> allModules = [
+    moduleKnowledgePoints,
+    moduleNotes,
+    moduleMustRemembers,
+    moduleWrongQuestions,
+    moduleMotherQuestions,
+    moduleExams,
+    moduleExamResults,
+    moduleStudyRecords,
+    moduleUserProfiles,
+    moduleMindMapData,
+  ];
+
+  /// 模块中文名称映射
+  static const Map<String, String> moduleNames = {
+    moduleKnowledgePoints: '知识点',
+    moduleNotes: '笔记',
+    moduleMustRemembers: '必记内容',
+    moduleWrongQuestions: '错题本',
+    moduleMotherQuestions: '母题集',
+    moduleExams: '考试',
+    moduleExamResults: '考试结果',
+    moduleStudyRecords: '学习记录',
+    moduleUserProfiles: '用户资料',
+    moduleMindMapData: '思维导图',
+  };
+
+  /// 获取模块中文名称
+  static String getModuleName(String module) {
+    return moduleNames[module] ?? module;
+  }
+
+  // ==================== 导出功能 ====================
+
+  /// 导出所有数据为JSON文件
+  /// [fileName] 自定义文件名（可选）
+  /// 返回导出文件的路径
+  Future<ExportResult> exportAllToJson({String? fileName}) async {
+    try {
+      // 获取所有数据
+      final data = await _dbService.exportAllToJson();
+
+      // 生成文件名
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final finalFileName = fileName ?? 'smart_learning_backup_$timestamp.json';
+
+      // 保存到导出目录
+      final filePath = await _storageService.getExportPath(fileName: finalFileName);
+      await _storageService.saveFileFromString(
+        jsonEncode(data),
+        finalFileName,
+      );
+
+      // 计算导出统计
+      final stats = <String, int>{};
+      for (final module in allModules) {
+        if (data.containsKey(module)) {
+          final list = data[module] as List;
+          stats[module] = list.length;
+        }
+      }
+
+      return ExportResult(
+        success: true,
+        filePath: filePath,
+        fileName: finalFileName,
+        stats: stats,
+        totalRecords: stats.values.fold(0, (sum, count) => sum + count),
+      );
+    } catch (e) {
+      return ExportResult(
+        success: false,
+        errorMessage: '导出失败: $e',
+      );
+    }
+  }
+
+  /// 选择性导出指定模块的数据
+  /// [modules] 要导出的模块列表
+  /// [fileName] 自定义文件名（可选）
+  /// 返回导出结果
+  Future<ExportResult> exportModulesToJson(
+    List<String> modules, {
+    String? fileName,
+  }) async {
+    try {
+      // 验证模块名称
+      final validModules = modules.where((m) => allModules.contains(m)).toList();
+      if (validModules.isEmpty) {
+        return ExportResult(
+          success: false,
+          errorMessage: '没有有效的模块可供导出',
+        );
+      }
+
+      // 获取指定模块数据
+      final data = await _dbService.exportModulesToJson(validModules);
+
+      // 生成文件名
+      final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final moduleSuffix = validModules.join('_');
+      final finalFileName =
+          fileName ?? 'smart_learning_${moduleSuffix}_$timestamp.json';
+
+      // 保存到导出目录
+      final filePath = await _storageService.getExportPath(fileName: finalFileName);
+      await _storageService.saveFileFromString(
+        jsonEncode(data),
+        finalFileName,
+      );
+
+      // 计算导出统计
+      final stats = <String, int>{};
+      for (final module in validModules) {
+        if (data.containsKey(module)) {
+          final list = data[module] as List;
+          stats[module] = list.length;
+        }
+      }
+
+      return ExportResult(
+        success: true,
+        filePath: filePath,
+        fileName: finalFileName,
+        stats: stats,
+        totalRecords: stats.values.fold(0, (sum, count) => sum + count),
+        exportedModules: validModules,
+      );
+    } catch (e) {
+      return ExportResult(
+        success: false,
+        errorMessage: '导出失败: $e',
+      );
+    }
+  }
+
+  /// 导出数据为JSON字符串（不保存文件）
+  Future<String> exportAllToJsonString() async {
+    final data = await _dbService.exportAllToJson();
+    return jsonEncode(data);
+  }
+
+  /// 导出指定模块数据为JSON字符串
+  Future<String> exportModulesToJsonString(List<String> modules) async {
+    final data = await _dbService.exportModulesToJson(modules);
+    return jsonEncode(data);
+  }
+
+  // ==================== 导入功能 ====================
+
+  /// 从JSON文件导入数据
+  /// [filePath] JSON文件路径
+  /// [mode] 导入模式：merge（合并）或 replace（替换）
+  /// 返回导入结果
+  Future<ImportResult> importFromJsonFile(
+    String filePath, {
+    ImportMode mode = ImportMode.merge,
+  }) async {
+    try {
+      // 读取文件
+      final jsonString = await _storageService.readFileAsString(filePath);
+      final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+
+      return await _importFromJsonData(jsonData, mode: mode);
+    } on FileNotFoundException {
+      return ImportResult(
+        success: false,
+        errorMessage: '文件不存在: $filePath',
+      );
+    } catch (e) {
+      return ImportResult(
+        success: false,
+        errorMessage: '导入失败: $e',
+      );
+    }
+  }
+
+  /// 从JSON字符串导入数据
+  /// [jsonString] JSON字符串
+  /// [mode] 导入模式
+  /// 返回导入结果
+  Future<ImportResult> importFromJsonString(
+    String jsonString, {
+    ImportMode mode = ImportMode.merge,
+  }) async {
+    try {
+      final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+      return await _importFromJsonData(jsonData, mode: mode);
+    } catch (e) {
+      return ImportResult(
+        success: false,
+        errorMessage: '导入失败: $e',
+      );
+    }
+  }
+
+  /// 从JSON数据导入（内部方法）
+  Future<ImportResult> _importFromJsonData(
+    Map<String, dynamic> jsonData, {
+    ImportMode mode = ImportMode.merge,
+  }) async {
+    try {
+      Map<String, int> stats;
+
+      if (mode == ImportMode.replace) {
+        // 替换模式：先清空再导入
+        stats = await _dbService.restoreFromJson(jsonData);
+      } else {
+        // 合并模式：直接导入（冲突时替换）
+        stats = await _dbService.importFromJson(jsonData);
+      }
+
+      final totalRecords = stats.values.fold(0, (sum, count) => sum + count);
+
+      return ImportResult(
+        success: true,
+        stats: stats,
+        totalRecords: totalRecords,
+        mode: mode,
+      );
+    } catch (e) {
+      return ImportResult(
+        success: false,
+        errorMessage: '数据导入处理失败: $e',
+      );
+    }
+  }
+
+  // ==================== 数据恢复 ====================
+
+  /// 从备份文件恢复数据
+  /// [backupPath] 备份文件路径
+  /// 返回恢复结果
+  Future<ImportResult> restoreFromBackup(String backupPath) async {
+    try {
+      // 读取备份数据
+      final jsonString = await _storageService.readFileAsString(backupPath);
+      final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+
+      // 验证备份格式
+      if (!jsonData.containsKey('export_version')) {
+        return ImportResult(
+          success: false,
+          errorMessage: '无效的备份文件格式',
+        );
+      }
+
+      // 执行恢复（先清空再导入）
+      final stats = await _dbService.restoreFromJson(jsonData);
+      final totalRecords = stats.values.fold(0, (sum, count) => sum + count);
+
+      return ImportResult(
+        success: true,
+        stats: stats,
+        totalRecords: totalRecords,
+        mode: ImportMode.replace,
+        backupVersion: jsonData['export_version']?.toString(),
+        backupTime: jsonData['export_time'] as String?,
+      );
+    } on FileNotFoundException {
+      return ImportResult(
+        success: false,
+        errorMessage: '备份文件不存在: $backupPath',
+      );
+    } catch (e) {
+      return ImportResult(
+        success: false,
+        errorMessage: '恢复失败: $e',
+      );
+    }
+  }
+
+  /// 创建完整备份
+  /// [backupName] 备份名称（可选）
+  /// 返回备份文件路径
+  Future<String> createBackup({String? backupName}) async {
+    final data = await _dbService.exportAllToJson();
+    return await _storageService.createBackup(data, backupName: backupName);
+  }
+
+  /// 列出所有可用备份
+  Future<List<BackupInfo>> listBackups() async {
+    return await _storageService.listBackups();
+  }
+
+  /// 删除备份
+  Future<bool> deleteBackup(String backupPath) async {
+    return await _storageService.deleteBackup(backupPath);
+  }
+
+  // ==================== 数据验证 ====================
+
+  /// 验证JSON文件是否为有效的备份文件
+  Future<ValidationResult> validateBackupFile(String filePath) async {
+    try {
+      final jsonString = await _storageService.readFileAsString(filePath);
+      final jsonData = jsonDecode(jsonString) as Map<String, dynamic>;
+
+      // 检查必要字段
+      if (!jsonData.containsKey('export_version')) {
+        return ValidationResult(
+          isValid: false,
+          errorMessage: '缺少版本信息',
+        );
+      }
+
+      if (!jsonData.containsKey('export_time')) {
+        return ValidationResult(
+          isValid: false,
+          errorMessage: '缺少导出时间',
+        );
+      }
+
+      // 统计各模块数据量
+      final moduleStats = <String, int>{};
+      for (final module in allModules) {
+        if (jsonData.containsKey(module)) {
+          final list = jsonData[module] as List;
+          moduleStats[module] = list.length;
+        }
+      }
+
+      final totalRecords =
+          moduleStats.values.fold(0, (sum, count) => sum + count);
+
+      return ValidationResult(
+        isValid: true,
+        version: jsonData['export_version']?.toString(),
+        exportTime: jsonData['export_time'] as String?,
+        appVersion: jsonData['app_version'] as String?,
+        moduleStats: moduleStats,
+        totalRecords: totalRecords,
+      );
+    } on FileNotFoundException {
+      return ValidationResult(
+        isValid: false,
+        errorMessage: '文件不存在',
+      );
+    } catch (e) {
+      return ValidationResult(
+        isValid: false,
+        errorMessage: '文件格式无效: $e',
+      );
+    }
+  }
+
+  /// 获取导出文件大小
+  Future<int> getExportFileSize(String filePath) async {
+    return await _storageService.getFileSize(filePath);
+  }
+
+  /// 获取格式化的文件大小
+  Future<String> getFormattedFileSize(String filePath) async {
+    final size = await getExportFileSize(filePath);
+    return _storageService.formatFileSize(size);
+  }
+
+  // ==================== 工具方法 ====================
+
+  /// 格式化导入统计信息
+  String formatImportStats(Map<String, int> stats) {
+    final buffer = StringBuffer();
+    for (final entry in stats.entries) {
+      final moduleName = getModuleName(entry.key);
+      buffer.writeln('$moduleName: ${entry.value} 条');
+    }
+    return buffer.toString().trim();
+  }
+
+  /// 获取各模块数据统计
+  Future<Map<String, int>> getModuleStats() async {
+    return await _dbService.getDatabaseStats();
+  }
+
+  /// 清理过期备份
+  /// [keepDays] 保留最近几天的备份
+  Future<int> cleanOldBackups({int keepDays = 30}) async {
+    return await _storageService.cleanOldBackups(keepDays: keepDays);
+  }
+
+  /// 获取导出目录路径
+  Future<String> getExportDirectoryPath() async {
+    return await _storageService.getExportDir();
+  }
+
+  /// 获取导入目录路径
+  Future<String> getImportDirectoryPath() async {
+    return await _storageService.getImportDir();
+  }
+}
+
+/// 导出结果
+class ExportResult {
+  /// 是否成功
+  final bool success;
+
+  /// 导出文件路径
+  final String? filePath;
+
+  /// 导出文件名
+  final String? fileName;
+
+  /// 各模块导出统计
+  final Map<String, int>? stats;
+
+  /// 总导出记录数
+  final int totalRecords;
+
+  /// 导出的模块列表
+  final List<String>? exportedModules;
+
+  /// 错误信息
+  final String? errorMessage;
+
+  const ExportResult({
+    required this.success,
+    this.filePath,
+    this.fileName,
+    this.stats,
+    this.totalRecords = 0,
+    this.exportedModules,
+    this.errorMessage,
+  });
+
+  /// 获取格式化的统计信息
+  String get formattedStats {
+    if (stats == null || stats!.isEmpty) return '无数据';
+    final buffer = StringBuffer();
+    for (final entry in stats!.entries) {
+      final moduleName = ExportService.getModuleName(entry.key);
+      buffer.writeln('$moduleName: ${entry.value} 条');
+    }
+    buffer.writeln('总计: $totalRecords 条');
+    return buffer.toString().trim();
+  }
+}
+
+/// 导入结果
+class ImportResult {
+  /// 是否成功
+  final bool success;
+
+  /// 各模块导入统计
+  final Map<String, int>? stats;
+
+  /// 总导入记录数
+  final int totalRecords;
+
+  /// 导入模式
+  final ImportMode mode;
+
+  /// 备份版本
+  final String? backupVersion;
+
+  /// 备份时间
+  final String? backupTime;
+
+  /// 错误信息
+  final String? errorMessage;
+
+  const ImportResult({
+    required this.success,
+    this.stats,
+    this.totalRecords = 0,
+    this.mode = ImportMode.merge,
+    this.backupVersion,
+    this.backupTime,
+    this.errorMessage,
+  });
+
+  /// 获取格式化的统计信息
+  String get formattedStats {
+    if (stats == null || stats!.isEmpty) return '无数据导入';
+    final buffer = StringBuffer();
+    buffer.writeln('导入模式: ${mode == ImportMode.merge ? '合并' : '替换'}');
+    for (final entry in stats!.entries) {
+      final moduleName = ExportService.getModuleName(entry.key);
+      buffer.writeln('$moduleName: ${entry.value} 条');
+    }
+    buffer.writeln('总计: $totalRecords 条');
+    return buffer.toString().trim();
+  }
+}
+
+/// 导入模式
+enum ImportMode {
+  /// 合并模式：保留现有数据，冲突时替换
+  merge,
+
+  /// 替换模式：清空现有数据后导入
+  replace,
+}
+
+/// 验证结果
+class ValidationResult {
+  /// 是否有效
+  final bool isValid;
+
+  /// 错误信息
+  final String? errorMessage;
+
+  /// 备份版本
+  final String? version;
+
+  /// 导出时间
+  final String? exportTime;
+
+  /// 应用版本
+  final String? appVersion;
+
+  /// 各模块数据统计
+  final Map<String, int>? moduleStats;
+
+  /// 总记录数
+  final int totalRecords;
+
+  const ValidationResult({
+    required this.isValid,
+    this.errorMessage,
+    this.version,
+    this.exportTime,
+    this.appVersion,
+    this.moduleStats,
+    this.totalRecords = 0,
+  });
+
+  /// 获取格式化的验证信息
+  String get formattedInfo {
+    if (!isValid) return '无效: $errorMessage';
+    final buffer = StringBuffer();
+    buffer.writeln('备份验证通过');
+    if (version != null) buffer.writeln('版本: $version');
+    if (appVersion != null) buffer.writeln('应用版本: $appVersion');
+    if (exportTime != null) buffer.writeln('导出时间: $exportTime');
+    if (moduleStats != null && moduleStats!.isNotEmpty) {
+      buffer.writeln('数据统计:');
+      for (final entry in moduleStats!.entries) {
+        final moduleName = ExportService.getModuleName(entry.key);
+        buffer.writeln('  $moduleName: ${entry.value} 条');
+      }
+      buffer.writeln('  总计: $totalRecords 条');
+    }
+    return buffer.toString().trim();
+  }
+}
