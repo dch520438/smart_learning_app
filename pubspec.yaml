@@ -29,7 +29,7 @@ dependencies:
   provider: ^6.1.1
 
   # 文件与分享
-  file_picker: ^6.1.1
+  file_picker: ^8.0.0
   share_plus: ^7.2.1
 
   # 打印与PDF
