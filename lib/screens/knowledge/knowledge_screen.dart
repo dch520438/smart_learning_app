@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io' as io;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/knowledge_point.dart';
@@ -585,7 +586,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                   if (_selectedSubject != null)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: ActionChip(
+                      child: InputChip(
                         avatar: Icon(
                           Icons.close,
                           size: 14,
@@ -604,7 +605,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                   if (_selectedDifficulty != null)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: ActionChip(
+                      child: InputChip(
                         avatar: Icon(
                           Icons.close,
                           size: 14,
@@ -626,7 +627,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                   if (_selectedMasteryRange != null)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: ActionChip(
+                      child: InputChip(
                         avatar: const Icon(Icons.close, size: 14),
                         label: Text(
                             '掌握度 ${_selectedMasteryRange}%-${_selectedMasteryRange! + 25}%'),
@@ -1222,18 +1223,8 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
                                       BorderRadius.circular(
                                           AppRadius.md),
                                   image: DecorationImage(
-                                    image: FileImage(
-                                      _attachmentPaths[index]
-                                          is String
-                                          ? (Uri.tryParse(
-                                                          _attachmentPaths[
-                                                              index])
-                                                      ?.scheme
-                                                      .isNotEmpty
-                                                  ? null
-                                                  : null) ??
-                                              _buildFallbackImage(),
-                                    ),
+                                    image: _buildAttachmentImage(
+                                        _attachmentPaths[index]),
                                     fit: BoxFit.cover,
                                   ),
                                 ),
@@ -1290,6 +1281,20 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
         ),
       ),
     );
+  }
+
+  ImageProvider _buildAttachmentImage(dynamic path) {
+    if (path is String && path.isNotEmpty) {
+      final uri = Uri.tryParse(path);
+      if (uri != null && uri.scheme.isNotEmpty) {
+        return NetworkImage(path);
+      }
+      final file = io.File(path);
+      if (file.existsSync()) {
+        return FileImage(file);
+      }
+    }
+    return _buildFallbackImage();
   }
 
   ImageProvider _buildFallbackImage() {

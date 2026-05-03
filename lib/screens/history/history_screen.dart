@@ -123,7 +123,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
         final dateStr = _extractDate(r['created_at'] as String);
         final score = (r['score'] as num?)?.toDouble() ?? 0;
         final total = (r['total_count'] as int? ?? 1);
-        final pct = total > 0 ? (score / total) * 100 : 0;
+        final pct = total > 0 ? (score / total) * 100 : 0.0;
         trendMap.putIfAbsent(dateStr, () => []);
         trendMap[dateStr]!.add(pct);
       }
@@ -381,7 +381,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: data.map((item) {
                 final score = item['score'] as double;
-                final barHeight = maxScore > 0 ? (score / maxScore) * chartHeight : 0;
+                final barHeight = maxScore > 0 ? (score / maxScore) * chartHeight : 0.0;
                 final isPass = score >= 60;
                 final dateStr = (item['date'] as String).substring(5); // MM-dd
                 return Column(

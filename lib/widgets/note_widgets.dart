@@ -363,8 +363,8 @@ class _NoteEditorState extends State<NoteEditor> {
   late TextEditingController _contentController;
   late TextEditingController _tagController;
   String? _selectedSubject;
-  Color _selectedColor;
-  List<String> _tags;
+  Color _selectedColor = AppColors.primary;
+  List<String> _tags = const [];
   bool _isPreviewMode = false;
 
   @override

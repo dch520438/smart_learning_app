@@ -224,7 +224,7 @@ class _WebKnowledgeScreenState extends State<WebKnowledgeScreen>
   /// 从HTML中提取图片URL
   List<String> _extractImageUrls(String baseUrl, String html) {
     final imageUrls = <String>[];
-    final imgRegex = RegExp(r'<img[^>]+src\s*=\s*["\']([^"\']+)["\']', caseSensitive: false);
+    final imgRegex = RegExp(r'''<img[^>]+src\s*=\s*["']([^"']+)["']''', caseSensitive: false);
     final matches = imgRegex.allMatches(html);
 
     for (final match in matches) {
@@ -260,7 +260,7 @@ class _WebKnowledgeScreenState extends State<WebKnowledgeScreen>
         .replaceAll('&quot;', '"')
         .replaceAll('&#39;', "'")
         .replaceAll('&nbsp;', ' ')
-        .replaceAll(RegExp(r'&#(\d+);'), (match) {
+        .replaceAllMapped(RegExp(r'&#(\d+);'), (match) {
       final code = int.tryParse(match.group(1) ?? '');
       if (code != null && code > 0 && code < 0x10FFFF) {
         return String.fromCharCode(code);

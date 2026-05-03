@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:google_ml_kit/google_ml_kit.dart';
 
 /// OCR 识别服务
@@ -64,20 +65,23 @@ class OcrService {
           for (final element in line.elements) {
             elements.add(OcrTextElement(
               text: element.text,
-              confidence: element.confidence,
+              confidence: element.confidence ?? 0.0,
               boundingBox: element.boundingBox,
             ));
           }
           lines.add(OcrTextLine(
             text: line.text,
-            confidence: line.confidence,
+            confidence: line.confidence ?? 0.0,
             boundingBox: line.boundingBox,
             elements: elements,
           ));
         }
+        final blockConfidence = lines.isEmpty
+            ? 0.0
+            : lines.map((l) => l.confidence).reduce((a, b) => a + b) / lines.length;
         textBlocks.add(OcrTextBlock(
           text: block.text,
-          confidence: block.confidence,
+          confidence: blockConfidence,
           boundingBox: block.boundingBox,
           lines: lines,
           language: block.recognizedLanguages.isNotEmpty

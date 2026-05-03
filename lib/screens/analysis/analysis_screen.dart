@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import '../../services/database_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';

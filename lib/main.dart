@@ -74,7 +74,7 @@ class SmartLearningApp extends StatelessWidget {
               ),
             ),
             scaffoldBackgroundColor: const Color(0xFFF5F5F5),
-            cardTheme: CardTheme(
+            cardTheme: CardThemeData(
               elevation: 2,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -145,7 +145,7 @@ class SmartLearningApp extends StatelessWidget {
               ),
             ),
             scaffoldBackgroundColor: const Color(0xFF121212),
-            cardTheme: CardTheme(
+            cardTheme: CardThemeData(
               elevation: 2,
               color: const Color(0xFF1E1E1E),
               shape: RoundedRectangleBorder(

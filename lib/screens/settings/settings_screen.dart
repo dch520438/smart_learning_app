@@ -108,7 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _fontSizeScale = _prefs.getDouble('font_size_scale') ?? 1.0;
 
       // 学习设置
-      _dailyGoalMinutes = _prefs.getInt('daily_goal_minutes') ?? 60;
+      _dailyGoalMinutes = (_prefs.getInt('daily_goal_minutes') ?? 60).toDouble();
       _defaultSubject = _prefs.getString('default_subject') ?? '未设置';
       _reviewReminder = _prefs.getBool('review_reminder') ?? true;
 
@@ -164,7 +164,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _setDailyGoal(int minutes) async {
-    setState(() => _dailyGoalMinutes = minutes);
+    setState(() => _dailyGoalMinutes = minutes.toDouble());
     await _prefs.setInt('daily_goal_minutes', minutes);
   }
 
@@ -929,7 +929,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   /// 显示每日学习目标滑块
   void _showDailyGoalSlider() {
-    int tempValue = _dailyGoalMinutes;
+    int tempValue = _dailyGoalMinutes.round();
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(

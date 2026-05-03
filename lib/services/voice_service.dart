@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:speech_to_text/speech_recognition_result.dart';
+import 'package:speech_to_text/speech_recognition_error.dart';
 
 /// 语音识别服务
 /// 使用 speech_to_text 包实现语音转文字功能，支持中文识别
@@ -79,8 +81,8 @@ class VoiceService {
 
       await _speech!.listen(
         onResult: _handleResult,
-        listenFor: listenFor ?? Duration(seconds: 60),
-        pauseFor: pauseFor ?? Duration(seconds: 3),
+        listenFor: listenFor != null ? Duration(seconds: listenFor) : const Duration(seconds: 60),
+        pauseFor: pauseFor != null ? Duration(seconds: pauseFor) : const Duration(seconds: 3),
         partialResults: true,
         onSoundLevelChange: (level) {
           onSoundLevelChanged?.call(level);
@@ -128,7 +130,7 @@ class VoiceService {
   }
 
   /// 处理识别结果
-  void _handleResult(stt.SpeechRecognitionResult result) {
+  void _handleResult(SpeechRecognitionResult result) {
     final String recognizedText = result.recognizedWords;
     final bool isFinal = result.finalResult;
 
@@ -141,7 +143,7 @@ class VoiceService {
   }
 
   /// 处理错误
-  void _handleError(stt.SpeechRecognitionError error) {
+  void _handleError(SpeechRecognitionError error) {
     String errorMessage;
     switch (error.errorMsg) {
       case 'error_no_match':
@@ -210,7 +212,7 @@ class VoiceService {
   Future<String> getSystemLocale() async {
     final initialized = await _ensureInitialized();
     if (!initialized) return 'zh_CN';
-    return _speech!.systemLocale?.localeId ?? 'zh_CN';
+    return (await _speech!.systemLocale())?.localeId ?? 'zh_CN';
   }
 
   /// 切换语言

@@ -419,7 +419,7 @@ class _NotesScreenState extends State<NotesScreen> {
                 children: [
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: ActionChip(
+                    child: InputChip(
                       avatar: Icon(
                         Icons.close,
                         size: 14,
@@ -437,7 +437,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   ),
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: ActionChip(
+                    child: InputChip(
                       avatar: const Icon(Icons.sort, size: 14),
                       label: Text(_sortBy == 'updated_at' ? '按修改时间' : '按创建时间'),
                       onDeleted: () {
@@ -627,11 +627,9 @@ class _NotesScreenState extends State<NotesScreen> {
                               onChanged: (v) {
                                 if (dbId != null) _toggleSelection(dbId);
                               },
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(4),
-                              ),
                               visualDensity: VisualDensity.compact,
                             ),
+                          ),
                         if (_isSelectionMode)
                           const SizedBox(width: 6),
                         Expanded(

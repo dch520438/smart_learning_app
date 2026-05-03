@@ -502,6 +502,7 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
     bool selected,
     VoidCallback onTap,
   ) {
+    final theme = Theme.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(

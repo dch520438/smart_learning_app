@@ -112,29 +112,31 @@ class _MockExamTabState extends State<_MockExamTab> {
 
   @override
   Widget build(BuildContext context) {
-    return RefreshIndicator(
-      onRefresh: _loadExams,
-      child: _isLoading
-          ? const Center(child: AppLoading())
-          : _exams.isEmpty
-              ? AppEmptyState(
-                  message: '暂无模拟测试，点击下方按钮创建',
-                  icon: Icons.quiz_outlined,
-                  actionText: '创建测试',
-                  onAction: () => _showCreateExamDialog(context),
-                )
-              : ListView(
-                  padding: const EdgeInsets.all(16),
-                  children: [
-                    const SizedBox(height: 8),
-                    ..._exams.map((exam) => _buildExamCard(exam)),
-                    const SizedBox(height: 80),
-                  ],
-                ),
+    return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showCreateExamDialog(context),
         icon: const Icon(Icons.add),
         label: const Text('创建测试'),
+      ),
+      body: RefreshIndicator(
+        onRefresh: _loadExams,
+        child: _isLoading
+            ? const Center(child: AppLoading())
+            : _exams.isEmpty
+                ? AppEmptyState(
+                    message: '暂无模拟测试，点击下方按钮创建',
+                    icon: Icons.quiz_outlined,
+                    actionText: '创建测试',
+                    onAction: () => _showCreateExamDialog(context),
+                  )
+                : ListView(
+                    padding: const EdgeInsets.all(16),
+                    children: [
+                      const SizedBox(height: 8),
+                      ..._exams.map((exam) => _buildExamCard(exam)),
+                      const SizedBox(height: 80),
+                    ],
+                  ),
       ),
     );
   }

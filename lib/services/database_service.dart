@@ -2047,8 +2047,8 @@ class DatabaseService {
   }
 
   /// 执行自定义SQL命令
-  Future<int> rawExecute(String sql, [List<dynamic>? arguments]) async {
+  Future<void> rawExecute(String sql, [List<dynamic>? arguments]) async {
     final db = await database;
-    return await db.rawExecute(sql, arguments);
+    await db.execute(sql, arguments);
   }
 }

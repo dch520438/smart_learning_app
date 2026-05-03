@@ -8,6 +8,7 @@ import '../../models/mind_map_data.dart';
 import '../../services/database_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
+import '../../widgets/common_widgets.dart';
 
 // ============================================================
 // MindMapScreen - 思维导图列表页面
@@ -309,7 +310,7 @@ class _MindMapCard extends StatelessWidget {
                   child: data != null && data.root != null
                       ? CustomPaint(
                           painter: _MindMapThumbnailPainter(
-                            root: data.root,
+                            root: data.root!,
                             color: subjectColor,
                           ),
                         )
@@ -1208,7 +1209,8 @@ class _MindMapEditorScreenState extends State<_MindMapEditorScreen> {
     final rrect = RRect.fromRectAndRadius(rect, Radius.circular(isRoot ? 12.0 : 8.0));
 
     // 阴影
-    canvas.drawShadow(rrect, Colors.black.withOpacity(0.1), 4, false);
+    final shadowPath = Path()..addRRect(rrect);
+    canvas.drawShadow(shadowPath, Colors.black.withOpacity(0.1), 4, false);
 
     // 填充
     final fillPaint = Paint()..color = nodeColor.withOpacity(0.1);
@@ -1831,7 +1833,8 @@ class _MindMapCanvasPainter extends CustomPainter {
     );
 
     // 阴影
-    canvas.drawShadow(rrect, Colors.black.withOpacity(0.08), 4 * scale, false);
+    final shadowPath = Path()..addRRect(rrect);
+    canvas.drawShadow(shadowPath, Colors.black.withOpacity(0.08), 4 * scale, false);
 
     // 填充
     final fillPaint = Paint()..color = nodeColor.withOpacity(0.08);
@@ -1890,14 +1893,21 @@ class _MindMapCanvasPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MindMapCanvasPainter oldDelegate) {
-    return oldDelegate.root != root ||
+    if (oldDelegate.root != root ||
         oldDelegate.scale != scale ||
         oldDelegate.offset != offset ||
-        oldDelegate.selectedNodeId != selectedNodeId ||
-        !const DeepCollectionEquality()
-            .equals(oldDelegate.nodePositions, nodePositions) ||
-        !const DeepCollectionEquality()
-            .equals(oldDelegate.nodeSizes, nodeSizes);
+        oldDelegate.selectedNodeId != selectedNodeId) {
+      return true;
+    }
+    if (oldDelegate.nodePositions.length != nodePositions.length) return true;
+    for (final key in oldDelegate.nodePositions.keys) {
+      if (oldDelegate.nodePositions[key] != nodePositions[key]) return true;
+    }
+    if (oldDelegate.nodeSizes.length != nodeSizes.length) return true;
+    for (final key in oldDelegate.nodeSizes.keys) {
+      if (oldDelegate.nodeSizes[key] != nodeSizes[key]) return true;
+    }
+    return false;
   }
 }
 
