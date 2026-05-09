@@ -129,6 +129,7 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
               DateTime.now().millisecondsSinceEpoch
           : DateTime.now().millisecondsSinceEpoch,
       attachments: attachments,
+      tags: (r['tags'] as String? ?? '').split(',').where((t) => t.trim().isNotEmpty).toList(),
     );
   }
 
@@ -1605,6 +1606,7 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
   String _userAnswer = 'B';
   List<String> _examMethods = [];
   List<String> _keyPoints = [];
+  List<String> _tags = [];
 
   // 动态选项
   final List<TextEditingController> _optionControllers = [
@@ -1638,6 +1640,7 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
       _userAnswer = widget.question!.userAnswer ?? '';
       _examMethods = widget.question!.examMethods;
       _keyPoints = widget.question!.keyPoints;
+      _tags = widget.question!.tags;
 
       for (int i = 0; i < widget.question!.options.length && i < 4; i++) {
         final opt = widget.question!.options[i];
@@ -1857,6 +1860,7 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
                 : null,
         'exam_methods': jsonEncode(_examMethods),
         'key_points': jsonEncode(_keyPoints),
+        'tags': _tags.isNotEmpty ? _tags.join(',') : null,
       };
 
       if (widget.question != null) {
@@ -2156,6 +2160,12 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
             ),
             const SizedBox(height: 16),
 
+            // 标签输入
+            _buildSectionTitle('标签'),
+            const SizedBox(height: 8),
+            _buildTagsInput(),
+            const SizedBox(height: 16),
+
             // 章节
             AppInput(
               label: '章节（选填）',
@@ -2203,5 +2213,81 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
       default:
         return AppColors.textSecondary;
     }
+  }
+
+  Widget _buildTagsInput() {
+    final _tagController = TextEditingController();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_tags.isNotEmpty)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _tags.map((tag) {
+              return Chip(
+                label: Text(tag, style: const TextStyle(fontSize: 13)),
+                deleteIcon: const Icon(Icons.close, size: 16),
+                onDeleted: () {
+                  setState(() => _tags.remove(tag));
+                },
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              );
+            }).toList(),
+          ),
+        if (_tags.isNotEmpty) const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _tagController,
+                decoration: InputDecoration(
+                  hintText: '输入标签名称',
+                  hintStyle: TextStyle(
+                    fontSize: AppFontSize.sm,
+                    color: AppColors.textHint,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: AppColors.divider),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  isDense: true,
+                ),
+                style: TextStyle(fontSize: AppFontSize.sm),
+                onSubmitted: (value) {
+                  final trimmed = value.trim();
+                  if (trimmed.isNotEmpty && !_tags.contains(trimmed)) {
+                    setState(() => _tags.add(trimmed));
+                    _tagController.clear();
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              onPressed: () {
+                final trimmed = _tagController.text.trim();
+                if (trimmed.isNotEmpty && !_tags.contains(trimmed)) {
+                  setState(() => _tags.add(trimmed));
+                  _tagController.clear();
+                }
+              },
+              color: AppColors.primary,
+              constraints: const BoxConstraints(
+                minWidth: 40,
+                minHeight: 40,
+              ),
+              padding: EdgeInsets.zero,
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }

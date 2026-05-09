@@ -289,6 +289,7 @@ class _ExamPapersScreenState extends State<ExamPapersScreen> {
     final totalScore = paper['total_score'] as int? ?? 0;
     final obtainedScore = paper['obtained_score'] as int?;
     final isSelected = _selectedIds.contains(id);
+    final tags = paper['tags'] as String? ?? '';
 
     return GestureDetector(
       onLongPress: () {
@@ -415,6 +416,30 @@ class _ExamPapersScreenState extends State<ExamPapersScreen> {
                         ],
                       ],
                     ),
+                    // 标签
+                    if (tags.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: tags.split(',').where((t) => t.trim().isNotEmpty).map((tag) {
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(AppRadius.sm),
+                            ),
+                            child: Text(
+                              tag.trim(),
+                              style: TextStyle(
+                                fontSize: AppFontSize.xs,
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -598,6 +623,7 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
 
   String _subject = '数学';
   DateTime? _examDate;
+  List<String> _tags = [];
 
   @override
   void initState() {
@@ -608,6 +634,7 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
       _obtainedScoreController.text = (widget.paper!['obtained_score'] as int?)?.toString() ?? '';
       _notesController.text = widget.paper!['notes'] as String? ?? '';
       _subject = widget.paper!['subject'] as String? ?? '数学';
+      _tags = (widget.paper!['tags'] as String? ?? '').split(',').where((t) => t.trim().isNotEmpty).toList();
       final examDate = widget.paper!['exam_date'] as int?;
       if (examDate != null) {
         _examDate = DateTime.fromMillisecondsSinceEpoch(examDate);
@@ -657,6 +684,7 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
       'total_score': totalScore,
       'obtained_score': obtainedScore,
       'notes': _notesController.text.trim(),
+      'tags': _tags.isNotEmpty ? _tags.join(',') : null,
     };
 
     try {
@@ -793,6 +821,19 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
                 multiline: true,
                 maxLines: 6,
               ),
+              const SizedBox(height: 16),
+
+              // 标签
+              Text(
+                '标签',
+                style: TextStyle(
+                  fontSize: AppFontSize.md,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildTagsInput(),
 
               const SizedBox(height: 24),
 
@@ -809,6 +850,82 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTagsInput() {
+    final _tagController = TextEditingController();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_tags.isNotEmpty)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _tags.map((tag) {
+              return Chip(
+                label: Text(tag, style: const TextStyle(fontSize: 13)),
+                deleteIcon: const Icon(Icons.close, size: 16),
+                onDeleted: () {
+                  setState(() => _tags.remove(tag));
+                },
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              );
+            }).toList(),
+          ),
+        if (_tags.isNotEmpty) const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _tagController,
+                decoration: InputDecoration(
+                  hintText: '输入标签名称',
+                  hintStyle: TextStyle(
+                    fontSize: AppFontSize.sm,
+                    color: AppColors.textHint,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: AppColors.divider),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  isDense: true,
+                ),
+                style: TextStyle(fontSize: AppFontSize.sm),
+                onSubmitted: (value) {
+                  final trimmed = value.trim();
+                  if (trimmed.isNotEmpty && !_tags.contains(trimmed)) {
+                    setState(() => _tags.add(trimmed));
+                    _tagController.clear();
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              onPressed: () {
+                final trimmed = _tagController.text.trim();
+                if (trimmed.isNotEmpty && !_tags.contains(trimmed)) {
+                  setState(() => _tags.add(trimmed));
+                  _tagController.clear();
+                }
+              },
+              color: AppColors.primary,
+              constraints: const BoxConstraints(
+                minWidth: 40,
+                minHeight: 40,
+              ),
+              padding: EdgeInsets.zero,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -867,6 +984,7 @@ class _ExamPaperDetailScreenState extends State<_ExamPaperDetailScreen> {
     final totalScore = _paper['total_score'] as int? ?? 0;
     final obtainedScore = _paper['obtained_score'] as int?;
     final notes = _paper['notes'] as String? ?? '';
+    final tags = _paper['tags'] as String? ?? '';
 
     return Scaffold(
       appBar: AppBar(
@@ -952,6 +1070,31 @@ class _ExamPaperDetailScreenState extends State<_ExamPaperDetailScreen> {
                     height: 1.6,
                   ),
                 ),
+              ),
+            ],
+
+            // 标签
+            if (tags.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text(
+                '标签',
+                style: TextStyle(
+                  fontSize: AppFontSize.md,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: tags.split(',').where((t) => t.trim().isNotEmpty).map((tag) {
+                  return Chip(
+                    label: Text(tag.trim(), style: const TextStyle(fontSize: 13)),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  );
+                }).toList(),
               ),
             ],
           ],

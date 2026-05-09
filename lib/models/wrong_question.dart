@@ -20,6 +20,7 @@ class WrongQuestion {
   final List<Map<String, dynamic>> attachments;
   final List<String> examMethods; // 考法列表
   final List<String> keyPoints; // 考点列表
+  final List<String> tags; // 标签列表
 
   WrongQuestion({
     String? id,
@@ -39,13 +40,15 @@ class WrongQuestion {
     List<Map<String, dynamic>>? attachments,
     List<String>? examMethods,
     List<String>? keyPoints,
+    List<String>? tags,
   })  : id = id ?? const Uuid().v4(),
         options = options ?? [],
         createdAt = createdAt ?? DateTime.now().millisecondsSinceEpoch,
         updatedAt = updatedAt ?? DateTime.now().millisecondsSinceEpoch,
         attachments = attachments ?? [],
         examMethods = examMethods ?? [],
-        keyPoints = keyPoints ?? [];
+        keyPoints = keyPoints ?? [],
+        tags = tags ?? [];
 
   /// 从JSON创建
   factory WrongQuestion.fromJson(Map<String, dynamic> json) {
@@ -79,6 +82,10 @@ class WrongQuestion {
               ?.map((e) => e.toString())
               .toList() ??
           [],
+      tags: (json['tags'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 
@@ -102,6 +109,7 @@ class WrongQuestion {
       'attachments': attachments,
       'examMethods': examMethods,
       'keyPoints': keyPoints,
+      'tags': tags,
     };
   }
 
@@ -124,6 +132,7 @@ class WrongQuestion {
     List<Map<String, dynamic>>? attachments,
     List<String>? examMethods,
     List<String>? keyPoints,
+    List<String>? tags,
   }) {
     return WrongQuestion(
       id: id ?? this.id,
@@ -143,6 +152,7 @@ class WrongQuestion {
       attachments: attachments ?? this.attachments,
       examMethods: examMethods ?? this.examMethods,
       keyPoints: keyPoints ?? this.keyPoints,
+      tags: tags ?? this.tags,
     );
   }
 

@@ -14,7 +14,7 @@ class DatabaseService {
 
   // 数据库名称和版本
   static const String _databaseName = 'smart_learning.db';
-  static const int _databaseVersion = 1;
+  static const int _databaseVersion = 3;
 
   // 表名常量
   static const String tableKnowledgePoints = 'knowledge_points';
@@ -63,6 +63,8 @@ class DatabaseService {
         subject TEXT,
         category TEXT,
         tags TEXT,
+        exam_methods TEXT,
+        key_points TEXT,
         difficulty INTEGER DEFAULT 0,
         mastery_level INTEGER DEFAULT 0,
         review_count INTEGER DEFAULT 0,
@@ -85,6 +87,8 @@ class DatabaseService {
         content TEXT,
         subject TEXT,
         tags TEXT,
+        exam_methods TEXT,
+        key_points TEXT,
         note_type TEXT DEFAULT 'text',
         knowledge_point_id INTEGER,
         is_favorite INTEGER DEFAULT 0,
@@ -106,9 +110,12 @@ class DatabaseService {
         subject TEXT,
         category TEXT,
         tags TEXT,
+        exam_methods TEXT,
+        key_points TEXT,
         importance INTEGER DEFAULT 0,
         memory_level INTEGER DEFAULT 0,
         review_count INTEGER DEFAULT 0,
+        review_interval INTEGER DEFAULT 0,
         next_review_time TEXT,
         last_review_time TEXT,
         is_mastered INTEGER DEFAULT 0,
@@ -124,6 +131,7 @@ class DatabaseService {
       CREATE TABLE $tableWrongQuestions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         uuid TEXT NOT NULL UNIQUE,
+        title TEXT,
         question_content TEXT NOT NULL,
         question_type TEXT,
         options TEXT,
@@ -131,6 +139,7 @@ class DatabaseService {
         my_answer TEXT,
         analysis TEXT,
         subject TEXT,
+        error_type TEXT,
         knowledge_point_id INTEGER,
         error_count INTEGER DEFAULT 1,
         correct_count INTEGER DEFAULT 0,
@@ -138,6 +147,9 @@ class DatabaseService {
         is_mastered INTEGER DEFAULT 0,
         last_error_time TEXT,
         last_correct_time TEXT,
+        exam_methods TEXT,
+        key_points TEXT,
+        tags TEXT,
         attachment_paths TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
@@ -159,6 +171,8 @@ class DatabaseService {
         subject TEXT,
         category TEXT,
         tags TEXT,
+        exam_methods TEXT,
+        key_points TEXT,
         difficulty INTEGER DEFAULT 0,
         knowledge_point_id INTEGER,
         variant_count INTEGER DEFAULT 0,
@@ -316,6 +330,7 @@ class DatabaseService {
         questions TEXT,
         images TEXT,
         notes TEXT,
+        tags TEXT,
         source TEXT DEFAULT 'mock',
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
@@ -407,7 +422,48 @@ class DatabaseService {
 
   /// 数据库升级
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // 未来版本升级时在此处添加迁移逻辑
+    // 版本1 -> 版本2：添加缺失的列
+    if (oldVersion < 2) {
+      // knowledge_points 表：添加 exam_methods, key_points
+      await _addColumnSafe(db, tableKnowledgePoints, 'exam_methods', 'TEXT');
+      await _addColumnSafe(db, tableKnowledgePoints, 'key_points', 'TEXT');
+
+      // notes 表：添加 exam_methods, key_points
+      await _addColumnSafe(db, tableNotes, 'exam_methods', 'TEXT');
+      await _addColumnSafe(db, tableNotes, 'key_points', 'TEXT');
+
+      // wrong_questions 表：添加 title, error_type, exam_methods, key_points
+      await _addColumnSafe(db, tableWrongQuestions, 'title', 'TEXT');
+      await _addColumnSafe(db, tableWrongQuestions, 'error_type', 'TEXT');
+      await _addColumnSafe(db, tableWrongQuestions, 'exam_methods', 'TEXT');
+      await _addColumnSafe(db, tableWrongQuestions, 'key_points', 'TEXT');
+
+      // mother_questions 表：添加 exam_methods, key_points
+      await _addColumnSafe(db, tableMotherQuestions, 'exam_methods', 'TEXT');
+      await _addColumnSafe(db, tableMotherQuestions, 'key_points', 'TEXT');
+
+      // must_remembers 表：添加 exam_methods, key_points, review_interval
+      await _addColumnSafe(db, tableMustRemembers, 'exam_methods', 'TEXT');
+      await _addColumnSafe(db, tableMustRemembers, 'key_points', 'TEXT');
+      await _addColumnSafe(db, tableMustRemembers, 'review_interval', 'INTEGER DEFAULT 0');
+    }
+
+    // 版本2 -> 版本3：添加 tags 列
+    if (oldVersion < 3) {
+      await _addColumnSafe(db, tableWrongQuestions, 'tags', 'TEXT');
+      await _addColumnSafe(db, tableExamPapers, 'tags', 'TEXT');
+    }
+  }
+
+  /// 安全地添加列（如果列不存在才添加）
+  Future<void> _addColumnSafe(Database db, String table, String column, String type) async {
+    try {
+      await db.execute('ALTER TABLE $table ADD COLUMN $column $type');
+    } catch (e) {
+      // 列已存在时忽略错误
+      // ignore: avoid_print
+      print('列 $table.$column 已存在，跳过添加');
+    }
   }
 
   /// 关闭数据库

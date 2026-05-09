@@ -297,85 +297,102 @@ class _SearchScreenState extends State<SearchScreen>
 
   // 跳转到详情页
   void _navigateToDetail(SearchResult result) {
-    switch (result.type) {
-      case SearchResultType.knowledge:
-        _navigateToKnowledgeDetail(result);
-        break;
-      case SearchResultType.note:
-        _navigateToNoteDetail(result);
-        break;
-      case SearchResultType.wrongQuestion:
-        _navigateToWrongQuestionDetail(result);
-        break;
-      case SearchResultType.motherQuestion:
-        _navigateToMotherQuestionDetail(result);
-        break;
-      case SearchResultType.mustRemember:
-        _navigateToMustRememberDetail(result);
-        break;
+    try {
+      switch (result.type) {
+        case SearchResultType.knowledge:
+          _navigateToKnowledgeDetail(result);
+          break;
+        case SearchResultType.note:
+          _navigateToNoteDetail(result);
+          break;
+        case SearchResultType.wrongQuestion:
+          _navigateToWrongQuestionDetail(result);
+          break;
+        case SearchResultType.motherQuestion:
+          _navigateToMotherQuestionDetail(result);
+          break;
+        case SearchResultType.mustRemember:
+          _navigateToMustRememberDetail(result);
+          break;
+      }
+    } catch (e) {
+      if (mounted) {
+        showSnackBar(context, '无法打开详情: $e', isError: true);
+      }
     }
   }
 
   void _navigateToKnowledgeDetail(SearchResult result) async {
-    // 从数据库获取完整的知识点数据
-    final db = DatabaseService();
-    final row = await db.queryKnowledgePointById(int.parse(result.id));
-    
-    if (mounted) {
+    try {
+      // 从数据库获取完整的知识点数据
+      final db = DatabaseService();
+      final row = await db.queryKnowledgePointById(int.tryParse(result.id) ?? 0);
+      
+      if (!mounted) return;
+      if (row == null) {
+        showSnackBar(context, '该知识点已被删除', isError: true);
+        return;
+      }
+      
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => KnowledgeDetailPage(
             knowledgeId: result.id,
             title: result.title,
-            subject: row?['subject'] as String?,
-            difficulty: row?['difficulty'] as int?,
-            mastery: row?['mastery_level'] as int?,
-            content: row?['content'] as String?,
-            summary: row?['content'] as String?,
-            createdAt: row?['created_at'] != null
-                ? DateTime.tryParse(row!['created_at'] as String)
+            subject: row['subject'] as String?,
+            difficulty: row['difficulty'] as int?,
+            mastery: row['mastery_level'] as int?,
+            content: row['content'] as String?,
+            summary: row['content'] as String?,
+            createdAt: row['created_at'] != null
+                ? DateTime.tryParse(row['created_at'] as String)
                 : null,
-            updatedAt: row?['updated_at'] != null
-                ? DateTime.tryParse(row!['updated_at'] as String)
+            updatedAt: row['updated_at'] != null
+                ? DateTime.tryParse(row['updated_at'] as String)
                 : null,
             onEdit: () async {
               Navigator.pop(context);
-              if (row != null) {
-                final editResult = await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => KnowledgeAddPage(
-                      existingPoint: row,
-                    ),
+              final editResult = await Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => KnowledgeAddPage(
+                    existingPoint: row,
                   ),
-                );
-                if (editResult == true) {
-                  // 刷新搜索结果
-                  _performSearch(_searchController.text);
-                }
+                ),
+              );
+              if (editResult == true) {
+                _performSearch(_searchController.text);
               }
             },
             onDelete: () async {
-              if (row != null) {
-                final dbId = row['id'] as int?;
-                if (dbId != null) {
-                  await db.deleteKnowledgePoint(dbId);
-                  Navigator.pop(context);
-                  _performSearch(_searchController.text);
-                }
+              final dbId = row['id'] as int?;
+              if (dbId != null) {
+                await db.deleteKnowledgePoint(dbId);
+                Navigator.pop(context);
+                _performSearch(_searchController.text);
               }
             },
           ),
         ),
       );
+    } catch (e) {
+      if (mounted) {
+        showSnackBar(context, '打开知识点详情失败: $e', isError: true);
+      }
     }
   }
 
   void _navigateToNoteDetail(SearchResult result) async {
-    // 从数据库获取完整的笔记数据
-    final db = DatabaseService();
-    final row = await db.queryNoteByUuid(result.id);
-    
-    if (mounted && row != null) {
+    try {
+      // 从数据库获取完整的笔记数据
+      final db = DatabaseService();
+      final row = await db.queryNoteByUuid(result.id);
+      
+      if (!mounted) return;
+      if (row == null) {
+        showSnackBar(context, '该笔记已被删除', isError: true);
+        return;
+      }
+      
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => NoteEditorPage(
@@ -383,18 +400,27 @@ class _SearchScreenState extends State<SearchScreen>
           ),
         ),
       ).then((_) {
-        // 刷新搜索结果
         _performSearch(_searchController.text);
       });
+    } catch (e) {
+      if (mounted) {
+        showSnackBar(context, '打开笔记详情失败: $e', isError: true);
+      }
     }
   }
 
   void _navigateToWrongQuestionDetail(SearchResult result) async {
-    // 从数据库获取完整的错题数据
-    final db = DatabaseService();
-    final row = await db.queryWrongQuestionByUuid(result.id);
-    
-    if (mounted && row != null) {
+    try {
+      // 从数据库获取完整的错题数据
+      final db = DatabaseService();
+      final row = await db.queryWrongQuestionByUuid(result.id);
+      
+      if (!mounted) return;
+      if (row == null) {
+        showSnackBar(context, '该错题已被删除', isError: true);
+        return;
+      }
+      
       // 将数据库行转换为 WrongQuestion 对象
       final question = _rowToWrongQuestion(row);
       
@@ -407,6 +433,10 @@ class _SearchScreenState extends State<SearchScreen>
           ),
         ),
       );
+    } catch (e) {
+      if (mounted) {
+        showSnackBar(context, '打开错题详情失败: $e', isError: true);
+      }
     }
   }
   
@@ -462,6 +492,7 @@ class _SearchScreenState extends State<SearchScreen>
               DateTime.now().millisecondsSinceEpoch
           : DateTime.now().millisecondsSinceEpoch,
       attachments: attachments,
+      tags: (r['tags'] as String? ?? '').split(',').where((t) => t.trim().isNotEmpty).toList(),
     );
   }
   
@@ -473,25 +504,41 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   void _navigateToMotherQuestionDetail(SearchResult result) async {
-    // 从数据库获取完整的母题数据
-    final db = DatabaseService();
-    final row = await db.queryMotherQuestionById(int.parse(result.id));
-    
-    if (mounted && row != null) {
+    try {
+      // 从数据库获取完整的母题数据
+      final db = DatabaseService();
+      final row = await db.queryMotherQuestionById(int.tryParse(result.id) ?? 0);
+      
+      if (!mounted) return;
+      if (row == null) {
+        showSnackBar(context, '该母题已被删除', isError: true);
+        return;
+      }
+      
       Navigator.of(context).push(
         MaterialPageRoute(
           builder: (context) => MotherQuestionDetailScreen(questionData: row),
         ),
       ).then((_) => _performSearch(_searchController.text));
+    } catch (e) {
+      if (mounted) {
+        showSnackBar(context, '打开母题详情失败: $e', isError: true);
+      }
     }
   }
 
   void _navigateToMustRememberDetail(SearchResult result) async {
-    // 从数据库获取完整的必记必背数据
-    final db = DatabaseService();
-    final row = await db.queryMustRememberByUuid(result.id);
-    
-    if (mounted && row != null) {
+    try {
+      // 从数据库获取完整的必记必背数据
+      final db = DatabaseService();
+      final row = await db.queryMustRememberByUuid(result.id);
+      
+      if (!mounted) return;
+      if (row == null) {
+        showSnackBar(context, '该内容已被删除', isError: true);
+        return;
+      }
+      
       final item = _rowToMustRemember(row);
       Navigator.of(context).push(
         MaterialPageRoute(
@@ -502,6 +549,10 @@ class _SearchScreenState extends State<SearchScreen>
           ),
         ),
       );
+    } catch (e) {
+      if (mounted) {
+        showSnackBar(context, '打开详情失败: $e', isError: true);
+      }
     }
   }
   

@@ -1324,7 +1324,7 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final _analysisController = TextEditingController();
-  final _tagsController = TextEditingController();
+  List<String> _tags = [];
 
   // 选项控制器
   final List<TextEditingController> _optionControllers = [
@@ -1361,7 +1361,7 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
       _titleController.text = q['title'] as String? ?? '';
       _contentController.text = q['question_content'] as String? ?? '';
       _analysisController.text = q['analysis'] as String? ?? '';
-      _tagsController.text = q['tags'] as String? ?? '';
+      _tags = (q['tags'] as String? ?? '').split(',').where((t) => t.trim().isNotEmpty).toList();
       _selectedSubject = q['subject'] as String? ?? kSubjectNames.first;
       _selectedDifficulty = q['difficulty'] as int? ?? 1;
       
@@ -1433,7 +1433,6 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
     _titleController.dispose();
     _contentController.dispose();
     _analysisController.dispose();
-    _tagsController.dispose();
     for (final c in _optionControllers) {
       c.dispose();
     }
@@ -1562,7 +1561,7 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
         'analysis': _analysisController.text.trim(),
         'subject': _selectedSubject,
         'category': '',
-        'tags': _tagsController.text.trim(),
+        'tags': _tags.isNotEmpty ? _tags.join(',') : null,
         'difficulty': _selectedDifficulty,
         'attachment_paths': _imagePaths.isNotEmpty
             ? jsonEncode(_imagePaths)
@@ -1890,11 +1889,16 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
               const SizedBox(height: 16),
 
               // 标签
-              AppInput(
-                label: '标签',
-                hintText: '输入标签，用逗号分隔',
-                controller: _tagsController,
+              Text(
+                '标签',
+                style: TextStyle(
+                  fontSize: AppFontSize.md,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
               ),
+              const SizedBox(height: 8),
+              _buildTagsInput(),
               const SizedBox(height: 24),
 
               // 保存按钮
@@ -1909,6 +1913,82 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildTagsInput() {
+    final _tagController = TextEditingController();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_tags.isNotEmpty)
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _tags.map((tag) {
+              return Chip(
+                label: Text(tag, style: const TextStyle(fontSize: 13)),
+                deleteIcon: const Icon(Icons.close, size: 16),
+                onDeleted: () {
+                  setState(() => _tags.remove(tag));
+                },
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              );
+            }).toList(),
+          ),
+        if (_tags.isNotEmpty) const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _tagController,
+                decoration: InputDecoration(
+                  hintText: '输入标签名称',
+                  hintStyle: TextStyle(
+                    fontSize: AppFontSize.sm,
+                    color: AppColors.textHint,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: AppColors.divider),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  isDense: true,
+                ),
+                style: TextStyle(fontSize: AppFontSize.sm),
+                onSubmitted: (value) {
+                  final trimmed = value.trim();
+                  if (trimmed.isNotEmpty && !_tags.contains(trimmed)) {
+                    setState(() => _tags.add(trimmed));
+                    _tagController.clear();
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              icon: const Icon(Icons.add_circle_outline),
+              onPressed: () {
+                final trimmed = _tagController.text.trim();
+                if (trimmed.isNotEmpty && !_tags.contains(trimmed)) {
+                  setState(() => _tags.add(trimmed));
+                  _tagController.clear();
+                }
+              },
+              color: AppColors.primary,
+              constraints: const BoxConstraints(
+                minWidth: 40,
+                minHeight: 40,
+              ),
+              padding: EdgeInsets.zero,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

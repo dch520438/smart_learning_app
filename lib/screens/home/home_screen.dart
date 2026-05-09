@@ -7,6 +7,7 @@ import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../knowledge/knowledge_screen.dart';
 import '../notes/notes_screen.dart';
+import '../exam_papers/exam_papers_screen.dart';
 import '../exam/exam_screen.dart';
 import '../mind_map/mind_map_screen.dart';
 import '../analysis/analysis_screen.dart';
@@ -731,7 +732,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.description,
                     label: '试卷收集',
                     color: Colors.amber,
-                    onTap: () => Navigator.of(context).pushNamed('/exam_papers'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ExamPapersScreen()),
+                    ),
                   ),
                   _QuickEntry(
                     icon: Icons.psychology,
