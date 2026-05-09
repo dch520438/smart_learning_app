@@ -627,7 +627,7 @@ class PrintService {
 
   /// 为PdfColor添加透明度
   static PdfColor _withOpacity(PdfColor color, double opacity) {
-    return PdfColor(color.r, color.g, color.b, opacity);
+    return PdfColor(color.red, color.green, color.blue, opacity);
   }
 
   /// 构建项目元数据

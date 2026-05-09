@@ -582,7 +582,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
         minScale: 0.5,
         maxScale: 3.0,
         transformationController: TransformationController(
-          value: Matrix4.identity()
+          Matrix4.identity()
             ..scale(_viewState.scale)
             ..translate(_viewState.offset.dx, _viewState.offset.dy),
         ),
