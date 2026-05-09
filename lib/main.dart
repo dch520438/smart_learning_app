@@ -17,18 +17,7 @@ void main() async {
   // 桌面端初始化 SQLite FFI
   if (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
     sqfliteFfiInit();
-    // 尝试使用系统 SQLite 库，避免 GLIBC 版本不兼容
-    try {
-      databaseFactory = databaseFactoryFfi;
-    } catch (e) {
-      // 如果默认方式失败，尝试指定系统库路径
-      final libPath = Platform.isLinux
-          ? '/usr/lib/aarch64-linux-gnu/libsqlite3.so'
-          : null;
-      if (libPath != null && File(libPath).existsSync()) {
-        databaseFactory = createDatabaseFactoryFfi(ffi: null, open: null);
-      }
-    }
+    databaseFactory = databaseFactoryFfi;
   }
 
   // 设置系统UI样式
