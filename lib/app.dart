@@ -18,15 +18,15 @@ import 'screens/mother_questions/mother_questions_screen.dart';
 import 'screens/web_knowledge/web_knowledge_screen.dart';
 import 'screens/settings/settings_screen.dart';
 
-/// 主应用 Widget，包含隐藏式底部导航栏和各页面路由
-class App extends StatefulWidget {
-  const App({super.key});
+/// 主应用内容 Widget，包含隐藏式底部导航栏和各页面路由
+class AppContent extends StatefulWidget {
+  const AppContent({super.key});
 
   @override
   State<App> createState() => _AppState();
 }
 
-class _AppState extends State<App> with SingleTickerProviderStateMixin {
+class _AppContentState extends State<AppContent> with SingleTickerProviderStateMixin {
   late final AnimationController _animationController;
   late final Animation<Offset> _slideAnimation;
   late final Animation<double> _fadeAnimation;

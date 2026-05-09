@@ -18,11 +18,8 @@ void main() async {
 
   // 桌面端初始化 SQLite FFI
   if (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
-    // 在 Linux ARM64 上，使用系统 SQLite 库避免 GLIBC 版本不兼容
     if (Platform.isLinux) {
-      final arch = Platform.executable;
       try {
-        // 尝试加载系统 SQLite 库
         final candidates = [
           '/usr/lib/aarch64-linux-gnu/libsqlite3.so.0',
           '/usr/lib/aarch64-linux-gnu/libsqlite3.so',
@@ -31,29 +28,20 @@ void main() async {
           '/usr/lib64/libsqlite3.so.0',
           '/usr/lib64/libsqlite3.so',
         ];
-        bool loaded = false;
         for (final libPath in candidates) {
           if (File(libPath).existsSync()) {
             try {
               open.overrideFor(OperatingSystem.linux, () {
                 return DynamicLibrary.open(libPath);
               });
-              loaded = true;
               break;
             } catch (_) {
               continue;
             }
           }
         }
-        if (!loaded) {
-          // 回退到默认
-          sqfliteFfiInit();
-        }
-      } catch (_) {
-        sqfliteFfiInit();
-      }
+      } catch (_) {}
     }
-    // 初始化 sqflite FFI
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfiNoIsolate;
   }
@@ -83,7 +71,34 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider(prefs)),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ],
-      child: const App(),
+      child: const SmartLearningApp(),
     ),
   );
+}
+
+/// 应用根组件，包含 MaterialApp
+class SmartLearningApp extends StatelessWidget {
+  const SmartLearningApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final themeProvider = context.watch<ThemeProvider>();
+
+    return MaterialApp(
+      title: '智慧学习',
+      debugShowCheckedModeBanner: false,
+      themeMode: themeProvider.themeMode,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF4A90D9),
+        brightness: Brightness.light,
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF4A90D9),
+        brightness: Brightness.dark,
+      ),
+      home: const AppContent(),
+    );
+  }
 }
