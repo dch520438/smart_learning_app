@@ -1840,7 +1840,7 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
       final hasOptions = options.isNotEmpty;
 
       final data = <String, dynamic>{
-        'uuid': widget.question?.id,
+        'uuid': widget.question?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         'question_content':
             _titleController.text.trim().isEmpty
                 ? _contentController.text.trim()

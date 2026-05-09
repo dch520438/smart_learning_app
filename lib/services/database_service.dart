@@ -14,7 +14,7 @@ class DatabaseService {
 
   // 数据库名称和版本
   static const String _databaseName = 'smart_learning.db';
-  static const int _databaseVersion = 3;
+  static const int _databaseVersion = 4;
 
   // 表名常量
   static const String tableKnowledgePoints = 'knowledge_points';
@@ -332,6 +332,7 @@ class DatabaseService {
         notes TEXT,
         tags TEXT,
         source TEXT DEFAULT 'mock',
+        attachment_paths TEXT,
         created_at INTEGER NOT NULL,
         updated_at INTEGER NOT NULL
       )
@@ -452,6 +453,11 @@ class DatabaseService {
     if (oldVersion < 3) {
       await _addColumnSafe(db, tableWrongQuestions, 'tags', 'TEXT');
       await _addColumnSafe(db, tableExamPapers, 'tags', 'TEXT');
+    }
+
+    // 版本3 -> 版本4：添加 attachment_paths 列到试卷表
+    if (oldVersion < 4) {
+      await _addColumnSafe(db, tableExamPapers, 'attachment_paths', 'TEXT');
     }
   }
 

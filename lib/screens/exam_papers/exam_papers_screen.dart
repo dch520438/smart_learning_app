@@ -2,10 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:photo_view/photo_view.dart';
 import '../../services/database_service.dart';
 import '../../services/export_service.dart';
 import '../../services/ocr_service.dart';
 import '../../services/print_service.dart';
+import '../../services/storage_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -117,6 +120,19 @@ class _ExamPapersScreenState extends State<ExamPapersScreen> {
     if (confirmed != true) return;
 
     try {
+      // 删除关联的附件文件
+      final paper = await _db.queryExamPaperById(id);
+      if (paper != null) {
+        final attachmentPaths = paper['attachment_paths'] as String?;
+        if (attachmentPaths != null && attachmentPaths.isNotEmpty) {
+          final paths = List<String>.from(jsonDecode(attachmentPaths));
+          final storage = StorageService();
+          for (final path in paths) {
+            await storage.deleteFile(path);
+          }
+        }
+      }
+      
       await _db.deleteExamPaper(id);
       showSnackBar(context, '已删除');
       await _loadData();
@@ -290,6 +306,10 @@ class _ExamPapersScreenState extends State<ExamPapersScreen> {
     final obtainedScore = paper['obtained_score'] as int?;
     final isSelected = _selectedIds.contains(id);
     final tags = paper['tags'] as String? ?? '';
+    final attachmentPaths = paper['attachment_paths'] as String?;
+    final attachmentCount = attachmentPaths != null && attachmentPaths.isNotEmpty
+        ? jsonDecode(attachmentPaths).length
+        : 0;
 
     return GestureDetector(
       onLongPress: () {
@@ -363,6 +383,27 @@ class _ExamPapersScreenState extends State<ExamPapersScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
+                        if (attachmentCount > 0) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: AppColors.info.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.attach_file, size: 12, color: AppColors.info),
+                                const SizedBox(width: 2),
+                                Text(
+                                  '$attachmentCount',
+                                  style: TextStyle(fontSize: 11, color: AppColors.info),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -614,6 +655,7 @@ class _ExamPaperAddScreen extends StatefulWidget {
 
 class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
   final DatabaseService _db = DatabaseService();
+  final StorageService _storage = StorageService();
   final _formKey = GlobalKey<FormState>();
 
   final _nameController = TextEditingController();
@@ -624,6 +666,9 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
   String _subject = '数学';
   DateTime? _examDate;
   List<String> _tags = [];
+  List<String> _attachmentPaths = [];
+
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -638,6 +683,11 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
       final examDate = widget.paper!['exam_date'] as int?;
       if (examDate != null) {
         _examDate = DateTime.fromMillisecondsSinceEpoch(examDate);
+      }
+      // 加载已有附件
+      final attachmentPaths = widget.paper!['attachment_paths'] as String?;
+      if (attachmentPaths != null && attachmentPaths.isNotEmpty) {
+        _attachmentPaths = List<String>.from(jsonDecode(attachmentPaths));
       }
     } else if (widget.initialContent != null) {
       // 如果是通过OCR或语音录入的内容，尝试解析
@@ -666,11 +716,165 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
     }
   }
 
+  /// 添加附件
+  Future<void> _addAttachment() async {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('拍照'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickFromCamera();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('从相册选择'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickFromGallery();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.folder),
+              title: const Text('选择文件'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickFile();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 从相机拍照
+  Future<void> _pickFromCamera() async {
+    try {
+      final picker = ImagePicker();
+      final image = await picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 80,
+      );
+      if (image != null) {
+        await _saveAttachment(image.path);
+      }
+    } catch (e) {
+      if (mounted) showSnackBar(context, '拍照失败: $e', isError: true);
+    }
+  }
+
+  /// 从相册选择图片
+  Future<void> _pickFromGallery() async {
+    try {
+      final picker = ImagePicker();
+      final images = await picker.pickMultiImage(
+        imageQuality: 80,
+      );
+      for (final image in images) {
+        await _saveAttachment(image.path);
+      }
+    } catch (e) {
+      if (mounted) showSnackBar(context, '选择图片失败: $e', isError: true);
+    }
+  }
+
+  /// 选择文件
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        allowMultiple: true,
+        type: FileType.custom,
+        allowedExtensions: ['jpg', 'jpeg', 'png', 'gif', 'pdf', 'doc', 'docx'],
+      );
+      if (result != null) {
+        for (final file in result.files) {
+          if (file.path != null) {
+            await _saveAttachment(file.path!);
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) showSnackBar(context, '选择文件失败: $e', isError: true);
+    }
+  }
+
+  /// 保存附件到本地存储
+  Future<void> _saveAttachment(String sourcePath) async {
+    try {
+      final savedPath = await _storage.saveFile(
+        sourcePath,
+        subDir: 'exam_papers',
+      );
+      setState(() {
+        _attachmentPaths.add(savedPath);
+      });
+      if (mounted) showSnackBar(context, '附件已添加');
+    } catch (e) {
+      if (mounted) showSnackBar(context, '保存附件失败: $e', isError: true);
+    }
+  }
+
+  /// 删除附件
+  Future<void> _removeAttachment(int index) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('删除附件'),
+        content: const Text('确定要删除这个附件吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('删除'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      final path = _attachmentPaths[index];
+      await _storage.deleteFile(path);
+      setState(() {
+        _attachmentPaths.removeAt(index);
+      });
+    }
+  }
+
+  /// 预览附件
+  void _previewAttachment(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
+      // 图片预览
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _ImagePreviewScreen(imagePath: path),
+        ),
+      );
+    } else {
+      // 其他文件，尝试打开
+      showSnackBar(context, '暂不支持预览此类型文件');
+    }
+  }
+
   Future<void> _save() async {
     if (_nameController.text.trim().isEmpty) {
       showSnackBar(context, '请输入试卷名称', isError: true);
       return;
     }
+
+    if (_isSaving) return;
+    setState(() => _isSaving = true);
 
     final totalScore = int.tryParse(_totalScoreController.text) ?? 0;
     final obtainedScore = _obtainedScoreController.text.isEmpty
@@ -685,6 +889,7 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
       'obtained_score': obtainedScore,
       'notes': _notesController.text.trim(),
       'tags': _tags.isNotEmpty ? _tags.join(',') : null,
+      'attachment_paths': _attachmentPaths.isNotEmpty ? jsonEncode(_attachmentPaths) : null,
     };
 
     try {
@@ -700,6 +905,8 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
       }
     } catch (e) {
       if (mounted) showSnackBar(context, '保存失败: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
     }
   }
 
@@ -834,6 +1041,29 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
               ),
               const SizedBox(height: 8),
               _buildTagsInput(),
+              const SizedBox(height: 16),
+
+              // ==================== 附件区域 ====================
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '附件',
+                    style: TextStyle(
+                      fontSize: AppFontSize.md,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _addAttachment,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('添加附件'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _buildAttachmentsList(),
 
               const SizedBox(height: 24),
 
@@ -843,7 +1073,7 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
                 child: AppButton(
                   text: isEdit ? '保存修改' : '添加试卷',
                   style: AppButtonStyle.primary,
-                  onPressed: _save,
+                  onPressed: _isSaving ? null : _save,
                 ),
               ),
             ],
@@ -928,6 +1158,125 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
       ],
     );
   }
+
+  Widget _buildAttachmentsList() {
+    if (_attachmentPaths.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(AppRadius.md),
+          border: Border.all(color: AppColors.divider),
+        ),
+        child: Center(
+          child: Column(
+            children: [
+              Icon(Icons.attach_file, size: 40, color: AppColors.textHint),
+              const SizedBox(height: 8),
+              Text(
+                '暂无附件，点击上方按钮添加',
+                style: TextStyle(color: AppColors.textHint),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 200),
+      child: ListView.builder(
+        shrinkWrap: true,
+        itemCount: _attachmentPaths.length,
+        itemBuilder: (context, index) {
+          final path = _attachmentPaths[index];
+          final fileName = path.split('/').last;
+          final ext = fileName.split('.').last.toLowerCase();
+          final isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext);
+          final isPdf = ext == 'pdf';
+
+          return Card(
+            margin: const EdgeInsets.only(bottom: 8),
+            child: ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: isImage
+                      ? AppColors.success.withOpacity(0.1)
+                      : isPdf
+                          ? AppColors.error.withOpacity(0.1)
+                          : AppColors.info.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  isImage
+                      ? Icons.image
+                      : isPdf
+                          ? Icons.picture_as_pdf
+                          : Icons.insert_drive_file,
+                  color: isImage
+                      ? AppColors.success
+                      : isPdf
+                          ? AppColors.error
+                          : AppColors.info,
+                  size: 24,
+                ),
+              ),
+              title: Text(
+                fileName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 13),
+              ),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (isImage)
+                    IconButton(
+                      icon: const Icon(Icons.visibility, size: 20),
+                      onPressed: () => _previewAttachment(path),
+                      tooltip: '预览',
+                    ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.error),
+                    onPressed: () => _removeAttachment(index),
+                    tooltip: '删除',
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ============================================================
+// _ImagePreviewScreen - 图片预览页面
+// ============================================================
+
+class _ImagePreviewScreen extends StatelessWidget {
+  final String imagePath;
+
+  const _ImagePreviewScreen({required this.imagePath});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('图片预览'),
+      ),
+      body: Center(
+        child: PhotoView(
+          imageProvider: FileImage(File(imagePath)),
+          minScale: PhotoViewComputedScale.contained,
+          maxScale: PhotoViewComputedScale.covered * 2,
+        ),
+      ),
+    );
+  }
 }
 
 // ============================================================
@@ -945,18 +1294,30 @@ class _ExamPaperDetailScreen extends StatefulWidget {
 
 class _ExamPaperDetailScreenState extends State<_ExamPaperDetailScreen> {
   late Map<String, dynamic> _paper;
+  List<String> _attachmentPaths = [];
 
   @override
   void initState() {
     super.initState();
     _paper = widget.paper;
+    _loadAttachments();
+  }
+
+  void _loadAttachments() {
+    final attachmentPaths = _paper['attachment_paths'] as String?;
+    if (attachmentPaths != null && attachmentPaths.isNotEmpty) {
+      _attachmentPaths = List<String>.from(jsonDecode(attachmentPaths));
+    }
   }
 
   Future<void> _loadPaper() async {
     try {
       final fresh = await DatabaseService().queryExamPaperById(_paper['id'] as int);
       if (fresh != null && mounted) {
-        setState(() => _paper = fresh);
+        setState(() {
+          _paper = fresh;
+          _loadAttachments();
+        });
       }
     } catch (e) {
       // 忽略错误
@@ -972,6 +1333,20 @@ class _ExamPaperDetailScreenState extends State<_ExamPaperDetailScreen> {
     if (result == true) {
       await _loadPaper();
       if (mounted) Navigator.of(context).pop(true);
+    }
+  }
+
+  /// 预览附件
+  void _previewAttachment(String path) {
+    final ext = path.split('.').last.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => _ImagePreviewScreen(imagePath: path),
+        ),
+      );
+    } else {
+      showSnackBar(context, '暂不支持预览此类型文件');
     }
   }
 
@@ -1096,6 +1471,71 @@ class _ExamPaperDetailScreenState extends State<_ExamPaperDetailScreen> {
                   );
                 }).toList(),
               ),
+            ],
+
+            // 附件列表
+            if (_attachmentPaths.isNotEmpty) ...[
+              const SizedBox(height: 24),
+              Text(
+                '附件 (${_attachmentPaths.length})',
+                style: TextStyle(
+                  fontSize: AppFontSize.md,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...(_attachmentPaths.map((path) {
+                final fileName = path.split('/').last;
+                final ext = fileName.split('.').last.toLowerCase();
+                final isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext);
+                final isPdf = ext == 'pdf';
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: isImage
+                            ? AppColors.success.withOpacity(0.1)
+                            : isPdf
+                                ? AppColors.error.withOpacity(0.1)
+                                : AppColors.info.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        isImage
+                            ? Icons.image
+                            : isPdf
+                                ? Icons.picture_as_pdf
+                                : Icons.insert_drive_file,
+                        color: isImage
+                            ? AppColors.success
+                            : isPdf
+                                ? AppColors.error
+                                : AppColors.info,
+                        size: 24,
+                      ),
+                    ),
+                    title: Text(
+                      fileName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13),
+                    ),
+                    trailing: isImage
+                        ? IconButton(
+                            icon: const Icon(Icons.visibility, size: 20),
+                            onPressed: () => _previewAttachment(path),
+                            tooltip: '预览',
+                          )
+                        : null,
+                    onTap: isImage ? () => _previewAttachment(path) : null,
+                  ),
+                );
+              })),
             ],
           ],
         ),

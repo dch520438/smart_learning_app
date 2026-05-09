@@ -94,18 +94,8 @@ class SmartLearningApp extends StatelessWidget {
       title: '智慧学习',
       debugShowCheckedModeBanner: false,
       themeMode: themeProvider.themeMode,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF4A90D9),
-        brightness: Brightness.light,
-        fontFamily: 'NotoSansCJK',
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF4A90D9),
-        brightness: Brightness.dark,
-        fontFamily: 'NotoSansCJK',
-      ),
+      theme: themeProvider.lightTheme,
+      darkTheme: themeProvider.darkTheme,
       home: const AppContent(),
     );
   }

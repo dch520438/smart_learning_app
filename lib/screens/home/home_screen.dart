@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
+import '../../providers/navigation_provider.dart';
 import '../../services/database_service.dart';
 import '../../services/usage_time_service.dart';
 import '../../utils/constants.dart';
@@ -14,6 +16,7 @@ import '../analysis/analysis_screen.dart';
 import '../must_remember/must_remember_screen.dart';
 import '../wrong_questions/wrong_questions_screen.dart';
 import '../mother_questions/mother_questions_screen.dart';
+import '../history/history_screen.dart';
 
 /// 首页 - 学习仪表盘
 class HomeScreen extends StatefulWidget {
@@ -679,7 +682,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
 
-              // ==================== 快捷入口网格（2x4） ====================
+              // ==================== 快捷入口网格（4x3） ====================
               Text(
                 '快捷入口',
                 style: theme.textTheme.titleMedium?.copyWith(
@@ -698,7 +701,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 children: [
                   _QuickEntry(
                     icon: Icons.auto_stories,
-                    label: '知识点积累',
+                    label: '知识点',
                     color: Colors.blue,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const KnowledgeScreen()),
@@ -722,7 +725,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   _QuickEntry(
                     icon: Icons.star_outline,
-                    label: '必记必背',
+                    label: '必记本',
                     color: Colors.orange,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const MustRememberScreen()),
@@ -730,7 +733,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   _QuickEntry(
                     icon: Icons.description,
-                    label: '试卷收集',
+                    label: '试卷集',
                     color: Colors.amber,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const ExamPapersScreen()),
@@ -738,7 +741,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   _QuickEntry(
                     icon: Icons.psychology,
-                    label: '母题集',
+                    label: '母题本',
                     color: Colors.purple,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const MotherQuestionsScreen()),
@@ -762,11 +765,35 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   _QuickEntry(
                     icon: Icons.bar_chart,
-                    label: '学习分析',
-                    color: Colors.amber.shade700,
+                    label: '学情分析',
+                    color: Colors.cyan,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const AnalysisScreen()),
                     ),
+                  ),
+                  _QuickEntry(
+                    icon: Icons.history,
+                    label: '历史分数',
+                    color: Colors.pink,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                    ),
+                  ),
+                  _QuickEntry(
+                    icon: Icons.local_fire_department_outlined,
+                    label: '习惯打卡',
+                    color: Colors.deepOrange,
+                    onTap: () => Navigator.of(context).pushNamed('/habits'),
+                  ),
+                  _QuickEntry(
+                    icon: Icons.apps,
+                    label: '更多功能',
+                    color: Colors.grey,
+                    onTap: () {
+                      // 切换到"我的"页面
+                      final navProvider = context.read<NavigationProvider>();
+                      navProvider.setIndex(4);
+                    },
                   ),
                 ],
               ),

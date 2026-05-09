@@ -2192,7 +2192,7 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
     try {
       final now = DateTime.now();
       final data = <String, dynamic>{
-        'uuid': widget.item?.id,
+        'uuid': widget.item?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
         'title': _titleController.text.trim(),
         'content': _contentController.text.trim(),
         'subject': _subject,
