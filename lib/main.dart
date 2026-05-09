@@ -1,3 +1,4 @@
+import 'dart:ffi';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -82,7 +83,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ThemeProvider(prefs)),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ],
-      child: const SmartLearningApp(),
+      child: const App(),
     ),
   );
 }
