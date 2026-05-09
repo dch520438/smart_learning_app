@@ -677,7 +677,7 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) =>
-            _MotherQuestionDetailScreen(questionData: question),
+            MotherQuestionDetailScreen(questionData: question),
       ),
     ).then((_) => _loadQuestions());
   }
@@ -788,18 +788,18 @@ class _MotherQuestionSearchDelegate extends SearchDelegate<String> {
 // 母题详情页
 // ============================================================
 
-class _MotherQuestionDetailScreen extends StatefulWidget {
+class MotherQuestionDetailScreen extends StatefulWidget {
   final Map<String, dynamic> questionData;
 
-  const _MotherQuestionDetailScreen({required this.questionData});
+  const MotherQuestionDetailScreen({super.key, required this.questionData});
 
   @override
-  State<_MotherQuestionDetailScreen> createState() =>
-      _MotherQuestionDetailScreenState();
+  State<MotherQuestionDetailScreen> createState() =>
+      MotherQuestionDetailScreenState();
 }
 
-class _MotherQuestionDetailScreenState
-    extends State<_MotherQuestionDetailScreen> {
+class MotherQuestionDetailScreenState
+    extends State<MotherQuestionDetailScreen> {
   final DatabaseService _db = DatabaseService();
   late Map<String, dynamic> _question;
   bool _isLoading = true;

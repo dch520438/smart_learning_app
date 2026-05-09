@@ -10,6 +10,7 @@ import '../../widgets/common_widgets.dart';
 import '../../widgets/knowledge_widgets.dart';
 import '../notes/notes_screen.dart';
 import '../wrong_questions/wrong_questions_screen.dart';
+import '../knowledge/knowledge_screen.dart';
 import '../mother_questions/mother_questions_screen.dart';
 import '../must_remember/must_remember_screen.dart';
 
@@ -479,7 +480,7 @@ class _SearchScreenState extends State<SearchScreen>
     if (mounted && row != null) {
       Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) => _MotherQuestionDetailScreen(questionData: row),
+          builder: (context) => MotherQuestionDetailScreen(questionData: row),
         ),
       ).then((_) => _performSearch(_searchController.text));
     }

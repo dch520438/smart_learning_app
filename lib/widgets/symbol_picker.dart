@@ -259,7 +259,7 @@ class _SymbolPickerWidgetState extends State<SymbolPickerWidget>
     {'symbol': '"', 'name': '右双引号'},
     {'symbol': ''', 'name': '单引号'},
     {'symbol': ''', 'name': '左单引号'},
-    {'symbol': ''', 'name': '右单引号'},
+    {'symbol': '\u2019', 'name': '右单引号'},
     {'symbol': '（', 'name': '左圆括号'},
     {'symbol': '）', 'name': '右圆括号'},
     {'symbol': '【', 'name': '左方括号'},

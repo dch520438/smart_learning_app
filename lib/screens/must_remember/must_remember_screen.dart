@@ -1678,8 +1678,8 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
     }
 
     setState(() {
-      _questionController.text = questionText;
-      _answerController.text = answerText;
+      _questionController.text = questionText ?? '';
+      _answerController.text = answerText ?? '';
       _analysisController.text = '来源：必背必记 - ${widget.item.title}';
     });
   }
