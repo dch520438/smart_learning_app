@@ -66,7 +66,12 @@ void main() async {
 
   // 初始化使用时间记录服务
   final usageTimeService = UsageTimeService();
-  await usageTimeService.initialize();
+  try {
+    await usageTimeService.initialize();
+  } catch (e) {
+    // 使用时间记录初始化失败不影响应用启动
+    debugPrint('使用时间记录初始化失败: $e');
+  }
 
   runApp(
     MultiProvider(

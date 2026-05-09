@@ -37,7 +37,7 @@ class UsageRecord {
   /// 转换为JSON
   Map<String, dynamic> toJson() {
     return {
-      'id': id,
+      'uuid': id,
       'start_time': startTime,
       'end_time': endTime,
       'duration': duration,
