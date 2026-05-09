@@ -194,7 +194,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final TextEditingController scoreController = TextEditingController();
     final TextEditingController totalScoreController = TextEditingController(text: '100');
     String selectedSubject = kSubjectNames.first;
+    String selectedSource = 'school'; // 默认学校考试
     DateTime selectedDate = DateTime.now();
+
+    // 来源选项
+    final sourceOptions = [
+      {'value': 'school', 'label': '学校考试', 'icon': Icons.school},
+      {'value': 'offline', 'label': '线下测试', 'icon': Icons.location_on},
+      {'value': 'mock', 'label': '模拟测试', 'icon': Icons.computer},
+    ];
 
     showDialog(
       context: context,
@@ -226,6 +234,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
                       color: getSubjectColor(subject),
                       selected: selectedSubject == subject,
                       onTap: () => setDialogState(() => selectedSubject = subject),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                Text('来源', style: TextStyle(fontSize: AppFontSize.md, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: sourceOptions.map((source) {
+                    return AppTag(
+                      label: source['label'] as String,
+                      color: selectedSource == source['value'] ? AppColors.info : AppColors.textHint,
+                      selected: selectedSource == source['value'],
+                      onTap: () => setDialogState(() => selectedSource = source['value'] as String),
                     );
                   }).toList(),
                 ),
@@ -327,6 +350,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     'accuracy': accuracy,
                     'is_passed': isPassed ? 1 : 0,
                     'created_at': selectedDate.toIso8601String(),
+                    'source': selectedSource, // 来源：学校/线下/模拟
+                    'subject': selectedSubject,
                   };
                   await _db.insertExamResult(resultData);
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/database_service.dart';
+import '../../services/usage_time_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -23,6 +24,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final DatabaseService _db = DatabaseService();
+  final UsageTimeService _usageTimeService = UsageTimeService();
 
   // 用户信息
   String _userName = '同学';
@@ -45,12 +47,38 @@ class _HomeScreenState extends State<HomeScreen> {
   // 最近7天学习时长数据
   List<Map<String, dynamic>> _weeklyStudyData = [];
 
+  // 本周和本月学习时间
+  int _weekStudyMinutes = 0;
+  int _monthStudyMinutes = 0;
+
   bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _loadDashboardData();
+
+    // 监听学习时间更新
+    _usageTimeService.onStudyTimeUpdated.listen((_) {
+      if (mounted) {
+        _refreshStudyTime();
+      }
+    });
+  }
+
+  /// 刷新学习时间显示
+  Future<void> _refreshStudyTime() async {
+    final todaySeconds = await _usageTimeService.getTodayStudyTime();
+    final weekSeconds = await _usageTimeService.getWeekStudyTime();
+    final monthSeconds = await _usageTimeService.getMonthStudyTime();
+
+    if (mounted) {
+      setState(() {
+        _todayStudyMinutes = todaySeconds ~/ 60;
+        _weekStudyMinutes = weekSeconds ~/ 60;
+        _monthStudyMinutes = monthSeconds ~/ 60;
+      });
+    }
   }
 
   /// 加载仪表盘所有数据
@@ -114,15 +142,17 @@ class _HomeScreenState extends State<HomeScreen> {
     final todayStart = DateTime(now.year, now.month, now.day).toIso8601String();
     final todayEnd = DateTime(now.year, now.month, now.day, 23, 59, 59).toIso8601String();
 
-    // 今日学习时长
-    final todayRecords = await _db.queryStudyRecordsByDateRange(todayStart, todayEnd);
-    int studyMinutes = 0;
+    // 从使用时间服务获取今日学习时长（更精确）
+    final todaySeconds = await _usageTimeService.getTodayStudyTime();
+    int studyMinutes = todaySeconds ~/ 60;
+
     int questionCount = 0;
     int knowledgeCount = 0;
     int noteCount = 0;
 
+    // 从学习记录表获取其他统计
+    final todayRecords = await _db.queryStudyRecordsByDateRange(todayStart, todayEnd);
     for (final record in todayRecords) {
-      studyMinutes += (record['duration'] as int?) ?? 0;
       final recordType = record['record_type'] as String? ?? '';
       if (recordType == 'exam' || recordType == 'practice') {
         questionCount++;
@@ -151,6 +181,12 @@ class _HomeScreenState extends State<HomeScreen> {
         noteCount++;
       }
     }
+
+    // 同时获取本周和本月数据
+    final weekSeconds = await _usageTimeService.getWeekStudyTime();
+    final monthSeconds = await _usageTimeService.getMonthStudyTime();
+    _weekStudyMinutes = weekSeconds ~/ 60;
+    _monthStudyMinutes = monthSeconds ~/ 60;
 
     return {
       'studyMinutes': studyMinutes,
@@ -184,26 +220,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
   /// 加载最近7天学习时长数据
   Future<List<Map<String, dynamic>>> _loadWeeklyStudyData() async {
-    final now = DateTime.now();
+    // 从使用时间服务获取最近7天的学习数据
+    final dailyData = await _usageTimeService.getRecentDailyStudyData(7);
     final weeklyData = <Map<String, dynamic>>[];
 
-    for (int i = 6; i >= 0; i--) {
-      final date = DateTime(now.year, now.month, now.day - i);
-      final dayStart = DateTime(date.year, date.month, date.day).toIso8601String();
-      final dayEnd = DateTime(date.year, date.month, date.day, 23, 59, 59).toIso8601String();
+    for (int i = 0; i < dailyData.length; i++) {
+      final dayData = dailyData[i];
+      final dateParts = dayData.date.split('-');
+      final date = DateTime(
+        int.parse(dateParts[0]),
+        int.parse(dateParts[1]),
+        int.parse(dateParts[2]),
+      );
 
-      final dayRecords = await _db.queryStudyRecordsByDateRange(dayStart, dayEnd);
-      int totalMinutes = 0;
-      for (final record in dayRecords) {
-        totalMinutes += (record['duration'] as int?) ?? 0;
-      }
-
-      final weekday = ['日', '一', '二', '三', '四', '五', '六'];
       weeklyData.add({
         'date': date,
-        'label': '周${weekday[date.weekday % 7]}',
-        'minutes': totalMinutes,
-        'isToday': i == 0,
+        'label': dayData.weekday ?? '周${['日', '一', '二', '三', '四', '五', '六'][date.weekday % 7]}',
+        'minutes': dayData.duration ~/ 60,
+        'isToday': i == dailyData.length - 1,
       });
     }
 
@@ -692,6 +726,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(builder: (_) => const MustRememberScreen()),
                     ),
+                  ),
+                  _QuickEntry(
+                    icon: Icons.description,
+                    label: '试卷收集',
+                    color: Colors.amber,
+                    onTap: () => Navigator.of(context).pushNamed('/exam_papers'),
                   ),
                   _QuickEntry(
                     icon: Icons.psychology,

@@ -17,6 +17,8 @@ class KnowledgePoint {
   final int createdAt; // 时间戳
   final int updatedAt; // 时间戳
   final List<Map<String, dynamic>> attachments; // 附件列表
+  final List<String> examMethods; // 考法列表
+  final List<String> keyPoints; // 考点列表
 
   KnowledgePoint({
     String? id,
@@ -33,11 +35,15 @@ class KnowledgePoint {
     int? createdAt,
     int? updatedAt,
     List<Map<String, dynamic>>? attachments,
+    List<String>? examMethods,
+    List<String>? keyPoints,
   })  : id = id ?? const Uuid().v4(),
         tags = tags ?? [],
         createdAt = createdAt ?? DateTime.now().millisecondsSinceEpoch,
         updatedAt = updatedAt ?? DateTime.now().millisecondsSinceEpoch,
-        attachments = attachments ?? [];
+        attachments = attachments ?? [],
+        examMethods = examMethods ?? [],
+        keyPoints = keyPoints ?? [];
 
   /// 从JSON创建
   factory KnowledgePoint.fromJson(Map<String, dynamic> json) {
@@ -57,6 +63,14 @@ class KnowledgePoint {
       updatedAt: json['updatedAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
       attachments: (json['attachments'] as List<dynamic>?)
               ?.map((e) => Map<String, dynamic>.from(e as Map))
+              .toList() ??
+          [],
+      examMethods: (json['examMethods'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      keyPoints: (json['keyPoints'] as List<dynamic>?)
+              ?.map((e) => e.toString())
               .toList() ??
           [],
     );
@@ -79,6 +93,8 @@ class KnowledgePoint {
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'attachments': attachments,
+      'examMethods': examMethods,
+      'keyPoints': keyPoints,
     };
   }
 
@@ -98,6 +114,8 @@ class KnowledgePoint {
     int? createdAt,
     int? updatedAt,
     List<Map<String, dynamic>>? attachments,
+    List<String>? examMethods,
+    List<String>? keyPoints,
   }) {
     return KnowledgePoint(
       id: id ?? this.id,
@@ -114,6 +132,8 @@ class KnowledgePoint {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       attachments: attachments ?? this.attachments,
+      examMethods: examMethods ?? this.examMethods,
+      keyPoints: keyPoints ?? this.keyPoints,
     );
   }
 
@@ -122,6 +142,7 @@ class KnowledgePoint {
     return 'KnowledgePoint(id: $id, title: $title, subject: $subject, '
         'difficulty: $difficulty, masteryLevel: $masteryLevel, '
         'reviewCount: $reviewCount, isFavorite: $isFavorite, '
-        'tags: $tags, categoryId: $categoryId)';
+        'tags: $tags, categoryId: $categoryId, '
+        'examMethods: $examMethods, keyPoints: $keyPoints)';
   }
 }

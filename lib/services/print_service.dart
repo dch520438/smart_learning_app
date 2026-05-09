@@ -5,6 +5,76 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../utils/helpers.dart';
 
+/// 打印内容类型枚举
+enum PrintContentType {
+  knowledgePoint,
+  note,
+  wrongQuestion,
+  motherQuestion,
+  mustRemember,
+}
+
+/// 打印内容项模型
+class PrintContentItem {
+  final PrintContentType type;
+  final String title;
+  final String content;
+  final String? subject;
+  final String? category;
+  final String? tags;
+  final int? difficulty;
+  final int? masteryLevel;
+  final String? examMethod;
+  final String? keyPoint;
+  final String? createdAt;
+  final Map<String, String> additionalMetadata;
+
+  PrintContentItem({
+    required this.type,
+    required this.title,
+    required this.content,
+    this.subject,
+    this.category,
+    this.tags,
+    this.difficulty,
+    this.masteryLevel,
+    this.examMethod,
+    this.keyPoint,
+    this.createdAt,
+    this.additionalMetadata = const {},
+  });
+
+  String get typeLabel {
+    switch (type) {
+      case PrintContentType.knowledgePoint:
+        return '知识点';
+      case PrintContentType.note:
+        return '笔记';
+      case PrintContentType.wrongQuestion:
+        return '错题';
+      case PrintContentType.motherQuestion:
+        return '母题';
+      case PrintContentType.mustRemember:
+        return '必背必记';
+    }
+  }
+
+  Color get typeColor {
+    switch (type) {
+      case PrintContentType.knowledgePoint:
+        return Colors.blue;
+      case PrintContentType.note:
+        return Colors.green;
+      case PrintContentType.wrongQuestion:
+        return Colors.red;
+      case PrintContentType.motherQuestion:
+        return Colors.purple;
+      case PrintContentType.mustRemember:
+        return Colors.orange;
+    }
+  }
+}
+
 /// 打印服务类
 /// 用于生成PDF并打印各类型内容
 class PrintService {
@@ -188,6 +258,410 @@ class PrintService {
     );
   }
 
+  /// 批量打印内容
+  /// 支持多种内容类型混合打印
+  static Future<void> printBatch({
+    required BuildContext context,
+    required List<PrintContentItem> items,
+    String? customTitle,
+  }) async {
+    if (items.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('没有选择要打印的内容')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final pdf = pw.Document();
+      final now = DateTime.now();
+      final printTime = formatDateTime(now);
+
+      // 封面页
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          build: (pw.Context context) {
+            return pw.Center(
+              child: pw.Column(
+                mainAxisAlignment: pw.MainAxisAlignment.center,
+                children: [
+                  pw.Icon(
+                    pw.IconData(Icons.print.codePoint),
+                    size: 64,
+                    color: PdfColors.blue700,
+                  ),
+                  pw.SizedBox(height: 24),
+                  pw.Text(
+                    customTitle ?? '学习资料打印',
+                    style: pw.TextStyle(
+                      fontSize: 28,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue800,
+                    ),
+                  ),
+                  pw.SizedBox(height: 16),
+                  pw.Text(
+                    '共 ${items.length} 项内容',
+                    style: pw.TextStyle(
+                      fontSize: 16,
+                      color: PdfColors.grey600,
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Text(
+                    '打印时间: $printTime',
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      color: PdfColors.grey500,
+                    ),
+                  ),
+                  pw.SizedBox(height: 32),
+                  // 内容类型统计
+                  _buildTypeStatistics(items),
+                ],
+              ),
+            );
+          },
+        ),
+      );
+
+      // 目录页
+      if (items.length > 5) {
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a4,
+            build: (pw.Context context) {
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    '目录',
+                    style: pw.TextStyle(
+                      fontSize: 24,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue800,
+                    ),
+                  ),
+                  pw.SizedBox(height: 16),
+                  pw.Divider(),
+                  pw.SizedBox(height: 16),
+                  ...items.asMap().entries.map((entry) {
+                    final index = entry.key + 1;
+                    final item = entry.value;
+                    return pw.Padding(
+                      padding: const pw.EdgeInsets.symmetric(vertical: 4),
+                      child: pw.Row(
+                        children: [
+                          pw.Container(
+                            padding: const pw.EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: pw.BoxDecoration(
+                              color: _getPdfColorForType(item.type),
+                              borderRadius: pw.BorderRadius.circular(4),
+                            ),
+                            child: pw.Text(
+                              item.typeLabel,
+                              style: pw.TextStyle(
+                                fontSize: 10,
+                                color: PdfColors.white,
+                              ),
+                            ),
+                          ),
+                          pw.SizedBox(width: 12),
+                          pw.Expanded(
+                            child: pw.Text(
+                              '$index. ${item.title}',
+                              style: const pw.TextStyle(fontSize: 12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                ],
+              );
+            },
+          ),
+        );
+      }
+
+      // 内容页
+      for (int i = 0; i < items.length; i++) {
+        final item = items[i];
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat.a4,
+            build: (pw.Context context) {
+              return pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  // 页眉
+                  pw.Row(
+                    children: [
+                      pw.Container(
+                        padding: const pw.EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: pw.BoxDecoration(
+                          color: _getPdfColorForType(item.type),
+                          borderRadius: pw.BorderRadius.circular(4),
+                        ),
+                        child: pw.Text(
+                          item.typeLabel,
+                          style: pw.TextStyle(
+                            fontSize: 10,
+                            color: PdfColors.white,
+                            fontWeight: pw.FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      pw.Spacer(),
+                      pw.Text(
+                        '${i + 1} / ${items.length}',
+                        style: pw.TextStyle(
+                          fontSize: 10,
+                          color: PdfColors.grey500,
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.SizedBox(height: 16),
+
+                  // 标题
+                  pw.Text(
+                    item.title,
+                    style: pw.TextStyle(
+                      fontSize: 20,
+                      fontWeight: pw.FontWeight.bold,
+                      color: PdfColors.blue900,
+                    ),
+                  ),
+                  pw.SizedBox(height: 12),
+
+                  // 元数据
+                  _buildItemMetadata(item),
+                  pw.SizedBox(height: 16),
+
+                  // 分隔线
+                  pw.Divider(color: PdfColors.grey300),
+                  pw.SizedBox(height: 16),
+
+                  // 内容
+                  pw.Text(
+                    item.content,
+                    style: const pw.TextStyle(
+                      fontSize: 12,
+                      lineSpacing: 1.5,
+                    ),
+                  ),
+
+                  pw.Spacer(),
+
+                  // 页脚
+                  pw.Divider(color: PdfColors.grey300),
+                  pw.SizedBox(height: 8),
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text(
+                        '智慧学习 App',
+                        style: pw.TextStyle(
+                          fontSize: 10,
+                          color: PdfColors.grey500,
+                        ),
+                      ),
+                      pw.Text(
+                        '打印时间: $printTime',
+                        style: pw.TextStyle(
+                          fontSize: 10,
+                          color: PdfColors.grey500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      }
+
+      // 显示打印预览对话框
+      if (context.mounted) {
+        await showDialog(
+          context: context,
+          builder: (context) => Dialog(
+            insetPadding: const EdgeInsets.all(16),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                width: double.infinity,
+                height: MediaQuery.of(context).size.height * 0.8,
+                child: PdfPreview(
+                  build: (format) => pdf.save(),
+                  allowPrinting: true,
+                  allowSharing: true,
+                  canChangePageFormat: false,
+                  canChangeOrientation: false,
+                  pdfFileName: '学习资料_${formatDate(now)}.pdf',
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('生成PDF失败: $e')),
+        );
+      }
+    }
+  }
+
+  /// 构建类型统计
+  static pw.Widget _buildTypeStatistics(List<PrintContentItem> items) {
+    final typeCounts = <PrintContentType, int>{};
+    for (final item in items) {
+      typeCounts[item.type] = (typeCounts[item.type] ?? 0) + 1;
+    }
+
+    return pw.Wrap(
+      spacing: 16,
+      runSpacing: 8,
+      children: typeCounts.entries.map((entry) {
+        return pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: pw.BoxDecoration(
+            color: _getPdfColorForType(entry.key).withOpacity(0.1),
+            borderRadius: pw.BorderRadius.circular(20),
+            border: pw.Border.all(
+              color: _getPdfColorForType(entry.key),
+              width: 1,
+            ),
+          ),
+          child: pw.Row(
+            mainAxisSize: pw.MainAxisSize.min,
+            children: [
+              pw.Container(
+                width: 8,
+                height: 8,
+                decoration: pw.BoxDecoration(
+                  color: _getPdfColorForType(entry.key),
+                  shape: pw.BoxShape.circle,
+                ),
+              ),
+              pw.SizedBox(width: 6),
+              pw.Text(
+                '${entry.key.typeLabel}: ${entry.value}',
+                style: pw.TextStyle(
+                  fontSize: 11,
+                  color: PdfColors.grey700,
+                ),
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  /// 获取PDF颜色
+  static PdfColor _getPdfColorForType(PrintContentType type) {
+    switch (type) {
+      case PrintContentType.knowledgePoint:
+        return PdfColors.blue700;
+      case PrintContentType.note:
+        return PdfColors.green700;
+      case PrintContentType.wrongQuestion:
+        return PdfColors.red700;
+      case PrintContentType.motherQuestion:
+        return PdfColors.purple700;
+      case PrintContentType.mustRemember:
+        return PdfColors.orange700;
+    }
+  }
+
+  /// 构建项目元数据
+  static pw.Widget _buildItemMetadata(PrintContentItem item) {
+    final metadata = <pw.Widget>[];
+
+    if (item.subject != null) {
+      metadata.add(_buildMetadataChip('学科', item.subject!));
+    }
+    if (item.category != null) {
+      metadata.add(_buildMetadataChip('分类', item.category!));
+    }
+    if (item.difficulty != null) {
+      metadata.add(_buildMetadataChip('难度', _getDifficultyLabel(item.difficulty!)));
+    }
+    if (item.masteryLevel != null) {
+      metadata.add(_buildMetadataChip('掌握度', '${item.masteryLevel}%'));
+    }
+    if (item.examMethod != null && item.examMethod!.isNotEmpty) {
+      metadata.add(_buildMetadataChip('考法', item.examMethod!));
+    }
+    if (item.keyPoint != null && item.keyPoint!.isNotEmpty) {
+      metadata.add(_buildMetadataChip('考点', item.keyPoint!));
+    }
+    if (item.tags != null && item.tags!.isNotEmpty) {
+      metadata.add(_buildMetadataChip('标签', item.tags!));
+    }
+    if (item.createdAt != null) {
+      metadata.add(_buildMetadataChip('创建时间', item.createdAt!));
+    }
+
+    // 添加额外元数据
+    item.additionalMetadata.forEach((key, value) {
+      metadata.add(_buildMetadataChip(key, value));
+    });
+
+    if (metadata.isEmpty) return pw.SizedBox.shrink();
+
+    return pw.Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: metadata,
+    );
+  }
+
+  /// 构建元数据标签
+  static pw.Widget _buildMetadataChip(String label, String value) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.grey100,
+        borderRadius: pw.BorderRadius.circular(4),
+      ),
+      child: pw.Row(
+        mainAxisSize: pw.MainAxisSize.min,
+        children: [
+          pw.Text(
+            '$label: ',
+            style: pw.TextStyle(
+              fontSize: 9,
+              color: PdfColors.grey600,
+            ),
+          ),
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.grey800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 通用打印内容方法
   static Future<void> _printContent({
     required BuildContext context,
@@ -342,6 +816,24 @@ class PrintService {
         return '困难';
       default:
         return '未知';
+    }
+  }
+}
+
+/// 扩展PrintContentType
+extension PrintContentTypeExtension on PrintContentType {
+  String get typeLabel {
+    switch (this) {
+      case PrintContentType.knowledgePoint:
+        return '知识点';
+      case PrintContentType.note:
+        return '笔记';
+      case PrintContentType.wrongQuestion:
+        return '错题';
+      case PrintContentType.motherQuestion:
+        return '母题';
+      case PrintContentType.mustRemember:
+        return '必背必记';
     }
   }
 }

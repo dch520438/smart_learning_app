@@ -12,6 +12,7 @@ import 'package:sqlite3/open.dart';
 import 'app.dart';
 import 'providers/theme_provider.dart';
 import 'providers/navigation_provider.dart';
+import 'services/usage_time_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,12 +60,18 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  final prefs = await SharedPreferences.getInstance();
+  // 初始化 ThemeProvider
+  final themeProvider = ThemeProvider();
+  await themeProvider.initialize();
+
+  // 初始化使用时间记录服务
+  final usageTimeService = UsageTimeService();
+  await usageTimeService.initialize();
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ThemeProvider(prefs)),
+        ChangeNotifierProvider<ThemeProvider>.value(value: themeProvider),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ],
       child: const SmartLearningApp(),
@@ -83,18 +90,8 @@ class SmartLearningApp extends StatelessWidget {
       title: '智慧学习',
       debugShowCheckedModeBanner: false,
       themeMode: themeProvider.themeMode,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF4A90D9),
-        brightness: Brightness.light,
-        fontFamily: 'Noto Sans CJK SC',
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF4A90D9),
-        brightness: Brightness.dark,
-        fontFamily: 'Noto Sans CJK SC',
-      ),
+      theme: themeProvider.lightTheme,
+      darkTheme: themeProvider.darkTheme,
       home: const AppContent(),
     );
   }

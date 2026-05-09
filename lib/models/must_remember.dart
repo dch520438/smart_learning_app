@@ -15,6 +15,8 @@ class MustRemember {
   final bool isMastered;
   final int createdAt; // 时间戳
   final int updatedAt; // 时间戳
+  final List<String> examMethods; // 考法列表
+  final List<String> keyPoints; // 考点列表
 
   MustRemember({
     String? id,
@@ -29,9 +31,13 @@ class MustRemember {
     this.isMastered = false,
     int? createdAt,
     int? updatedAt,
+    List<String>? examMethods,
+    List<String>? keyPoints,
   })  : id = id ?? const Uuid().v4(),
         createdAt = createdAt ?? DateTime.now().millisecondsSinceEpoch,
-        updatedAt = updatedAt ?? DateTime.now().millisecondsSinceEpoch;
+        updatedAt = updatedAt ?? DateTime.now().millisecondsSinceEpoch,
+        examMethods = examMethods ?? [],
+        keyPoints = keyPoints ?? [];
 
   /// 从JSON创建
   factory MustRemember.fromJson(Map<String, dynamic> json) {
@@ -48,6 +54,14 @@ class MustRemember {
       isMastered: json['isMastered'] as bool? ?? false,
       createdAt: json['createdAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
       updatedAt: json['updatedAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+      examMethods: (json['examMethods'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      keyPoints: (json['keyPoints'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 
@@ -66,6 +80,8 @@ class MustRemember {
       'isMastered': isMastered,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
+      'examMethods': examMethods,
+      'keyPoints': keyPoints,
     };
   }
 
@@ -83,6 +99,8 @@ class MustRemember {
     bool? isMastered,
     int? createdAt,
     int? updatedAt,
+    List<String>? examMethods,
+    List<String>? keyPoints,
   }) {
     return MustRemember(
       id: id ?? this.id,
@@ -97,6 +115,8 @@ class MustRemember {
       isMastered: isMastered ?? this.isMastered,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      examMethods: examMethods ?? this.examMethods,
+      keyPoints: keyPoints ?? this.keyPoints,
     );
   }
 
@@ -104,6 +124,7 @@ class MustRemember {
   String toString() {
     return 'MustRemember(id: $id, title: $title, subject: $subject, '
         'category: $category, memoryLevel: $memoryLevel, '
-        'reviewCount: $reviewCount, isMastered: $isMastered)';
+        'reviewCount: $reviewCount, isMastered: $isMastered, '
+        'examMethods: $examMethods, keyPoints: $keyPoints)';
   }
 }

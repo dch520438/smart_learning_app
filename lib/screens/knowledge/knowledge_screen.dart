@@ -6,9 +6,12 @@ import '../../models/knowledge_point.dart';
 import '../../services/database_service.dart';
 import '../../services/export_service.dart';
 import '../../services/ocr_service.dart';
+import '../../services/print_service.dart';
 import '../../services/voice_service.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/knowledge_widgets.dart';
+import '../../widgets/exam_method_keypoint_input.dart';
+import '../../widgets/input_method_selector.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 
@@ -333,6 +336,67 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
     }
   }
 
+  Future<void> _batchPrint() async {
+    if (_selectedIds.isEmpty) return;
+
+    // 获取选中的知识点数据
+    final selectedPoints = _knowledgePoints.where((p) {
+      final id = p['id'] as int?;
+      return id != null && _selectedIds.contains(id);
+    }).toList();
+
+    // 转换为打印内容项
+    final printItems = selectedPoints.map((p) {
+      final examMethods = p['exam_methods'] as String?;
+      final keyPoints = p['key_points'] as String?;
+      String? examMethod;
+      String? keyPoint;
+
+      if (examMethods != null && examMethods.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(examMethods);
+          if (decoded is List && decoded.isNotEmpty) {
+            examMethod = decoded.first.toString();
+          }
+        } catch (_) {}
+      }
+
+      if (keyPoints != null && keyPoints.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(keyPoints);
+          if (decoded is List && decoded.isNotEmpty) {
+            keyPoint = decoded.first.toString();
+          }
+        } catch (_) {}
+      }
+
+      return PrintContentItem(
+        type: PrintContentType.knowledgePoint,
+        title: p['title'] as String? ?? '无标题',
+        content: p['content'] as String? ?? '',
+        subject: p['subject'] as String?,
+        category: p['category'] as String?,
+        tags: p['tags'] as String?,
+        difficulty: p['difficulty'] as int?,
+        masteryLevel: p['mastery_level'] as int?,
+        examMethod: examMethod,
+        keyPoint: keyPoint,
+        createdAt: p['created_at'] != null
+            ? formatDate(DateTime.parse(p['created_at'] as String))
+            : null,
+      );
+    }).toList();
+
+    // 调用批量打印
+    await PrintService.printBatch(
+      context: context,
+      items: printItems,
+      customTitle: '知识点打印 (${printItems.length}项)',
+    );
+
+    _exitSelectionMode();
+  }
+
   // ==================== CRUD 操作 ====================
 
   Future<void> _deleteKnowledgePoint(int dbId, String title) async {
@@ -357,61 +421,26 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
 
   // ==================== 添加知识点 ====================
 
-  void _showAddMenu() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppRadius.xl),
-        ),
-      ),
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: AppColors.divider,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              ListTile(
-                leading: const Icon(Icons.edit_outlined),
-                title: const Text('手动添加'),
-                subtitle: const Text('手动输入知识点内容'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showManualAddDialog();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt_outlined),
-                title: const Text('OCR识别添加'),
-                subtitle: Text(Platform.isLinux ? '选择图片识别文字' : '拍照或选择图片识别文字'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _startOcrAdd();
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.mic_outlined),
-                title: const Text('语音录入'),
-                subtitle: const Text('通过语音识别录入知识点'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _startVoiceInput();
-                },
-              ),
-            ],
-          ),
+  void _showAddMenu() async {
+    // 使用统一的录入方式选择器
+    final method = await InputMethodSelector.show(context);
+    if (method == null) return;
+
+    // 处理录入方式
+    final handler = InputMethodHandler(context);
+    final recognizedText = await handler.handleInputMethod(method);
+
+    // 跳转到添加页面，传入识别到的内容
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => KnowledgeAddPage(
+          initialContent: recognizedText,
         ),
       ),
     );
+    if (result == true) {
+      await _loadData();
+    }
   }
 
   Future<void> _showManualAddDialog() async {
@@ -826,6 +855,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
               onSelectAll: (selectAll) => _selectAll(),
               onDelete: _batchDelete,
               onExport: _batchExport,
+              onPrint: _batchPrint,
               onCancel: _exitSelectionMode,
             )
           : null,
@@ -956,8 +986,14 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
   int _difficulty = 1;
   List<String> _tags = [];
   List<String> _attachmentPaths = [];
+  List<String> _examMethods = [];
+  List<String> _keyPoints = [];
   bool _isSaving = false;
   bool _isEditing = false;
+
+  // 已有的考法考点选项（从数据库获取）
+  List<String> _existingExamMethods = [];
+  List<String> _existingKeyPoints = [];
 
   @override
   void initState() {
@@ -976,10 +1012,82 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
       _difficulty = point['difficulty'] as int? ?? 1;
       _parseExistingTags(point['tags']);
       _parseExistingAttachments(point['attachment_paths']);
+      _parseExistingExamMethods(point['exam_methods']);
+      _parseExistingKeyPoints(point['key_points']);
+    }
+    _loadExistingExamMethodsAndKeyPoints();
+  }
+
+  Future<void> _loadExistingExamMethodsAndKeyPoints() async {
+    // 从数据库加载已有的考法考点作为选项
+    final knowledgePoints = await _dbService.queryAllKnowledgePoints(limit: 100);
+    final Set<String> examMethodsSet = {};
+    final Set<String> keyPointsSet = {};
+
+    for (final kp in knowledgePoints) {
+      final em = kp['exam_methods'];
+      final kpList = kp['key_points'];
+      if (em != null) {
+        try {
+          final List<dynamic> decoded = jsonDecode(em.toString());
+          examMethodsSet.addAll(decoded.map((e) => e.toString()));
+        } catch (_) {}
+      }
+      if (kpList != null) {
+        try {
+          final List<dynamic> decoded = jsonDecode(kpList.toString());
+          keyPointsSet.addAll(decoded.map((e) => e.toString()));
+        } catch (_) {}
+      }
+    }
+
+    setState(() {
+      _existingExamMethods = examMethodsSet.toList()..sort();
+      _existingKeyPoints = keyPointsSet.toList()..sort();
+    });
+  }
+
+  void _parseExistingExamMethods(dynamic value) {
+    if (value == null) return;
+    if (value is List) {
+      _examMethods = value.map((e) => e.toString()).toList();
+    } else if (value is String) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is List) {
+          _examMethods = decoded.map((e) => e.toString()).toList();
+        }
+      } catch (_) {
+        _examMethods = value
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
     }
   }
 
-  void _parseExistingTags(dynamic tagsValue) {
+  void _parseExistingKeyPoints(dynamic value) {
+    if (value == null) return;
+    if (value is List) {
+      _keyPoints = value.map((e) => e.toString()).toList();
+    } else if (value is String) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is List) {
+          _keyPoints = decoded.map((e) => e.toString()).toList();
+        }
+      } catch (_) {
+        _keyPoints = value
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+    }
+  }
+
+    void _parseExistingTags(dynamic tagsValue) {
     if (tagsValue == null) return;
     if (tagsValue is List) {
       _tags = tagsValue.map((e) => e.toString()).toList();
@@ -1083,6 +1191,8 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
         'tags': jsonEncode(_tags),
         'attachment_paths': jsonEncode(_attachmentPaths),
         'category': widget.existingPoint?['category'],
+        'exam_methods': jsonEncode(_examMethods),
+        'key_points': jsonEncode(_keyPoints),
       };
 
       if (_isEditing && widget.existingPoint != null) {
@@ -1269,6 +1379,21 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 16),
+
+              // 考法考点输入
+              ExamMethodKeyPointInput(
+                examMethods: _examMethods,
+                keyPoints: _keyPoints,
+                onExamMethodsChanged: (methods) {
+                  setState(() => _examMethods = methods);
+                },
+                onKeyPointsChanged: (points) {
+                  setState(() => _keyPoints = points);
+                },
+                existingExamMethods: _existingExamMethods,
+                existingKeyPoints: _existingKeyPoints,
               ),
               const SizedBox(height: 16),
 

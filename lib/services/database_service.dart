@@ -27,6 +27,10 @@ class DatabaseService {
   static const String tableStudyRecords = 'study_records';
   static const String tableUserProfiles = 'user_profiles';
   static const String tableMindMapData = 'mind_map_data';
+  static const String tableHabits = 'habits';
+  static const String tableHabitCheckIns = 'habit_check_ins';
+  static const String tableExamPapers = 'exam_papers';
+  static const String tableUsageRecords = 'usage_records';
 
   /// 获取数据库实例，如果不存在则创建
   Future<Database> get database async {
@@ -264,6 +268,75 @@ class DatabaseService {
       )
     ''');
 
+    // 习惯表
+    await db.execute('''
+      CREATE TABLE $tableHabits (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uuid TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        description TEXT,
+        target_days INTEGER NOT NULL,
+        current_streak INTEGER DEFAULT 0,
+        total_completed_days INTEGER DEFAULT 0,
+        created_at TEXT NOT NULL,
+        completed_at TEXT,
+        is_active INTEGER DEFAULT 1,
+        icon TEXT,
+        color INTEGER,
+        reminder_hour INTEGER,
+        reminder_minute INTEGER,
+        reminder_enabled INTEGER DEFAULT 0
+      )
+    ''');
+
+    // 习惯打卡记录表
+    await db.execute('''
+      CREATE TABLE $tableHabitCheckIns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uuid TEXT NOT NULL UNIQUE,
+        habit_uuid TEXT NOT NULL,
+        check_in_time TEXT NOT NULL,
+        note TEXT,
+        mood INTEGER,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (habit_uuid) REFERENCES $tableHabits (uuid) ON DELETE CASCADE
+      )
+    ''');
+
+    // 试卷表
+    await db.execute('''
+      CREATE TABLE $tableExamPapers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uuid TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        subject TEXT NOT NULL,
+        exam_date INTEGER NOT NULL,
+        total_score INTEGER NOT NULL,
+        obtained_score INTEGER,
+        questions TEXT,
+        images TEXT,
+        notes TEXT,
+        source TEXT DEFAULT 'mock',
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      )
+    ''');
+
+    // APP使用记录表
+    await db.execute('''
+      CREATE TABLE $tableUsageRecords (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uuid TEXT NOT NULL UNIQUE,
+        start_time INTEGER NOT NULL,
+        end_time INTEGER,
+        duration INTEGER,
+        date TEXT NOT NULL,
+        device_info TEXT,
+        app_version TEXT,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
     // 创建索引
     await _createIndexes(db);
   }
@@ -305,6 +378,30 @@ class DatabaseService {
     );
     await db.execute(
       'CREATE INDEX idx_mm_subject ON $tableMindMapData (subject)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_habit_active ON $tableHabits (is_active)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_habit_checkin_habit ON $tableHabitCheckIns (habit_uuid)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_habit_checkin_time ON $tableHabitCheckIns (check_in_time)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_exam_paper_subject ON $tableExamPapers (subject)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_exam_paper_date ON $tableExamPapers (exam_date)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_exam_paper_source ON $tableExamPapers (source)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_usage_records_date ON $tableUsageRecords (date)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_usage_records_start_time ON $tableUsageRecords (start_time)',
     );
   }
 
@@ -2050,5 +2147,520 @@ class DatabaseService {
   Future<void> rawExecute(String sql, [List<dynamic>? arguments]) async {
     final db = await database;
     await db.execute(sql, arguments);
+  }
+
+  // ==================== 习惯 CRUD ====================
+
+  /// 插入习惯
+  Future<int> insertHabit(Map<String, dynamic> data) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    data['created_at'] = now;
+    return await db.insert(tableHabits, data);
+  }
+
+  /// 更新习惯
+  Future<int> updateHabit(int id, Map<String, dynamic> data) async {
+    final db = await database;
+    return await db.update(
+      tableHabits,
+      data,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 删除习惯
+  Future<int> deleteHabit(int id) async {
+    final db = await database;
+    return await db.delete(
+      tableHabits,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 根据ID查询习惯
+  Future<Map<String, dynamic>?> queryHabitById(int id) async {
+    final db = await database;
+    final results = await db.query(
+      tableHabits,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// 根据UUID查询习惯
+  Future<Map<String, dynamic>?> queryHabitByUuid(String uuid) async {
+    final db = await database;
+    final results = await db.query(
+      tableHabits,
+      where: 'uuid = ?',
+      whereArgs: [uuid],
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// 查询所有习惯
+  Future<List<Map<String, dynamic>>> queryAllHabits({
+    String? orderBy,
+    int? limit,
+    int? offset,
+  }) async {
+    final db = await database;
+    return await db.query(
+      tableHabits,
+      orderBy: orderBy ?? 'created_at DESC',
+      limit: limit,
+      offset: offset,
+    );
+  }
+
+  /// 查询进行中的习惯
+  Future<List<Map<String, dynamic>>> queryActiveHabits() async {
+    final db = await database;
+    return await db.query(
+      tableHabits,
+      where: 'is_active = ?',
+      whereArgs: [1],
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// 查询已完成的习惯
+  Future<List<Map<String, dynamic>>> queryCompletedHabits() async {
+    final db = await database;
+    return await db.query(
+      tableHabits,
+      where: 'is_active = ? AND total_completed_days >= target_days',
+      whereArgs: [1],
+      orderBy: 'completed_at DESC',
+    );
+  }
+
+  /// 习惯计数
+  Future<int> countHabits({bool? active}) async {
+    final db = await database;
+    if (active != null) {
+      final results = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM $tableHabits WHERE is_active = ?',
+        [active ? 1 : 0],
+      );
+      return Sqflite.firstIntValue(results) ?? 0;
+    }
+    return Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) as count FROM $tableHabits'),
+    ) ?? 0;
+  }
+
+  // ==================== 习惯打卡记录 CRUD ====================
+
+  /// 插入打卡记录
+  Future<int> insertHabitCheckIn(Map<String, dynamic> data) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    data['created_at'] = now;
+    return await db.insert(tableHabitCheckIns, data);
+  }
+
+  /// 更新打卡记录
+  Future<int> updateHabitCheckIn(int id, Map<String, dynamic> data) async {
+    final db = await database;
+    return await db.update(
+      tableHabitCheckIns,
+      data,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 删除打卡记录
+  Future<int> deleteHabitCheckIn(int id) async {
+    final db = await database;
+    return await db.delete(
+      tableHabitCheckIns,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 根据ID查询打卡记录
+  Future<Map<String, dynamic>?> queryHabitCheckInById(int id) async {
+    final db = await database;
+    final results = await db.query(
+      tableHabitCheckIns,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// 根据UUID查询打卡记录
+  Future<Map<String, dynamic>?> queryHabitCheckInByUuid(String uuid) async {
+    final db = await database;
+    final results = await db.query(
+      tableHabitCheckIns,
+      where: 'uuid = ?',
+      whereArgs: [uuid],
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// 查询习惯的所有打卡记录
+  Future<List<Map<String, dynamic>>> queryHabitCheckInsByHabitUuid(
+    String habitUuid, {
+    String? orderBy,
+  }) async {
+    final db = await database;
+    return await db.query(
+      tableHabitCheckIns,
+      where: 'habit_uuid = ?',
+      whereArgs: [habitUuid],
+      orderBy: orderBy ?? 'check_in_time DESC',
+    );
+  }
+
+  /// 查询今日打卡记录
+  Future<List<Map<String, dynamic>>> queryTodayCheckIns() async {
+    final db = await database;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    return await db.query(
+      tableHabitCheckIns,
+      where: 'check_in_time >= ? AND check_in_time < ?',
+      whereArgs: [today.toIso8601String(), tomorrow.toIso8601String()],
+      orderBy: 'check_in_time DESC',
+    );
+  }
+
+  /// 查询某习惯的今日打卡记录
+  Future<Map<String, dynamic>?> queryTodayCheckInByHabit(String habitUuid) async {
+    final db = await database;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final tomorrow = today.add(const Duration(days: 1));
+    final results = await db.query(
+      tableHabitCheckIns,
+      where: 'habit_uuid = ? AND check_in_time >= ? AND check_in_time < ?',
+      whereArgs: [habitUuid, today.toIso8601String(), tomorrow.toIso8601String()],
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// 查询某日期范围内的打卡记录
+  Future<List<Map<String, dynamic>>> queryCheckInsByDateRange(
+    String habitUuid,
+    DateTime startDate,
+    DateTime endDate,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableHabitCheckIns,
+      where: 'habit_uuid = ? AND check_in_time >= ? AND check_in_time <= ?',
+      whereArgs: [
+        habitUuid,
+        startDate.toIso8601String(),
+        endDate.toIso8601String(),
+      ],
+      orderBy: 'check_in_time DESC',
+    );
+  }
+
+  /// 打卡记录计数
+  Future<int> countHabitCheckIns(String habitUuid) async {
+    final db = await database;
+    final results = await db.rawQuery(
+      'SELECT COUNT(*) as count FROM $tableHabitCheckIns WHERE habit_uuid = ?',
+      [habitUuid],
+    );
+    return Sqflite.firstIntValue(results) ?? 0;
+  }
+
+  /// 删除习惯的所有打卡记录
+  Future<int> deleteHabitCheckInsByHabitUuid(String habitUuid) async {
+    final db = await database;
+    return await db.delete(
+      tableHabitCheckIns,
+      where: 'habit_uuid = ?',
+      whereArgs: [habitUuid],
+    );
+  }
+
+  // ==================== 试卷 CRUD ====================
+
+  /// 插入试卷
+  Future<int> insertExamPaper(Map<String, dynamic> data) async {
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    data['created_at'] = now;
+    data['updated_at'] = now;
+    return await db.insert(tableExamPapers, data);
+  }
+
+  /// 更新试卷
+  Future<int> updateExamPaper(int id, Map<String, dynamic> data) async {
+    final db = await database;
+    data['updated_at'] = DateTime.now().millisecondsSinceEpoch;
+    return await db.update(
+      tableExamPapers,
+      data,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 删除试卷
+  Future<int> deleteExamPaper(int id) async {
+    final db = await database;
+    return await db.delete(
+      tableExamPapers,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 根据ID查询试卷
+  Future<Map<String, dynamic>?> queryExamPaperById(int id) async {
+    final db = await database;
+    final results = await db.query(
+      tableExamPapers,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// 根据UUID查询试卷
+  Future<Map<String, dynamic>?> queryExamPaperByUuid(String uuid) async {
+    final db = await database;
+    final results = await db.query(
+      tableExamPapers,
+      where: 'uuid = ?',
+      whereArgs: [uuid],
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// 查询所有试卷
+  Future<List<Map<String, dynamic>>> queryAllExamPapers({
+    String? orderBy,
+    int? limit,
+    int? offset,
+  }) async {
+    final db = await database;
+    return await db.query(
+      tableExamPapers,
+      orderBy: orderBy ?? 'exam_date DESC',
+      limit: limit,
+      offset: offset,
+    );
+  }
+
+  /// 按科目查询试卷
+  Future<List<Map<String, dynamic>>> queryExamPapersBySubject(
+    String subject,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableExamPapers,
+      where: 'subject = ?',
+      whereArgs: [subject],
+      orderBy: 'exam_date DESC',
+    );
+  }
+
+  /// 按来源查询试卷
+  Future<List<Map<String, dynamic>>> queryExamPapersBySource(
+    String source,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableExamPapers,
+      where: 'source = ?',
+      whereArgs: [source],
+      orderBy: 'exam_date DESC',
+    );
+  }
+
+  /// 按日期范围查询试卷
+  Future<List<Map<String, dynamic>>> queryExamPapersByDateRange(
+    int startDate,
+    int endDate,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableExamPapers,
+      where: 'exam_date >= ? AND exam_date <= ?',
+      whereArgs: [startDate, endDate],
+      orderBy: 'exam_date DESC',
+    );
+  }
+
+  /// 试卷计数
+  Future<int> countExamPapers({String? subject, String? source}) async {
+    final db = await database;
+    String whereClause = '';
+    List<dynamic> whereArgs = [];
+
+    if (subject != null) {
+      whereClause += 'subject = ?';
+      whereArgs.add(subject);
+    }
+    if (source != null) {
+      if (whereClause.isNotEmpty) whereClause += ' AND ';
+      whereClause += 'source = ?';
+      whereArgs.add(source);
+    }
+
+    if (whereClause.isNotEmpty) {
+      final results = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM $tableExamPapers WHERE $whereClause',
+        whereArgs,
+      );
+      return Sqflite.firstIntValue(results) ?? 0;
+    }
+    return Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) as count FROM $tableExamPapers'),
+    ) ?? 0;
+  }
+
+  /// 获取试卷平均分
+  Future<double> getExamPaperAverageScore({String? subject}) async {
+    final db = await database;
+    if (subject != null) {
+      final results = await db.rawQuery(
+        'SELECT AVG(CAST(obtained_score AS REAL) / total_score * 100) as avg_score '
+        'FROM $tableExamPapers WHERE subject = ? AND obtained_score IS NOT NULL',
+        [subject],
+      );
+      return (results.first['avg_score'] as num?)?.toDouble() ?? 0.0;
+    }
+    final results = await db.rawQuery(
+      'SELECT AVG(CAST(obtained_score AS REAL) / total_score * 100) as avg_score '
+      'FROM $tableExamPapers WHERE obtained_score IS NOT NULL',
+    );
+    return (results.first['avg_score'] as num?)?.toDouble() ?? 0.0;
+  }
+
+  // ==================== APP使用记录 CRUD ====================
+
+  /// 插入使用记录
+  Future<int> insertUsageRecord(Map<String, dynamic> data) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    data['created_at'] = now;
+    return await db.insert(tableUsageRecords, data);
+  }
+
+  /// 更新使用记录
+  Future<int> updateUsageRecord(String uuid, Map<String, dynamic> data) async {
+    final db = await database;
+    return await db.update(
+      tableUsageRecords,
+      data,
+      where: 'uuid = ?',
+      whereArgs: [uuid],
+    );
+  }
+
+  /// 删除使用记录
+  Future<int> deleteUsageRecord(int id) async {
+    final db = await database;
+    return await db.delete(
+      tableUsageRecords,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 根据ID查询使用记录
+  Future<Map<String, dynamic>?> queryUsageRecordById(String uuid) async {
+    final db = await database;
+    final results = await db.query(
+      tableUsageRecords,
+      where: 'uuid = ?',
+      whereArgs: [uuid],
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// 查询所有使用记录
+  Future<List<Map<String, dynamic>>> queryAllUsageRecords({
+    String? orderBy,
+    int? limit,
+    int? offset,
+  }) async {
+    final db = await database;
+    return await db.query(
+      tableUsageRecords,
+      orderBy: orderBy ?? 'start_time DESC',
+      limit: limit,
+      offset: offset,
+    );
+  }
+
+  /// 按日期查询使用记录
+  Future<List<Map<String, dynamic>>> queryUsageRecordsByDate(String date) async {
+    final db = await database;
+    return await db.query(
+      tableUsageRecords,
+      where: 'date = ?',
+      whereArgs: [date],
+      orderBy: 'start_time DESC',
+    );
+  }
+
+  /// 按日期范围查询使用记录
+  Future<List<Map<String, dynamic>>> queryUsageRecordsByDateRange(
+    String startDate,
+    String endDate,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableUsageRecords,
+      where: 'date >= ? AND date <= ?',
+      whereArgs: [startDate, endDate],
+      orderBy: 'date ASC, start_time ASC',
+    );
+  }
+
+  /// 获取指定日期的总使用时长（秒）
+  Future<int> getTotalUsageTimeByDate(String date) async {
+    final db = await database;
+    final results = await db.rawQuery(
+      'SELECT SUM(duration) as total FROM $tableUsageRecords WHERE date = ? AND duration IS NOT NULL',
+      [date],
+    );
+    return (results.first['total'] as num?)?.toInt() ?? 0;
+  }
+
+  /// 获取指定日期范围的总使用时长（秒）
+  Future<int> getTotalUsageTimeByDateRange(String startDate, String endDate) async {
+    final db = await database;
+    final results = await db.rawQuery(
+      'SELECT SUM(duration) as total FROM $tableUsageRecords WHERE date >= ? AND date <= ? AND duration IS NOT NULL',
+      [startDate, endDate],
+    );
+    return (results.first['total'] as num?)?.toInt() ?? 0;
+  }
+
+  /// 获取使用记录数量
+  Future<int> countUsageRecords() async {
+    final db = await database;
+    return Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) as count FROM $tableUsageRecords'),
+    ) ?? 0;
+  }
+
+  /// 删除指定日期之前的使用记录（用于清理旧数据）
+  Future<int> deleteUsageRecordsBeforeDate(String date) async {
+    final db = await database;
+    return await db.delete(
+      tableUsageRecords,
+      where: 'date < ?',
+      whereArgs: [date],
+    );
   }
 }

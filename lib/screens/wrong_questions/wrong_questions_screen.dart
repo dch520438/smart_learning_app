@@ -11,6 +11,8 @@ import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/question_widgets.dart';
+import '../../widgets/exam_method_keypoint_input.dart';
+import '../../widgets/input_method_selector.dart';
 
 // ============================================================
 // WrongQuestionsScreen - 错题本主页面
@@ -300,6 +302,72 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
     }
   }
 
+  Future<void> _batchPrint() async {
+    if (_selectedIds.isEmpty) return;
+
+    // 获取选中的错题数据
+    final selectedQuestions = _questions.where((q) {
+      return _selectedIds.contains(q.id);
+    }).toList();
+
+    // 转换为打印内容项
+    final printItems = selectedQuestions.map((q) {
+      // 构建错题内容
+      final buffer = StringBuffer();
+      buffer.writeln('【题目】');
+      buffer.writeln(q.content);
+      buffer.writeln();
+      if (q.options.isNotEmpty) {
+        buffer.writeln('【选项】');
+        for (int i = 0; i < q.options.length; i++) {
+          final option = q.options[i];
+          final label = option['label'] ?? String.fromCharCode(65 + i);
+          final text = option['text'] ?? '';
+          buffer.writeln('$label. $text');
+        }
+        buffer.writeln();
+      }
+      if (q.correctAnswer.isNotEmpty) {
+        buffer.writeln('【正确答案】');
+        buffer.writeln(q.correctAnswer);
+        buffer.writeln();
+      }
+      if (q.userAnswer != null && q.userAnswer!.isNotEmpty) {
+        buffer.writeln('【我的答案】');
+        buffer.writeln(q.userAnswer);
+        buffer.writeln();
+      }
+      if (q.analysis.isNotEmpty) {
+        buffer.writeln('【解析】');
+        buffer.writeln(q.analysis);
+      }
+
+      return PrintContentItem(
+        type: PrintContentType.wrongQuestion,
+        title: q.title.isNotEmpty ? q.title : '错题详情',
+        content: buffer.toString(),
+        subject: q.subject,
+        additionalMetadata: {
+          '错误类型': q.errorType,
+          '状态': q.isResolved ? '已掌握' : '未掌握',
+          '错误次数': '${q.errorCount}次',
+        },
+      );
+    }).toList();
+
+    // 调用批量打印
+    await PrintService.printBatch(
+      context: context,
+      items: printItems,
+      customTitle: '错题打印 (${printItems.length}项)',
+    );
+
+    setState(() {
+      _isSelectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -411,6 +479,7 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
               onSelectAll: (_) => _selectAll(),
               onDelete: _batchDelete,
               onExport: _batchExport,
+              onPrint: _batchPrint,
               onCancel: () {
                 setState(() {
                   _isSelectionMode = false;
@@ -813,9 +882,19 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
   }
 
   Future<void> _showAddDialog() async {
+    // 显示录入方式选择器
+    final method = await InputMethodSelector.show(context);
+    if (method == null) return;
+
+    // 处理录入方式
+    final handler = InputMethodHandler(context);
+    final recognizedText = await handler.handleInputMethod(method);
+
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const WrongQuestionAddScreen(),
+        builder: (_) => WrongQuestionAddScreen(
+          initialContent: recognizedText,
+        ),
       ),
     );
     if (result == true) _loadData();
@@ -1484,8 +1563,9 @@ class _WrongQuestionRedoScreenState extends State<_WrongQuestionRedoScreen> {
 
 class WrongQuestionAddScreen extends StatefulWidget {
   final WrongQuestion? question;
+  final String? initialContent;
 
-  const WrongQuestionAddScreen({super.key, this.question});
+  const WrongQuestionAddScreen({super.key, this.question, this.initialContent});
 
   @override
   State<WrongQuestionAddScreen> createState() =>
@@ -1506,6 +1586,8 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
   String _errorType = '知识盲区';
   String _correctAnswer = 'A';
   String _userAnswer = 'B';
+  List<String> _examMethods = [];
+  List<String> _keyPoints = [];
 
   // 动态选项
   final List<TextEditingController> _optionControllers = [
@@ -1521,6 +1603,10 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
   bool _isSaving = false;
   bool _isOcrLoading = false;
 
+  // 已有的考法考点选项
+  List<String> _existingExamMethods = [];
+  List<String> _existingKeyPoints = [];
+
   @override
   void initState() {
     super.initState();
@@ -1533,6 +1619,8 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
       _errorType = widget.question!.errorType;
       _correctAnswer = widget.question!.correctAnswer;
       _userAnswer = widget.question!.userAnswer ?? '';
+      _examMethods = widget.question!.examMethods;
+      _keyPoints = widget.question!.keyPoints;
 
       for (int i = 0; i < widget.question!.options.length && i < 4; i++) {
         final opt = widget.question!.options[i];
@@ -1544,7 +1632,39 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
         final path = att['path'] as String? ?? '';
         if (path.isNotEmpty) _attachmentPaths.add(path);
       }
+    } else if (widget.initialContent != null) {
+      _contentController.text = widget.initialContent!;
     }
+    _loadExistingExamMethodsAndKeyPoints();
+  }
+
+  Future<void> _loadExistingExamMethodsAndKeyPoints() async {
+    // 从数据库加载已有的考法考点作为选项
+    final questions = await _db.queryAllWrongQuestions(limit: 100);
+    final Set<String> examMethodsSet = {};
+    final Set<String> keyPointsSet = {};
+
+    for (final q in questions) {
+      final em = q['exam_methods'];
+      final kp = q['key_points'];
+      if (em != null) {
+        try {
+          final List<dynamic> decoded = jsonDecode(em.toString());
+          examMethodsSet.addAll(decoded.map((e) => e.toString()));
+        } catch (_) {}
+      }
+      if (kp != null) {
+        try {
+          final List<dynamic> decoded = jsonDecode(kp.toString());
+          keyPointsSet.addAll(decoded.map((e) => e.toString()));
+        } catch (_) {}
+      }
+    }
+
+    setState(() {
+      _existingExamMethods = examMethodsSet.toList()..sort();
+      _existingKeyPoints = keyPointsSet.toList()..sort();
+    });
   }
 
   @override
@@ -1718,6 +1838,8 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
             _attachmentPaths.isNotEmpty
                 ? jsonEncode(_attachmentPaths)
                 : null,
+        'exam_methods': jsonEncode(_examMethods),
+        'key_points': jsonEncode(_keyPoints),
       };
 
       if (widget.question != null) {
@@ -1996,6 +2118,21 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
                   onTap: () => setState(() => _errorType = type),
                 );
               }).toList(),
+            ),
+            const SizedBox(height: 16),
+
+            // 考法考点输入
+            ExamMethodKeyPointInput(
+              examMethods: _examMethods,
+              keyPoints: _keyPoints,
+              onExamMethodsChanged: (methods) {
+                setState(() => _examMethods = methods);
+              },
+              onKeyPointsChanged: (points) {
+                setState(() => _keyPoints = points);
+              },
+              existingExamMethods: _existingExamMethods,
+              existingKeyPoints: _existingKeyPoints,
             ),
             const SizedBox(height: 16),
 

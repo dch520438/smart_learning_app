@@ -18,6 +18,8 @@ class WrongQuestion {
   final int createdAt; // 时间戳
   final int updatedAt; // 时间戳
   final List<Map<String, dynamic>> attachments;
+  final List<String> examMethods; // 考法列表
+  final List<String> keyPoints; // 考点列表
 
   WrongQuestion({
     String? id,
@@ -35,11 +37,15 @@ class WrongQuestion {
     int? createdAt,
     int? updatedAt,
     List<Map<String, dynamic>>? attachments,
+    List<String>? examMethods,
+    List<String>? keyPoints,
   })  : id = id ?? const Uuid().v4(),
         options = options ?? [],
         createdAt = createdAt ?? DateTime.now().millisecondsSinceEpoch,
         updatedAt = updatedAt ?? DateTime.now().millisecondsSinceEpoch,
-        attachments = attachments ?? [];
+        attachments = attachments ?? [],
+        examMethods = examMethods ?? [],
+        keyPoints = keyPoints ?? [];
 
   /// 从JSON创建
   factory WrongQuestion.fromJson(Map<String, dynamic> json) {
@@ -65,6 +71,14 @@ class WrongQuestion {
               ?.map((e) => Map<String, dynamic>.from(e as Map))
               .toList() ??
           [],
+      examMethods: (json['examMethods'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      keyPoints: (json['keyPoints'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
     );
   }
 
@@ -86,6 +100,8 @@ class WrongQuestion {
       'createdAt': createdAt,
       'updatedAt': updatedAt,
       'attachments': attachments,
+      'examMethods': examMethods,
+      'keyPoints': keyPoints,
     };
   }
 
@@ -106,6 +122,8 @@ class WrongQuestion {
     int? createdAt,
     int? updatedAt,
     List<Map<String, dynamic>>? attachments,
+    List<String>? examMethods,
+    List<String>? keyPoints,
   }) {
     return WrongQuestion(
       id: id ?? this.id,
@@ -123,6 +141,8 @@ class WrongQuestion {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       attachments: attachments ?? this.attachments,
+      examMethods: examMethods ?? this.examMethods,
+      keyPoints: keyPoints ?? this.keyPoints,
     );
   }
 
@@ -130,6 +150,6 @@ class WrongQuestion {
   String toString() {
     return 'WrongQuestion(id: $id, title: $title, subject: $subject, '
         'chapter: $chapter, errorType: $errorType, errorCount: $errorCount, '
-        'isResolved: $isResolved)';
+        'isResolved: $isResolved, examMethods: $examMethods, keyPoints: $keyPoints)';
   }
 }

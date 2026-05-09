@@ -663,6 +663,8 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
             ((widget.examData['passing_score'] as num? ?? 60).toInt())
             ? 1
             : 0,
+        'source': 'mock', // 来源：模拟测试
+        'subject': widget.examData['subject'] as String? ?? '未分类',
       });
     } catch (e) {
       // 静默处理保存错误

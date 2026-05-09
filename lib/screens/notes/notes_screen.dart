@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 import '../../models/note.dart';
 import '../../services/database_service.dart';
 import '../../services/export_service.dart';
+import '../../services/ocr_service.dart';
 import '../../services/print_service.dart';
+import '../../services/voice_service.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/note_widgets.dart';
+import '../../widgets/exam_method_keypoint_input.dart';
+import '../../widgets/input_method_selector.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 
@@ -241,6 +245,39 @@ class _NotesScreenState extends State<NotesScreen> {
     }
   }
 
+  Future<void> _batchPrint() async {
+    if (_selectedIds.isEmpty) return;
+
+    // 获取选中的笔记数据
+    final selectedNotes = _notes.where((n) {
+      final id = n['id'] as int?;
+      return id != null && _selectedIds.contains(id);
+    }).toList();
+
+    // 转换为打印内容项
+    final printItems = selectedNotes.map((n) {
+      return PrintContentItem(
+        type: PrintContentType.note,
+        title: n['title'] as String? ?? '无标题',
+        content: n['content'] as String? ?? '',
+        subject: n['subject'] as String?,
+        tags: n['tags'] as String?,
+        createdAt: n['created_at'] != null
+            ? formatDate(DateTime.parse(n['created_at'] as String))
+            : null,
+      );
+    }).toList();
+
+    // 调用批量打印
+    await PrintService.printBatch(
+      context: context,
+      items: printItems,
+      customTitle: '笔记打印 (${printItems.length}项)',
+    );
+
+    _exitSelectionMode();
+  }
+
   // ==================== CRUD 操作 ====================
 
   Future<void> _deleteNote(int dbId, String title) async {
@@ -278,17 +315,29 @@ class _NotesScreenState extends State<NotesScreen> {
 
   // ==================== 导航 ====================
 
-  Future<void> _navigateToEditor({Map<String, dynamic>? existingNote}) async {
+  Future<void> _navigateToEditor({Map<String, dynamic>? existingNote, String? initialContent}) async {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => NoteEditorPage(
           existingNote: existingNote,
+          initialContent: initialContent,
         ),
       ),
     );
     if (result == true) {
       await _loadData();
     }
+  }
+
+  /// 显示录入方式选择器并处理录入
+  Future<void> _showInputMethodSelector() async {
+    final method = await InputMethodSelector.show(context);
+    if (method == null) return;
+
+    final handler = InputMethodHandler(context);
+    final recognizedText = await handler.handleInputMethod(method);
+
+    await _navigateToEditor(initialContent: recognizedText);
   }
 
   // ==================== 辅助方法 ====================
@@ -531,13 +580,14 @@ class _NotesScreenState extends State<NotesScreen> {
               onSelectAll: (_) => _selectAll(),
               onDelete: _batchDelete,
               onExport: _batchExport,
+              onPrint: _batchPrint,
               onCancel: _exitSelectionMode,
             )
           : null,
       floatingActionButton: _isSelectionMode
           ? null
           : FloatingActionButton(
-              onPressed: () => _navigateToEditor(),
+              onPressed: () => _showInputMethodSelector(),
               tooltip: '新建笔记',
               child: const Icon(Icons.add),
             ),
@@ -840,8 +890,9 @@ class _NotesScreenState extends State<NotesScreen> {
 
 class NoteEditorPage extends StatefulWidget {
   final Map<String, dynamic>? existingNote;
+  final String? initialContent;
 
-  const NoteEditorPage({super.key, this.existingNote});
+  const NoteEditorPage({super.key, this.existingNote, this.initialContent});
 
   @override
   State<NoteEditorPage> createState() => _NoteEditorPageState();
@@ -859,9 +910,15 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   String? _selectedSubject;
   Color _selectedColor = AppColors.primary;
   List<String> _tags = [];
+  List<String> _examMethods = [];
+  List<String> _keyPoints = [];
   bool _isPreviewMode = false;
   bool _isSaving = false;
   bool _isEditing = false;
+
+  // 已有的考法考点选项
+  List<String> _existingExamMethods = [];
+  List<String> _existingKeyPoints = [];
 
   @override
   void initState() {
@@ -878,6 +935,81 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
       _selectedSubject = note['subject'] as String?;
       _selectedColor = _parseNoteColor(note['color']);
       _parseExistingTags(note['tags']);
+      _parseExistingExamMethods(note['exam_methods']);
+      _parseExistingKeyPoints(note['key_points']);
+    } else if (widget.initialContent != null) {
+      // 如果是通过OCR或语音录入的内容
+      _contentController.text = widget.initialContent!;
+    }
+    _loadExistingExamMethodsAndKeyPoints();
+  }
+
+  Future<void> _loadExistingExamMethodsAndKeyPoints() async {
+    // 从数据库加载已有的考法考点作为选项
+    final notes = await _dbService.queryAllNotes(limit: 100);
+    final Set<String> examMethodsSet = {};
+    final Set<String> keyPointsSet = {};
+
+    for (final note in notes) {
+      final em = note['exam_methods'];
+      final kp = note['key_points'];
+      if (em != null) {
+        try {
+          final List<dynamic> decoded = jsonDecode(em.toString());
+          examMethodsSet.addAll(decoded.map((e) => e.toString()));
+        } catch (_) {}
+      }
+      if (kp != null) {
+        try {
+          final List<dynamic> decoded = jsonDecode(kp.toString());
+          keyPointsSet.addAll(decoded.map((e) => e.toString()));
+        } catch (_) {}
+      }
+    }
+
+    setState(() {
+      _existingExamMethods = examMethodsSet.toList()..sort();
+      _existingKeyPoints = keyPointsSet.toList()..sort();
+    });
+  }
+
+  void _parseExistingExamMethods(dynamic value) {
+    if (value == null) return;
+    if (value is List) {
+      _examMethods = value.map((e) => e.toString()).toList();
+    } else if (value is String) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is List) {
+          _examMethods = decoded.map((e) => e.toString()).toList();
+        }
+      } catch (_) {
+        _examMethods = value
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
+    }
+  }
+
+  void _parseExistingKeyPoints(dynamic value) {
+    if (value == null) return;
+    if (value is List) {
+      _keyPoints = value.map((e) => e.toString()).toList();
+    } else if (value is String) {
+      try {
+        final decoded = jsonDecode(value);
+        if (decoded is List) {
+          _keyPoints = decoded.map((e) => e.toString()).toList();
+        }
+      } catch (_) {
+        _keyPoints = value
+            .split(',')
+            .map((e) => e.trim())
+            .where((e) => e.isNotEmpty)
+            .toList();
+      }
     }
   }
 
@@ -989,6 +1121,8 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         'note_type': 'text',
         'is_favorite': widget.existingNote?['is_favorite'] ?? 0,
         'knowledge_point_id': widget.existingNote?['knowledge_point_id'],
+        'exam_methods': jsonEncode(_examMethods),
+        'key_points': jsonEncode(_keyPoints),
       };
 
       if (_isEditing && widget.existingNote != null) {
@@ -1208,6 +1342,24 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                     ),
 
                   const SizedBox(height: 24),
+
+                  // 考法考点区域
+                  if (!_isPreviewMode) ...[
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+                    ExamMethodKeyPointInput(
+                      examMethods: _examMethods,
+                      keyPoints: _keyPoints,
+                      onExamMethodsChanged: (methods) {
+                        setState(() => _examMethods = methods);
+                      },
+                      onKeyPointsChanged: (points) {
+                        setState(() => _keyPoints = points);
+                      },
+                      existingExamMethods: _existingExamMethods,
+                      existingKeyPoints: _existingKeyPoints,
+                    ),
+                  ],
 
                   // 标签区域
                   if (!_isPreviewMode) ...[

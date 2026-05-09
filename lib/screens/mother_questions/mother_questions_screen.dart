@@ -11,6 +11,7 @@ import '../../services/voice_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/input_method_selector.dart';
 
 // ============================================================
 // MotherQuestionsScreen - 母题集主页面
@@ -183,6 +184,82 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
     }
   }
 
+  Future<void> _batchPrint() async {
+    if (_selectedIds.isEmpty) return;
+
+    // 获取选中的母题数据
+    final selectedQuestions = _questions.where((q) {
+      final id = q['id'] as int?;
+      return id != null && _selectedIds.contains(id);
+    }).toList();
+
+    // 转换为打印内容项
+    final printItems = selectedQuestions.map((q) {
+      // 构建母题内容
+      final buffer = StringBuffer();
+      buffer.writeln('【标题】');
+      buffer.writeln(q['title'] as String? ?? '无标题');
+      buffer.writeln();
+      buffer.writeln('【题目】');
+      buffer.writeln(q['question'] as String? ?? '');
+      buffer.writeln();
+
+      final options = q['options'];
+      if (options != null && options.toString().isNotEmpty) {
+        buffer.writeln('【选项】');
+        try {
+          final optionsList = options is String ? jsonDecode(options) : options;
+          if (optionsList is List) {
+            for (int i = 0; i < optionsList.length; i++) {
+              final option = optionsList[i];
+              if (option is Map) {
+                final label = option['label'] ?? String.fromCharCode(65 + i);
+                final text = option['text'] ?? '';
+                buffer.writeln('$label. $text');
+              }
+            }
+          }
+        } catch (_) {}
+        buffer.writeln();
+      }
+
+      final correctAnswer = q['correct_answer'] as String?;
+      if (correctAnswer != null && correctAnswer.isNotEmpty) {
+        buffer.writeln('【正确答案】');
+        buffer.writeln(correctAnswer);
+        buffer.writeln();
+      }
+
+      final analysis = q['analysis'] as String?;
+      if (analysis != null && analysis.isNotEmpty) {
+        buffer.writeln('【解析】');
+        buffer.writeln(analysis);
+      }
+
+      return PrintContentItem(
+        type: PrintContentType.motherQuestion,
+        title: q['title'] as String? ?? '母题详情',
+        content: buffer.toString(),
+        subject: q['subject'] as String?,
+        difficulty: q['difficulty'] as int?,
+        tags: q['tags'] as String?,
+        masteryLevel: q['mastery_level'] as int?,
+        createdAt: q['created_at'] != null
+            ? formatDate(DateTime.parse(q['created_at'] as String))
+            : null,
+      );
+    }).toList();
+
+    // 调用批量打印
+    await PrintService.printBatch(
+      context: context,
+      items: printItems,
+      customTitle: '母题打印 (${printItems.length}项)',
+    );
+
+    _exitSelectionMode();
+  }
+
   Future<void> _showSearch() async {
     final keyword = await showSearch<String>(
       context: context,
@@ -278,6 +355,7 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
                     }
                   : null,
               onExport: _batchExport,
+              onPrint: _batchPrint,
               onCancel: _exitSelectionMode,
             )
           : null,
@@ -616,9 +694,19 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
   }
 
   Future<void> _showAddMotherQuestion(BuildContext context) async {
+    // 显示录入方式选择器
+    final method = await InputMethodSelector.show(context);
+    if (method == null) return;
+
+    // 处理录入方式
+    final handler = InputMethodHandler(context);
+    final recognizedText = await handler.handleInputMethod(method);
+
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => const _AddMotherQuestionScreen(),
+        builder: (context) => _AddMotherQuestionScreen(
+          initialContent: recognizedText,
+        ),
       ),
     );
     if (result == true) {
@@ -1174,11 +1262,13 @@ class _AddMotherQuestionScreen extends StatefulWidget {
   final int? motherQuestionId;
   final bool isVariant;
   final String? parentTitle;
+  final String? initialContent;
 
   const _AddMotherQuestionScreen({
     this.motherQuestionId,
     this.isVariant = false,
     this.parentTitle,
+    this.initialContent,
   });
 
   @override
@@ -1221,6 +1311,8 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
     super.initState();
     if (widget.isVariant && widget.parentTitle != null) {
       _titleController.text = '${widget.parentTitle} - 变式题';
+    } else if (widget.initialContent != null) {
+      _contentController.text = widget.initialContent!;
     }
     _voiceService.onListeningStateChanged = () {
       if (mounted) {

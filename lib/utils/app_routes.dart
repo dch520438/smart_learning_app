@@ -55,6 +55,15 @@ class AppRoutes {
 
   // 搜索
   static const String search = '/search';
+
+  // 母题相关
+  static const String motherQuestionDetail = '/motherQuestion/detail';
+
+  // 错题相关
+  static const String wrongQuestionDetail = '/wrongQuestion/detail';
+
+  // 必记必背相关
+  static const String mustRememberDetail = '/mustRemember/detail';
 }
 
 /// 路由生成器

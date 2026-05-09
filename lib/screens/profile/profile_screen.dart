@@ -667,125 +667,135 @@ class _ProfileScreenState extends State<ProfileScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            // 大圆形头像
-            GestureDetector(
-              onTap: () {
-                // TODO: 实现更换头像功能（使用 image_picker）
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('头像更换功能开发中')),
-                );
-              },
-              child: Stack(
-                children: [
-                  _avatarPath != null && _avatarPath!.isNotEmpty
-                      ? CircleAvatar(
-                          radius: 40,
-                          backgroundImage: FileImage(File(_avatarPath!)),
-                        )
-                      : CircleAvatar(
-                          radius: 40,
-                          backgroundColor: colorScheme.primary,
-                          child: Text(
-                            _userName.isNotEmpty ? _userName[0] : '学',
-                            style: const TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+      child: InkWell(
+        onTap: _showEditProfileDialog,
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Row(
+            children: [
+              // 大圆形头像
+              GestureDetector(
+                onTap: () {
+                  // TODO: 实现更换头像功能（使用 image_picker）
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('头像更换功能开发中')),
+                  );
+                },
+                child: Stack(
+                  children: [
+                    _avatarPath != null && _avatarPath!.isNotEmpty
+                        ? CircleAvatar(
+                            radius: 40,
+                            backgroundImage: FileImage(File(_avatarPath!)),
+                          )
+                        : CircleAvatar(
+                            radius: 40,
+                            backgroundColor: colorScheme.primary,
+                            child: Text(
+                              _userName.isNotEmpty ? _userName[0] : '学',
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
                             ),
+                          ),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        width: 24,
+                        height: 24,
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: theme.cardTheme.color ?? Colors.white,
+                            width: 2,
                           ),
                         ),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      width: 24,
-                      height: 24,
-                      decoration: BoxDecoration(
-                        color: colorScheme.primary,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: theme.cardTheme.color ?? Colors.white,
-                          width: 2,
+                        child: Icon(
+                          Icons.camera_alt,
+                          size: 12,
+                          color: theme.brightness == Brightness.dark
+                              ? Colors.white
+                              : Colors.white,
                         ),
                       ),
-                      child: Icon(
-                        Icons.camera_alt,
-                        size: 12,
-                        color: theme.brightness == Brightness.dark
-                            ? Colors.white
-                            : Colors.white,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 16),
-            // 用户信息
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _userName,
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  if (_userGrade.isNotEmpty || _userSchool.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        if (_userGrade.isNotEmpty) ...[
-                          Icon(Icons.school,
-                              size: 14, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            _userGrade,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                        if (_userGrade.isNotEmpty && _userSchool.isNotEmpty)
-                          const SizedBox(width: 12),
-                        if (_userSchool.isNotEmpty) ...[
-                          Icon(Icons.location_city,
-                              size: 14, color: Colors.grey[600]),
-                          const SizedBox(width: 4),
-                          Text(
-                            _userSchool,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
-                      ],
                     ),
                   ],
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    height: 28,
-                    child: OutlinedButton.icon(
-                      onPressed: _showEditProfileDialog,
-                      icon: const Icon(Icons.edit, size: 14),
-                      label: const Text('编辑信息', style: TextStyle(fontSize: 12)),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        textStyle: const TextStyle(fontSize: 12),
+                ),
+              ),
+              const SizedBox(width: 16),
+              // 用户信息
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _userName,
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ],
+                    if (_userGrade.isNotEmpty || _userSchool.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          if (_userGrade.isNotEmpty) ...[
+                            Icon(Icons.school,
+                                size: 14, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Text(
+                              _userGrade,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                          if (_userGrade.isNotEmpty && _userSchool.isNotEmpty)
+                            const SizedBox(width: 12),
+                          if (_userSchool.isNotEmpty) ...[
+                            Icon(Icons.location_city,
+                                size: 14, color: Colors.grey[600]),
+                            const SizedBox(width: 4),
+                            Text(
+                              _userSchool,
+                              style: TextStyle(
+                                fontSize: 13,
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 28,
+                      child: OutlinedButton.icon(
+                        onPressed: _showEditProfileDialog,
+                        icon: const Icon(Icons.edit, size: 14),
+                        label: const Text('编辑信息', style: TextStyle(fontSize: 12)),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          textStyle: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+              // 右侧箭头
+              Icon(
+                Icons.chevron_right,
+                color: Colors.grey[400],
+                size: 24,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -825,6 +835,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     iconColor: Colors.blue,
                     value: '$_totalStudyDays',
                     label: '学习天数',
+                    onTap: () => _navigateTo('/history'),
                   ),
                 ),
                 Expanded(
@@ -833,6 +844,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     iconColor: Colors.orange,
                     value: _formatStudyDuration(_totalStudyMinutes),
                     label: '学习时长',
+                    onTap: () => _navigateTo('/analysis'),
                   ),
                 ),
               ],
@@ -847,6 +859,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     iconColor: Colors.amber,
                     value: '$_knowledgeCount',
                     label: '知识点',
+                    onTap: () => _navigateTo('/knowledge'),
                   ),
                 ),
                 Expanded(
@@ -855,6 +868,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     iconColor: Colors.green,
                     value: '$_noteCount',
                     label: '笔记',
+                    onTap: () => _navigateTo('/notes'),
                   ),
                 ),
               ],
@@ -869,6 +883,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     iconColor: Colors.red,
                     value: '$_wrongQuestionCount',
                     label: '错题',
+                    onTap: () => _navigateTo('/wrong_questions'),
                   ),
                 ),
                 Expanded(
@@ -877,6 +892,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     iconColor: Colors.purple,
                     value: '$_examCount',
                     label: '测试次数',
+                    onTap: () => _navigateTo('/exam'),
                   ),
                 ),
               ],
@@ -892,38 +908,46 @@ class _ProfileScreenState extends State<ProfileScreen> {
     required Color iconColor,
     required String value,
     required String label,
+    VoidCallback? onTap,
   }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-      decoration: BoxDecoration(
-        color: iconColor.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: iconColor),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: iconColor,
-                ),
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+        decoration: BoxDecoration(
+          color: iconColor.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: iconColor),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: iconColor,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
               ),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -986,6 +1010,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: '思维导图',
         subtitle: '查看和管理思维导图',
         route: '/mind_map',
+      ),
+      _FeatureItem(
+        icon: Icons.local_fire_department,
+        iconColor: Colors.deepOrange,
+        title: '习惯打卡',
+        subtitle: '培养学习习惯，坚持每日打卡',
+        route: '/habits',
+      ),
+      _FeatureItem(
+        icon: Icons.description,
+        iconColor: Colors.blueGrey,
+        title: '试卷收集',
+        subtitle: '整理试卷、OCR识别',
+        route: '/exam_papers',
       ),
     ];
 

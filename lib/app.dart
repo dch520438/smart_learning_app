@@ -17,6 +17,57 @@ import 'screens/wrong_questions/wrong_questions_screen.dart';
 import 'screens/mother_questions/mother_questions_screen.dart';
 import 'screens/web_knowledge/web_knowledge_screen.dart';
 import 'screens/settings/settings_screen.dart';
+import 'screens/habits/habits_screen.dart';
+import 'screens/exam_papers/exam_papers_screen.dart';
+import 'screens/exam_papers/exam_paper_detail_screen.dart';
+
+/// 全局路由名称常量
+class AppRoutes {
+  static const String home = '/';
+  static const String knowledge = '/knowledge';
+  static const String notes = '/notes';
+  static const String exam = '/exam';
+  static const String profile = '/profile';
+  static const String search = '/search';
+  static const String mindMap = '/mind_map';
+  static const String analysis = '/analysis';
+  static const String history = '/history';
+  static const String mustRemember = '/must_remember';
+  static const String wrongQuestions = '/wrong_questions';
+  static const String motherQuestions = '/mother_questions';
+  static const String webKnowledge = '/web_knowledge';
+  static const String settings = '/settings';
+  static const String habits = '/habits';
+
+  // 习惯相关
+  static const String habitDetail = '/habit/detail';
+  static const String habitStats = '/habit/stats';
+
+  // 试卷相关
+  static const String examPapers = '/exam_papers';
+  static const String examPaperDetail = '/exam_papers/detail';
+}
+
+/// 路由表配置
+class AppRouter {
+  static Map<String, WidgetBuilder> get routes => {
+        AppRoutes.home: (context) => const HomeScreen(),
+        AppRoutes.knowledge: (context) => const KnowledgeScreen(),
+        AppRoutes.notes: (context) => const NotesScreen(),
+        AppRoutes.exam: (context) => const ExamScreen(),
+        AppRoutes.profile: (context) => const ProfileScreen(),
+        AppRoutes.search: (context) => const SearchScreen(),
+        AppRoutes.mindMap: (context) => const MindMapScreen(),
+        AppRoutes.analysis: (context) => const AnalysisScreen(),
+        AppRoutes.history: (context) => const HistoryScreen(),
+        AppRoutes.mustRemember: (context) => const MustRememberScreen(),
+        AppRoutes.wrongQuestions: (context) => const WrongQuestionsScreen(),
+        AppRoutes.motherQuestions: (context) => const MotherQuestionsScreen(),
+        AppRoutes.webKnowledge: (context) => const WebKnowledgeScreen(),
+        AppRoutes.settings: (context) => const SettingsScreen(),
+        AppRoutes.habits: (context) => const HabitsScreen(),
+        AppRoutes.examPapers: (context) => const ExamPapersScreen(),
+      };
 
 /// 主应用内容 Widget，包含隐藏式底部导航栏和各页面路由
 class AppContent extends StatefulWidget {
@@ -100,32 +151,56 @@ class _AppContentState extends State<AppContent> with SingleTickerProviderStateM
   void _navigateToSubPage(BuildContext context, String route) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) {
-          switch (route) {
-            case '/search':
-              return const SearchScreen();
-            case '/mind_map':
-              return const MindMapScreen();
-            case '/analysis':
-              return const AnalysisScreen();
-            case '/history':
-              return const HistoryScreen();
-            case '/must_remember':
-              return const MustRememberScreen();
-            case '/wrong_questions':
-              return const WrongQuestionsScreen();
-            case '/mother_questions':
-              return const MotherQuestionsScreen();
-            case '/web_knowledge':
-              return const WebKnowledgeScreen();
-            case '/settings':
-              return const SettingsScreen();
-            default:
-              return const HomeScreen();
-          }
-        },
+        builder: (context) => _getRouteWidget(route),
       ),
     );
+  }
+
+  /// 根据路由名称获取对应的页面 Widget
+  static Widget _getRouteWidget(String route) {
+    switch (route) {
+      case AppRoutes.search:
+      case '/search':
+        return const SearchScreen();
+      case AppRoutes.mindMap:
+      case '/mind_map':
+        return const MindMapScreen();
+      case AppRoutes.analysis:
+      case '/analysis':
+        return const AnalysisScreen();
+      case AppRoutes.history:
+      case '/history':
+        return const HistoryScreen();
+      case AppRoutes.mustRemember:
+      case '/must_remember':
+        return const MustRememberScreen();
+      case AppRoutes.wrongQuestions:
+      case '/wrong_questions':
+        return const WrongQuestionsScreen();
+      case AppRoutes.motherQuestions:
+      case '/mother_questions':
+        return const MotherQuestionsScreen();
+      case AppRoutes.webKnowledge:
+      case '/web_knowledge':
+        return const WebKnowledgeScreen();
+      case AppRoutes.settings:
+      case '/settings':
+        return const SettingsScreen();
+      case AppRoutes.knowledge:
+      case '/knowledge':
+        return const KnowledgeScreen();
+      case AppRoutes.notes:
+      case '/notes':
+        return const NotesScreen();
+      case AppRoutes.profile:
+      case '/profile':
+        return const ProfileScreen();
+      case AppRoutes.habits:
+      case '/habits':
+        return const HabitsScreen();
+      default:
+        return const HomeScreen();
+    }
   }
 
   @override
@@ -135,6 +210,7 @@ class _AppContentState extends State<AppContent> with SingleTickerProviderStateM
     final isDark = themeProvider.themeMode == ThemeMode.dark;
     final screenWidth = MediaQuery.of(context).size.width;
     final isTablet = screenWidth > 600;
+    final primaryColor = themeProvider.primaryColor;
 
     return Scaffold(
       body: GestureDetector(
@@ -162,9 +238,9 @@ class _AppContentState extends State<AppContent> with SingleTickerProviderStateM
                       offset: const Offset(0, -2),
                     ),
                   ],
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
-                    topRight: Radius.circular(16),
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(themeProvider.radiusValue),
+                    topRight: Radius.circular(themeProvider.radiusValue),
                   ),
                 ),
                 child: SafeArea(
@@ -174,9 +250,7 @@ class _AppContentState extends State<AppContent> with SingleTickerProviderStateM
                     type: BottomNavigationBarType.fixed,
                     showSelectedLabels: true,
                     showUnselectedLabels: true,
-                    selectedItemColor: isDark
-                        ? const Color(0xFF6DB3F8)
-                        : const Color(0xFF4A90D9),
+                    selectedItemColor: primaryColor,
                     unselectedItemColor: isDark
                         ? const Color(0xFF777777)
                         : const Color(0xFF999999),
@@ -221,7 +295,7 @@ class _AppContentState extends State<AppContent> with SingleTickerProviderStateM
       floatingActionButton: navProvider.currentIndex == 0
           ? FloatingActionButton(
               onPressed: () => _navigateToSubPage(context, '/search'),
-              backgroundColor: const Color(0xFF4A90D9),
+              backgroundColor: primaryColor,
               child: const Icon(Icons.search, color: Colors.white),
             )
           : null,

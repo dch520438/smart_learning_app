@@ -11,6 +11,8 @@ import '../../services/voice_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/exam_method_keypoint_input.dart';
+import '../../widgets/input_method_selector.dart';
 
 // ============================================================
 // MustRememberScreen - 必记必背主页面
@@ -285,6 +287,47 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
     }
   }
 
+  Future<void> _batchPrint() async {
+    if (_selectedIds.isEmpty) return;
+
+    // 获取选中的必记内容数据
+    final selectedItems = _items.where((item) {
+      return _selectedIds.contains(item.id);
+    }).toList();
+
+    // 转换为打印内容项
+    final printItems = selectedItems.map((item) {
+      return PrintContentItem(
+        type: PrintContentType.mustRemember,
+        title: item.title.isNotEmpty ? item.title : '必背内容',
+        content: item.content,
+        subject: item.subject,
+        category: item.category,
+        masteryLevel: item.memoryLevel,
+        additionalMetadata: {
+          '状态': item.isMastered ? '已掌握' : '学习中',
+          '复习次数': '${item.reviewCount}次',
+          if (item.nextReviewTime != null)
+            '下次复习': formatDate(
+              DateTime.fromMillisecondsSinceEpoch(item.nextReviewTime!),
+            ),
+        },
+      );
+    }).toList();
+
+    // 调用批量打印
+    await PrintService.printBatch(
+      context: context,
+      items: printItems,
+      customTitle: '必背必记打印 (${printItems.length}项)',
+    );
+
+    setState(() {
+      _isSelectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -449,6 +492,7 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
               onSelectAll: (_) => _selectAll(),
               onDelete: _batchDelete,
               onExport: _batchExport,
+              onPrint: _batchPrint,
               onCancel: () {
                 setState(() {
                   _isSelectionMode = false;
@@ -774,9 +818,19 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
   }
 
   Future<void> _showAddScreen() async {
+    // 显示录入方式选择器
+    final method = await InputMethodSelector.show(context);
+    if (method == null) return;
+
+    // 处理录入方式
+    final handler = InputMethodHandler(context);
+    final recognizedText = await handler.handleInputMethod(method);
+
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => const MustRememberAddScreen(),
+        builder: (_) => MustRememberAddScreen(
+          initialContent: recognizedText,
+        ),
       ),
     );
     if (result == true) _loadData();
@@ -1438,8 +1492,9 @@ class _MustRememberDetailScreenState extends State<MustRememberDetailScreen> {
 
 class MustRememberAddScreen extends StatefulWidget {
   final MustRemember? item;
+  final String? initialContent;
 
-  const MustRememberAddScreen({super.key, this.item});
+  const MustRememberAddScreen({super.key, this.item, this.initialContent});
 
   @override
   State<MustRememberAddScreen> createState() =>
@@ -1457,10 +1512,16 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
 
   String _subject = '数学';
   String _category = '公式';
+  List<String> _examMethods = [];
+  List<String> _keyPoints = [];
 
   bool _isSaving = false;
   bool _isOcrLoading = false;
   bool _isVoiceListening = false;
+
+  // 已有的考法考点选项
+  List<String> _existingExamMethods = [];
+  List<String> _existingKeyPoints = [];
 
   @override
   void initState() {
@@ -1470,7 +1531,42 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
       _contentController.text = widget.item!.content;
       _subject = widget.item!.subject;
       _category = widget.item!.category;
+      _examMethods = widget.item!.examMethods;
+      _keyPoints = widget.item!.keyPoints;
+    } else if (widget.initialContent != null) {
+      // 如果是通过OCR或语音录入的内容
+      _contentController.text = widget.initialContent!;
     }
+    _loadExistingExamMethodsAndKeyPoints();
+  }
+
+  Future<void> _loadExistingExamMethodsAndKeyPoints() async {
+    // 从数据库加载已有的考法考点作为选项
+    final items = await _db.queryAllMustRemember(limit: 100);
+    final Set<String> examMethodsSet = {};
+    final Set<String> keyPointsSet = {};
+
+    for (final item in items) {
+      final em = item['exam_methods'];
+      final kp = item['key_points'];
+      if (em != null) {
+        try {
+          final List<dynamic> decoded = jsonDecode(em.toString());
+          examMethodsSet.addAll(decoded.map((e) => e.toString()));
+        } catch (_) {}
+      }
+      if (kp != null) {
+        try {
+          final List<dynamic> decoded = jsonDecode(kp.toString());
+          keyPointsSet.addAll(decoded.map((e) => e.toString()));
+        } catch (_) {}
+      }
+    }
+
+    setState(() {
+      _existingExamMethods = examMethodsSet.toList()..sort();
+      _existingKeyPoints = keyPointsSet.toList()..sort();
+    });
   }
 
   @override
@@ -1629,6 +1725,8 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
                 .toIso8601String()
             : null,
         'is_mastered': widget.item?.isMastered == true ? 1 : 0,
+        'exam_methods': jsonEncode(_examMethods),
+        'key_points': jsonEncode(_keyPoints),
       };
 
       // 如果是新添加的内容，按艾宾浩斯遗忘曲线计算首次复习时间
@@ -1725,6 +1823,21 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
                   onTap: () => setState(() => _category = cat),
                 );
               }).toList(),
+            ),
+            const SizedBox(height: 16),
+
+            // 考法考点输入
+            ExamMethodKeyPointInput(
+              examMethods: _examMethods,
+              keyPoints: _keyPoints,
+              onExamMethodsChanged: (methods) {
+                setState(() => _examMethods = methods);
+              },
+              onKeyPointsChanged: (points) {
+                setState(() => _keyPoints = points);
+              },
+              existingExamMethods: _existingExamMethods,
+              existingKeyPoints: _existingKeyPoints,
             ),
             const SizedBox(height: 16),
 

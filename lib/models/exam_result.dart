@@ -14,6 +14,12 @@ class ExamResult {
   final int? endTime; // 时间戳
   final int createdAt; // 时间戳
 
+  /// 来源（mock-模拟/school-学校/offline-线下）
+  final String source;
+
+  /// 学科
+  final String? subject;
+
   ExamResult({
     String? id,
     required this.examId,
@@ -25,6 +31,8 @@ class ExamResult {
     this.startTime,
     this.endTime,
     int? createdAt,
+    this.source = 'mock',
+    this.subject,
   })  : id = id ?? const Uuid().v4(),
         answers = answers ?? [],
         createdAt = createdAt ?? DateTime.now().millisecondsSinceEpoch;
@@ -45,6 +53,8 @@ class ExamResult {
       startTime: json['startTime'] as int?,
       endTime: json['endTime'] as int?,
       createdAt: json['createdAt'] as int? ?? DateTime.now().millisecondsSinceEpoch,
+      source: json['source'] as String? ?? 'mock',
+      subject: json['subject'] as String?,
     );
   }
 
@@ -61,6 +71,8 @@ class ExamResult {
       'startTime': startTime,
       'endTime': endTime,
       'createdAt': createdAt,
+      'source': source,
+      'subject': subject,
     };
   }
 
@@ -76,6 +88,8 @@ class ExamResult {
     int? startTime,
     int? endTime,
     int? createdAt,
+    String? source,
+    String? subject,
   }) {
     return ExamResult(
       id: id ?? this.id,
@@ -88,6 +102,8 @@ class ExamResult {
       startTime: startTime ?? this.startTime,
       endTime: endTime ?? this.endTime,
       createdAt: createdAt ?? this.createdAt,
+      source: source ?? this.source,
+      subject: subject ?? this.subject,
     );
   }
 
