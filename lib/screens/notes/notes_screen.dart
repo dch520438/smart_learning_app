@@ -222,18 +222,17 @@ class _NotesScreenState extends State<NotesScreen> {
   Future<void> _batchExport() async {
     if (_selectedIds.isEmpty) return;
     try {
-      final notes = <Map<String, dynamic>>[];
-      for (final id in _selectedIds) {
-        final note = _notes.firstWhere((n) => n.id == id, orElse: () => _notes.first);
-        notes.add(note.toJson());
-      }
       final result = await _exportService.exportModulesToJson(
-        {'notes': notes},
-        'notes_export',
+        [ExportService.moduleNotes],
+        fileName: 'notes_export',
       );
       _exitSelectionMode();
       if (mounted) {
-        showSnackBar(context, '已导出 ${notes.length} 篇笔记到 ${result.filePath}');
+        if (result.success) {
+          showSnackBar(context, '笔记导出成功: ${result.filePath}');
+        } else {
+          showSnackBar(context, '导出失败: ${result.errorMessage}', isError: true);
+        }
       }
     } catch (e) {
       if (mounted) {
