@@ -60,7 +60,7 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  // 初始化 ThemeProvider
+  // 初始化主题
   final themeProvider = ThemeProvider();
   await themeProvider.initialize();
 
@@ -69,14 +69,13 @@ void main() async {
   try {
     await usageTimeService.initialize();
   } catch (e) {
-    // 使用时间记录初始化失败不影响应用启动
     debugPrint('使用时间记录初始化失败: $e');
   }
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider<ThemeProvider>.value(value: themeProvider),
+        ChangeNotifierProvider(create: (_) => themeProvider),
         ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ],
       child: const SmartLearningApp(),
@@ -95,8 +94,18 @@ class SmartLearningApp extends StatelessWidget {
       title: '智慧学习',
       debugShowCheckedModeBanner: false,
       themeMode: themeProvider.themeMode,
-      theme: themeProvider.lightTheme,
-      darkTheme: themeProvider.darkTheme,
+      theme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF4A90D9),
+        brightness: Brightness.light,
+        fontFamily: 'NotoSansCJK',
+      ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        colorSchemeSeed: const Color(0xFF4A90D9),
+        brightness: Brightness.dark,
+        fontFamily: 'NotoSansCJK',
+      ),
       home: const AppContent(),
     );
   }

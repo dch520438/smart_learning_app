@@ -63,3 +63,10 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: NotoSansCJK
+      fonts:
+        - asset: fonts/NotoSansCJK-Regular.ttc
+    - family: WQYMicroHei
+      fonts:
+        - asset: fonts/WenQuanYiMicroHei.ttf
