@@ -199,6 +199,9 @@ class _AppContentState extends State<AppContent> with SingleTickerProviderStateM
       case AppRoutes.habits:
       case '/habits':
         return const HabitsScreen();
+      case AppRoutes.examPapers:
+      case '/exam_papers':
+        return const ExamPapersScreen();
       default:
         return const HomeScreen();
     }

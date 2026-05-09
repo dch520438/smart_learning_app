@@ -19,11 +19,13 @@ class KnowledgePointCard extends StatelessWidget {
   final String? summary;
   final DateTime? updatedAt;
   final int questionCount;
+  final List<String>? tags;
   final VoidCallback? onTap;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final bool isSelected;
   final ValueChanged<bool>? onSelectionChanged;
+  final ValueChanged<String>? onTagTap;
 
   const KnowledgePointCard({
     super.key,
@@ -35,11 +37,13 @@ class KnowledgePointCard extends StatelessWidget {
     this.summary,
     this.updatedAt,
     this.questionCount = 0,
+    this.tags,
     this.onTap,
     this.onEdit,
     this.onDelete,
     this.isSelected = false,
     this.onSelectionChanged,
+    this.onTagTap,
   });
 
   @override
@@ -174,6 +178,38 @@ class KnowledgePointCard extends StatelessWidget {
                 ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+          // 标签
+          if (tags != null && tags!.isNotEmpty) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 4,
+                children: tags!.take(3).map((tag) {
+                  return GestureDetector(
+                    onTap: onTagTap != null ? () => onTagTap!(tag) : null,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: AppColors.primary.withOpacity(0.2),
+                        ),
+                      ),
+                      child: Text(
+                        '#$tag',
+                        style: TextStyle(
+                          fontSize: AppFontSize.xs,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
             ),
           ],

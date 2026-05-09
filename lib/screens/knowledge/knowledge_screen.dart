@@ -12,6 +12,7 @@ import '../../widgets/common_widgets.dart';
 import '../../widgets/knowledge_widgets.dart';
 import '../../widgets/exam_method_keypoint_input.dart';
 import '../../widgets/input_method_selector.dart';
+import '../../widgets/symbol_picker.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 
@@ -805,6 +806,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                                 updatedAt:
                                     _parseDateTime(point['updated_at']),
                                 questionCount: 0,
+                                tags: tags,
                                 isSelected: dbId != null &&
                                     _selectedIds.contains(dbId),
                                 onSelectionChanged: _isSelectionMode
@@ -815,6 +817,9 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                                       }
                                     : null,
                                 onTap: () => _navigateToDetail(point),
+                                onTagTap: (tag) {
+                                  _onTagChanged(tag);
+                                },
                                 onEdit: () async {
                                   final editResult =
                                       await Navigator.of(context).push(
@@ -1320,13 +1325,29 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
               const SizedBox(height: 16),
 
               // 内容编辑
-              AppInput(
-                controller: _contentController,
-                label: '内容',
-                hintText: '输入知识点内容...',
-                multiline: true,
-                maxLines: 10,
-                prefixIcon: Icons.article_outlined,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '内容',
+                    style: TextStyle(
+                      fontSize: AppFontSize.md,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AppSpacing.sm),
+                  // 特殊符号选择栏
+                  CompactSymbolBar(controller: _contentController),
+                  const SizedBox(height: 8),
+                  AppInput(
+                    controller: _contentController,
+                    hintText: '输入知识点内容...',
+                    multiline: true,
+                    maxLines: 10,
+                    prefixIcon: Icons.article_outlined,
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
 

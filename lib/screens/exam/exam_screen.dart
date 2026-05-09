@@ -537,6 +537,8 @@ class _ExamTakingScreen extends StatefulWidget {
 }
 
 class _ExamTakingScreenState extends State<_ExamTakingScreen> {
+  final DatabaseService _db = DatabaseService();
+  
   late int _totalQuestions;
   late int _totalSeconds;
   int _currentIndex = 0;
@@ -546,8 +548,14 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
   int _startTime = 0;
   int _endTime = 0;
 
-  // 模拟题目数据
-  late List<Map<String, dynamic>> _questions;
+  // 题目数据（包含用户录入的题目）
+  List<Map<String, dynamic>> _questions = [];
+  bool _isLoadingQuestions = true;
+  
+  // 题目来源统计
+  int _motherQuestionCount = 0;
+  int _wrongQuestionCount = 0;
+  int _systemQuestionCount = 0;
 
   // 考试结果
   int _score = 0;
@@ -561,9 +569,120 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
     final timeLimit = widget.examData['time_limit'] as int? ?? 30;
     _totalSeconds = timeLimit * 60;
     _startTime = DateTime.now().millisecondsSinceEpoch;
-    _generateMockQuestions();
+    _loadQuestions();
   }
 
+  /// 从数据库加载题目（母题、错题、系统题库）
+  Future<void> _loadQuestions() async {
+    final subject = widget.examData['subject'] as String? ?? '数学';
+    final description = widget.examData['description'] as String? ?? '';
+    
+    // 解析题目来源
+    String questionSource = 'all';
+    if (description.contains('错题本')) {
+      questionSource = 'wrong';
+    } else if (description.contains('母题集')) {
+      questionSource = 'mother';
+    }
+    
+    final random = Random();
+    final List<Map<String, dynamic>> loadedQuestions = [];
+    
+    try {
+      // 1. 加载错题
+      if (questionSource == 'all' || questionSource == 'wrong') {
+        final wrongQuestions = await _db.queryWrongQuestionsBySubject(subject);
+        for (final wq in wrongQuestions) {
+          loadedQuestions.add({
+            'id': 'wrong_${wq['id']}',
+            'content': wq['question_content'] as String? ?? '',
+            'type': wq['question_type'] as String? ?? 'singleChoice',
+            'subject': wq['subject'] as String? ?? subject,
+            'options': wq['options'] != null 
+                ? (jsonDecode(wq['options'] as String) as List).cast<String>()
+                : null,
+            'correctAnswer': wq['correct_answer'] as String? ?? '',
+            'analysis': wq['analysis'] as String? ?? '暂无解析',
+            'difficulty': wq['difficulty'] as int? ?? 2,
+            'source': 'wrong', // 来源：错题本
+            'sourceLabel': '错题',
+          });
+        }
+        _wrongQuestionCount = wrongQuestions.length;
+      }
+      
+      // 2. 加载母题
+      if (questionSource == 'all' || questionSource == 'mother') {
+        final motherQuestions = await _db.queryMotherQuestionsBySubject(subject);
+        for (final mq in motherQuestions) {
+          loadedQuestions.add({
+            'id': 'mother_${mq['id']}',
+            'content': mq['question_content'] as String? ?? '',
+            'type': mq['question_type'] as String? ?? 'singleChoice',
+            'subject': mq['subject'] as String? ?? subject,
+            'options': mq['options'] != null 
+                ? (jsonDecode(mq['options'] as String) as List).cast<String>()
+                : null,
+            'correctAnswer': mq['correct_answer'] as String? ?? '',
+            'analysis': mq['analysis'] as String? ?? '暂无解析',
+            'difficulty': mq['difficulty'] as int? ?? 2,
+            'source': 'mother', // 来源：母题集
+            'sourceLabel': '母题',
+          });
+        }
+        _motherQuestionCount = motherQuestions.length;
+      }
+      
+      // 3. 如果用户录入的题目不够，用系统题库补充
+      if (loadedQuestions.length < _totalQuestions) {
+        final needed = _totalQuestions - loadedQuestions.length;
+        for (int i = 0; i < needed; i++) {
+          final questionTypes = ['singleChoice', 'trueFalse', 'fillBlank'];
+          final type = questionTypes[random.nextInt(questionTypes.length)];
+          final correctAnswer = type == 'singleChoice'
+              ? ['A', 'B', 'C', 'D'][random.nextInt(4)]
+              : type == 'trueFalse'
+                  ? (random.nextBool() ? 'T' : 'F')
+                  : '${random.nextInt(100)}';
+
+          loadedQuestions.add({
+            'id': 'system_$i',
+            'content': '第${loadedQuestions.length + 1}题：这是一道${subject}相关的${type == 'singleChoice' ? '选择题' : type == 'trueFalse' ? '判断题' : '填空题'}，请根据所学知识作答。',
+            'type': type,
+            'subject': subject,
+            'options': type == 'singleChoice'
+                ? ['选项A的内容', '选项B的内容', '选项C的内容', '选项D的内容']
+                : null,
+            'correctAnswer': correctAnswer,
+            'analysis': '这是系统生成的题目解析。根据${subject}的基本原理，正确答案是$correctAnswer。',
+            'difficulty': random.nextInt(3) + 1,
+            'source': 'system', // 来源：系统题库
+            'sourceLabel': '系统',
+          });
+        }
+        _systemQuestionCount = needed;
+      }
+      
+      // 打乱题目顺序
+      loadedQuestions.shuffle(random);
+      
+      // 限制题目数量
+      _questions = loadedQuestions.take(_totalQuestions).toList();
+      _totalQuestions = _questions.length;
+      
+      setState(() {
+        _isLoadingQuestions = false;
+      });
+    } catch (e) {
+      // 如果加载失败，使用系统生成的题目
+      _generateMockQuestions();
+      setState(() {
+        _isLoadingQuestions = false;
+      });
+    }
+  }
+
+  /// 生成模拟题目（作为后备方案）
   void _generateMockQuestions() {
     final subject = widget.examData['subject'] as String? ?? '数学';
     final random = Random();
@@ -587,8 +706,11 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
         'correctAnswer': correctAnswer,
         'analysis': '这是第${index + 1}题的解析。根据${subject}的基本原理，正确答案是$correctAnswer。需要掌握相关知识点才能准确作答。',
         'difficulty': random.nextInt(3) + 1,
+        'source': 'system',
+        'sourceLabel': '系统',
       };
     });
+    _systemQuestionCount = _totalQuestions;
   }
 
   void _onAnswer(int questionIndex, String answer) {
@@ -633,11 +755,15 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
     try {
       final db = DatabaseService();
       final examId = widget.examData['id'] as int;
+      final title = widget.examData['title'] as String? ?? '模拟测试';
+      final subject = widget.examData['subject'] as String? ?? '未分类';
+      final totalScore = (widget.examData['total_score'] as num? ?? 100).toDouble();
+      final timeSpent = (_endTime - _startTime) ~/ 1000;
 
       // 标记考试为已完成
       await db.updateExam(examId, {'is_completed': 1});
 
-      // 保存考试结果
+      // 保存考试结果到 exam_results 表
       final answersJson = _answers.map((key, value) => MapEntry(
           key.toString(),
           {
@@ -654,7 +780,7 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
         'correct_count': _correctCount,
         'wrong_count': _wrongCount,
         'total_count': _totalQuestions,
-        'time_spent': (_endTime - _startTime) ~/ 1000,
+        'time_spent': timeSpent,
         'accuracy': _totalQuestions > 0
             ? (_correctCount / _totalQuestions * 100)
             : 0.0,
@@ -664,10 +790,30 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
             ? 1
             : 0,
         'source': 'mock', // 来源：模拟测试
-        'subject': widget.examData['subject'] as String? ?? '未分类',
+        'subject': subject,
       });
+
+      // 同时添加学习记录到 study_records 表
+      await db.insertStudyRecord({
+        'uuid': generateId(),
+        'record_type': 'exam',
+        'title': title,
+        'description': '得分: $_score/$totalScore，正确率: ${_totalQuestions > 0 ? (_correctCount / _totalQuestions * 100).toStringAsFixed(1) : 0}%',
+        'subject': subject,
+        'duration': timeSpent,
+        'related_id': examId,
+        'related_type': 'exam',
+        'score': _score.toDouble(),
+        'is_completed': 1,
+      });
+      
+      debugPrint('考试结果已保存: $title, 得分: $_score/$totalScore');
     } catch (e) {
-      // 静默处理保存错误
+      debugPrint('保存考试结果失败: $e');
+      // 显示错误提示
+      if (mounted) {
+        showSnackBar(context, '保存考试结果失败: $e', isError: true);
+      }
     }
   }
 
@@ -713,7 +859,63 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
 
   Widget _buildExamPage() {
     final theme = Theme.of(context);
+    
+    // 显示加载状态
+    if (_isLoadingQuestions) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(
+            '${widget.examData['title'] ?? '模拟测试'}',
+            style: TextStyle(fontSize: AppFontSize.md),
+          ),
+        ),
+        body: const Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AppLoading(),
+              SizedBox(height: 16),
+              Text('正在加载题目...', style: TextStyle(color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    // 如果没有题目，显示提示
+    if (_questions.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(
+            '${widget.examData['title'] ?? '模拟测试'}',
+            style: TextStyle(fontSize: AppFontSize.md),
+          ),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.quiz_outlined, size: 64, color: AppColors.textHint),
+              const SizedBox(height: 16),
+              const Text('暂无可用题目', style: TextStyle(color: AppColors.textSecondary)),
+              const SizedBox(height: 16),
+              AppButton(
+                text: '返回',
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
     final currentQuestion = _questions[_currentIndex];
+    final sourceLabel = currentQuestion['sourceLabel'] as String? ?? '';
+    final sourceColor = currentQuestion['source'] == 'wrong' 
+        ? AppColors.error 
+        : currentQuestion['source'] == 'mother' 
+            ? AppColors.warning 
+            : AppColors.info;
 
     return Scaffold(
       appBar: AppBar(
@@ -738,23 +940,82 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
       ),
       body: Column(
         children: [
+          // 题目来源统计（仅在第一题显示）
+          if (_currentIndex == 0 && (_motherQuestionCount > 0 || _wrongQuestionCount > 0))
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: AppColors.background,
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  if (_motherQuestionCount > 0)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(width: 8, height: 8, decoration: BoxDecoration(color: AppColors.warning, borderRadius: BorderRadius.circular(4))),
+                        const SizedBox(width: 4),
+                        Text('母题: $_motherQuestionCount', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  if (_wrongQuestionCount > 0)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(width: 8, height: 8, decoration: BoxDecoration(color: AppColors.error, borderRadius: BorderRadius.circular(4))),
+                        const SizedBox(width: 4),
+                        Text('错题: $_wrongQuestionCount', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                  if (_systemQuestionCount > 0)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(width: 8, height: 8, decoration: BoxDecoration(color: AppColors.info, borderRadius: BorderRadius.circular(4))),
+                        const SizedBox(width: 4),
+                        Text('系统: $_systemQuestionCount', style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                      ],
+                    ),
+                ],
+              ),
+            ),
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              child: QuestionCard(
-                id: 'q_$_currentIndex',
-                content: currentQuestion['content'],
-                type: _parseQuestionType(currentQuestion['type']),
-                subject: currentQuestion['subject'],
-                difficulty: currentQuestion['difficulty'],
-                options: (currentQuestion['options'] as List?)
-                    ?.cast<String>(),
-                correctAnswer: currentQuestion['correctAnswer'],
-                userAnswer: _answers[_currentIndex + 1],
-                analysis: currentQuestion['analysis'],
-                index: _currentIndex,
-                showResult: false,
-                onAnswer: (answer) => _onAnswer(_currentIndex, answer),
+              child: Column(
+                children: [
+                  // 题目来源标签
+                  if (sourceLabel.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          AppTag(
+                            label: sourceLabel,
+                            color: sourceColor,
+                            dense: true,
+                            fontSize: AppFontSize.xs,
+                          ),
+                        ],
+                      ),
+                    ),
+                  QuestionCard(
+                    id: 'q_$_currentIndex',
+                    content: currentQuestion['content'],
+                    type: _parseQuestionType(currentQuestion['type']),
+                    subject: currentQuestion['subject'],
+                    difficulty: currentQuestion['difficulty'],
+                    options: (currentQuestion['options'] as List?)
+                        ?.cast<String>(),
+                    correctAnswer: currentQuestion['correctAnswer'],
+                    userAnswer: _answers[_currentIndex + 1],
+                    analysis: currentQuestion['analysis'],
+                    index: _currentIndex,
+                    showResult: false,
+                    onAnswer: (answer) => _onAnswer(_currentIndex, answer),
+                  ),
+                ],
               ),
             ),
           ),

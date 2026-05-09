@@ -12,6 +12,7 @@ import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/input_method_selector.dart';
+import '../../widgets/symbol_picker.dart';
 
 // ============================================================
 // MotherQuestionsScreen - 母题集主页面
@@ -584,11 +585,19 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    AppTag(
-                      label: subject,
-                      color: getSubjectColor(subject),
-                      dense: true,
-                      fontSize: AppFontSize.xs,
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _selectedSubject = subject;
+                          _applyFilters();
+                        });
+                      },
+                      child: AppTag(
+                        label: subject,
+                        color: getSubjectColor(subject),
+                        dense: true,
+                        fontSize: AppFontSize.xs,
+                      ),
                     ),
                     DifficultyStars(difficulty: difficulty, iconSize: 14),
                     if (variantCount > 0)
@@ -616,14 +625,28 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
                     children: [
                       if (tags.isNotEmpty) ...[
                         Expanded(
-                          child: Text(
-                            tags,
-                            style: TextStyle(
-                              fontSize: AppFontSize.xs,
-                              color: AppColors.textHint,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: tags.split(',').map((tag) {
+                              final trimmedTag = tag.trim();
+                              if (trimmedTag.isEmpty) return const SizedBox.shrink();
+                              return GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _searchKeyword = trimmedTag;
+                                    _applyFilters();
+                                  });
+                                },
+                                child: Text(
+                                  '#$trimmedTag',
+                                  style: TextStyle(
+                                    fontSize: AppFontSize.xs,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
                           ),
                         ),
                       ],
@@ -837,6 +860,19 @@ class _MotherQuestionDetailScreenState
     }
   }
 
+  Future<void> _editQuestion() async {
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => _AddMotherQuestionScreen(
+          existingQuestion: _question,
+        ),
+      ),
+    );
+    if (result == true) {
+      _loadDetail();
+    }
+  }
+
   Future<void> _addVariantQuestion() async {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
@@ -884,6 +920,11 @@ class _MotherQuestionDetailScreenState
               masteryLevel: masteryLevel,
             ),
             tooltip: '打印',
+          ),
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: _editQuestion,
+            tooltip: '编辑',
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
@@ -1263,12 +1304,14 @@ class _AddMotherQuestionScreen extends StatefulWidget {
   final bool isVariant;
   final String? parentTitle;
   final String? initialContent;
+  final Map<String, dynamic>? existingQuestion; // 用于编辑模式
 
   const _AddMotherQuestionScreen({
     this.motherQuestionId,
     this.isVariant = false,
     this.parentTitle,
     this.initialContent,
+    this.existingQuestion,
   });
 
   @override
@@ -1295,6 +1338,7 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
   int _selectedDifficulty = 1;
   int _selectedCorrectAnswer = 0; // 0=A, 1=B, 2=C, 3=D
   bool _isSaving = false;
+  bool _isEditing = false; // 编辑模式标记
 
   // OCR 和语音服务
   final OcrService _ocrService = OcrService();
@@ -1309,11 +1353,63 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
   @override
   void initState() {
     super.initState();
-    if (widget.isVariant && widget.parentTitle != null) {
+    
+    // 编辑模式：加载现有数据
+    if (widget.existingQuestion != null) {
+      _isEditing = true;
+      final q = widget.existingQuestion!;
+      _titleController.text = q['title'] as String? ?? '';
+      _contentController.text = q['question_content'] as String? ?? '';
+      _analysisController.text = q['analysis'] as String? ?? '';
+      _tagsController.text = q['tags'] as String? ?? '';
+      _selectedSubject = q['subject'] as String? ?? kSubjectNames.first;
+      _selectedDifficulty = q['difficulty'] as int? ?? 1;
+      
+      // 解析选项
+      final options = q['options'];
+      if (options != null && options.toString().isNotEmpty) {
+        try {
+          final optionsList = options is String ? jsonDecode(options) : options;
+          if (optionsList is List) {
+            for (int i = 0; i < optionsList.length && i < _optionControllers.length; i++) {
+              final opt = optionsList[i];
+              if (opt is Map) {
+                _optionControllers[i].text = opt['text'] as String? ?? '';
+              }
+              // 检查正确答案
+              final label = opt['label'] as String?;
+              if (label != null && opt['isCorrect'] == true) {
+                _selectedCorrectAnswer = label.codeUnitAt(0) - 65; // A=0, B=1, etc.
+              }
+            }
+          }
+        } catch (_) {}
+      }
+      
+      // 解析正确答案
+      final correctAnswer = q['correct_answer'] as String?;
+      if (correctAnswer != null && correctAnswer.isNotEmpty) {
+        _selectedCorrectAnswer = correctAnswer.codeUnitAt(0) - 65; // A=0, B=1, etc.
+      }
+      
+      // 解析附件
+      final attachments = q['attachment_paths'];
+      if (attachments != null && attachments.toString().isNotEmpty) {
+        try {
+          final paths = attachments is String ? jsonDecode(attachments) : attachments;
+          if (paths is List) {
+            for (final p in paths) {
+              _imagePaths.add(p.toString());
+            }
+          }
+        } catch (_) {}
+      }
+    } else if (widget.isVariant && widget.parentTitle != null) {
       _titleController.text = '${widget.parentTitle} - 变式题';
     } else if (widget.initialContent != null) {
       _contentController.text = widget.initialContent!;
     }
+    
     _voiceService.onListeningStateChanged = () {
       if (mounted) {
         setState(() => _isListening = _voiceService.isListening);
@@ -1456,7 +1552,6 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
       }
 
       final data = {
-        'uuid': generateId(),
         'title': _titleController.text.trim(),
         'question_content': _contentController.text.trim(),
         'question_type': options.isNotEmpty ? 'singleChoice' : 'shortAnswer',
@@ -1469,32 +1564,42 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
         'category': '',
         'tags': _tagsController.text.trim(),
         'difficulty': _selectedDifficulty,
-        'variant_count': 0,
-        'mastery_level': 0,
-        'practice_count': 0,
-        'is_favorite': 0,
         'attachment_paths': _imagePaths.isNotEmpty
             ? jsonEncode(_imagePaths)
             : null,
       };
 
-      await db.insertMotherQuestion(data);
+      if (_isEditing && widget.existingQuestion != null) {
+        // 编辑模式：更新现有记录
+        final id = widget.existingQuestion!['id'] as int?;
+        if (id != null) {
+          await db.updateMotherQuestion(id, data);
+        }
+      } else {
+        // 添加模式：插入新记录
+        data['uuid'] = generateId();
+        data['variant_count'] = 0;
+        data['mastery_level'] = 0;
+        data['practice_count'] = 0;
+        data['is_favorite'] = 0;
+        await db.insertMotherQuestion(data);
 
-      // 如果是变式题，更新母题的变式题数量
-      if (widget.isVariant && widget.motherQuestionId != null) {
-        final parentQuestion =
-            await db.queryMotherQuestionById(widget.motherQuestionId!);
-        if (parentQuestion != null) {
-          final currentVariantCount =
-              parentQuestion['variant_count'] as int? ?? 0;
-          await db.updateMotherQuestion(widget.motherQuestionId!, {
-            'variant_count': currentVariantCount + 1,
-          });
+        // 如果是变式题，更新母题的变式题数量
+        if (widget.isVariant && widget.motherQuestionId != null) {
+          final parentQuestion =
+              await db.queryMotherQuestionById(widget.motherQuestionId!);
+          if (parentQuestion != null) {
+            final currentVariantCount =
+                parentQuestion['variant_count'] as int? ?? 0;
+            await db.updateMotherQuestion(widget.motherQuestionId!, {
+              'variant_count': currentVariantCount + 1,
+            });
+          }
         }
       }
 
       if (mounted) {
-        showSnackBar(context, '保存成功');
+        showSnackBar(context, _isEditing ? '更新成功' : '保存成功');
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -1515,7 +1620,9 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.isVariant ? '添加变式题' : '添加母题'),
+        title: Text(_isEditing
+            ? '编辑母题'
+            : (widget.isVariant ? '添加变式题' : '添加母题')),
       ),
       body: Form(
         key: _formKey,
@@ -1640,6 +1747,9 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
                   ),
                 ],
               ),
+              const SizedBox(height: 8),
+              // 特殊符号选择栏
+              CompactSymbolBar(controller: _contentController),
               const SizedBox(height: 8),
               AppInput(
                 hintText: '输入题目内容（支持多行文本和图片）',

@@ -10,6 +10,7 @@ import '../../widgets/common_widgets.dart';
 import '../../widgets/note_widgets.dart';
 import '../../widgets/exam_method_keypoint_input.dart';
 import '../../widgets/input_method_selector.dart';
+import '../../widgets/symbol_picker.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 
@@ -1320,25 +1321,32 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                   if (_isPreviewMode)
                     _buildMarkdownPreview(theme)
                   else
-                    TextField(
-                      controller: _contentController,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: AppColors.textPrimary,
-                        height: 1.8,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: '开始记录笔记...\n\n支持Markdown语法：\n# 标题\n'
-                            '**粗体** *斜体*\n- 列表项\n> 引用\n`代码`\n--- 分割线',
-                        border: InputBorder.none,
-                        contentPadding: EdgeInsets.zero,
-                        hintStyle: TextStyle(
-                          color: AppColors.textHint,
-                          height: 1.8,
+                    Column(
+                      children: [
+                        // 特殊符号选择栏
+                        CompactSymbolBar(controller: _contentController),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _contentController,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: AppColors.textPrimary,
+                            height: 1.8,
+                          ),
+                          decoration: InputDecoration(
+                            hintText: '开始记录笔记...\n\n支持Markdown语法：\n# 标题\n'
+                                '**粗体** *斜体*\n- 列表项\n> 引用\n`代码`\n--- 分割线',
+                            border: InputBorder.none,
+                            contentPadding: EdgeInsets.zero,
+                            hintStyle: TextStyle(
+                              color: AppColors.textHint,
+                              height: 1.8,
+                            ),
+                          ),
+                          maxLines: null,
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.newline,
                         ),
-                      ),
-                      maxLines: null,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.newline,
+                      ],
                     ),
 
                   const SizedBox(height: 24),

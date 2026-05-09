@@ -1,9 +1,17 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../../models/wrong_question.dart';
+import '../../models/must_remember.dart';
 import '../../services/database_service.dart';
 import '../../utils/app_routes.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../../widgets/knowledge_widgets.dart';
+import '../notes/notes_screen.dart';
+import '../wrong_questions/wrong_questions_screen.dart';
+import '../mother_questions/mother_questions_screen.dart';
+import '../must_remember/must_remember_screen.dart';
 
 // ============================================================
 // SearchScreen - 全局搜索页面
@@ -307,53 +315,234 @@ class _SearchScreenState extends State<SearchScreen>
     }
   }
 
-  void _navigateToKnowledgeDetail(SearchResult result) {
-    Navigator.of(context).pushNamed(
-      AppRoutes.knowledgeDetail,
-      arguments: {
-        'id': int.parse(result.id),
-        'title': result.title,
-      },
-    );
+  void _navigateToKnowledgeDetail(SearchResult result) async {
+    // 从数据库获取完整的知识点数据
+    final db = DatabaseService();
+    final row = await db.queryKnowledgePointById(int.parse(result.id));
+    
+    if (mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => KnowledgeDetailPage(
+            knowledgeId: result.id,
+            title: result.title,
+            subject: row?['subject'] as String?,
+            difficulty: row?['difficulty'] as int?,
+            mastery: row?['mastery_level'] as int?,
+            content: row?['content'] as String?,
+            summary: row?['content'] as String?,
+            createdAt: row?['created_at'] != null
+                ? DateTime.tryParse(row!['created_at'] as String)
+                : null,
+            updatedAt: row?['updated_at'] != null
+                ? DateTime.tryParse(row!['updated_at'] as String)
+                : null,
+            onEdit: () async {
+              Navigator.pop(context);
+              if (row != null) {
+                final editResult = await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => KnowledgeAddPage(
+                      existingPoint: row,
+                    ),
+                  ),
+                );
+                if (editResult == true) {
+                  // 刷新搜索结果
+                  _performSearch(_searchController.text);
+                }
+              }
+            },
+            onDelete: () async {
+              if (row != null) {
+                final dbId = row['id'] as int?;
+                if (dbId != null) {
+                  await db.deleteKnowledgePoint(dbId);
+                  Navigator.pop(context);
+                  _performSearch(_searchController.text);
+                }
+              }
+            },
+          ),
+        ),
+      );
+    }
   }
 
-  void _navigateToNoteDetail(SearchResult result) {
-    Navigator.of(context).pushNamed(
-      AppRoutes.noteDetail,
-      arguments: {
-        'uuid': result.id,
-        'title': result.title,
-      },
-    );
+  void _navigateToNoteDetail(SearchResult result) async {
+    // 从数据库获取完整的笔记数据
+    final db = DatabaseService();
+    final row = await db.queryNoteByUuid(result.id);
+    
+    if (mounted && row != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => NoteEditorPage(
+            existingNote: row,
+          ),
+        ),
+      ).then((_) {
+        // 刷新搜索结果
+        _performSearch(_searchController.text);
+      });
+    }
   }
 
-  void _navigateToWrongQuestionDetail(SearchResult result) {
-    Navigator.of(context).pushNamed(
-      AppRoutes.wrongQuestionDetail,
-      arguments: {
-        'uuid': result.id,
-        'title': result.title,
-      },
+  void _navigateToWrongQuestionDetail(SearchResult result) async {
+    // 从数据库获取完整的错题数据
+    final db = DatabaseService();
+    final row = await db.queryWrongQuestionByUuid(result.id);
+    
+    if (mounted && row != null) {
+      // 将数据库行转换为 WrongQuestion 对象
+      final question = _rowToWrongQuestion(row);
+      
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => WrongQuestionDetailScreen(
+            question: question,
+            onUpdated: () => _performSearch(_searchController.text),
+            onDeleted: () => _performSearch(_searchController.text),
+          ),
+        ),
+      );
+    }
+  }
+  
+  WrongQuestion _rowToWrongQuestion(Map<String, dynamic> r) {
+    List<Map<String, dynamic>> options = [];
+    if (r['options'] != null) {
+      if (r['options'] is String) {
+        options = (jsonDecode(r['options']) as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      } else if (r['options'] is List) {
+        options = (r['options'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+    }
+    List<Map<String, dynamic>> attachments = [];
+    if (r['attachment_paths'] != null) {
+      if (r['attachment_paths'] is String) {
+        final decoded = jsonDecode(r['attachment_paths']);
+        if (decoded is List) {
+          attachments = decoded
+              .map((e) => {'path': e.toString()})
+              .toList();
+        }
+      } else if (r['attachment_paths'] is List) {
+        attachments = (r['attachment_paths'] as List)
+            .map((e) => {'path': e.toString()})
+            .toList();
+      }
+    }
+    return WrongQuestion(
+      id: r['uuid'] as String? ?? r['id'].toString(),
+      title: r['question_content'] as String? ?? '',
+      content: r['question_content'] as String? ?? '',
+      options: options,
+      correctAnswer: r['correct_answer'] as String? ?? '',
+      userAnswer: r['my_answer'] as String?,
+      analysis: r['analysis'] as String? ?? '',
+      subject: r['subject'] as String? ?? '其他',
+      chapter: null,
+      errorType: _mapErrorType(r),
+      errorCount: r['error_count'] as int? ?? 1,
+      isResolved: (r['is_mastered'] as int?) == 1,
+      createdAt: r['created_at'] != null
+          ? DateTime.tryParse(r['created_at'] as String)
+                  ?.millisecondsSinceEpoch ??
+              DateTime.now().millisecondsSinceEpoch
+          : DateTime.now().millisecondsSinceEpoch,
+      updatedAt: r['updated_at'] != null
+          ? DateTime.tryParse(r['updated_at'] as String)
+                  ?.millisecondsSinceEpoch ??
+              DateTime.now().millisecondsSinceEpoch
+          : DateTime.now().millisecondsSinceEpoch,
+      attachments: attachments,
     );
   }
-
-  void _navigateToMotherQuestionDetail(SearchResult result) {
-    Navigator.of(context).pushNamed(
-      AppRoutes.motherQuestionDetail,
-      arguments: {
-        'id': int.parse(result.id),
-        'title': result.title,
-      },
-    );
+  
+  String _mapErrorType(Map<String, dynamic> r) {
+    final errorCount = r['error_count'] as int? ?? 1;
+    if (errorCount <= 1) return '粗心';
+    if (errorCount <= 2) return '知识盲区';
+    return '方法错误';
   }
 
-  void _navigateToMustRememberDetail(SearchResult result) {
-    Navigator.of(context).pushNamed(
-      AppRoutes.mustRememberDetail,
-      arguments: {
-        'uuid': result.id,
-        'title': result.title,
-      },
+  void _navigateToMotherQuestionDetail(SearchResult result) async {
+    // 从数据库获取完整的母题数据
+    final db = DatabaseService();
+    final row = await db.queryMotherQuestionById(int.parse(result.id));
+    
+    if (mounted && row != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => _MotherQuestionDetailScreen(questionData: row),
+        ),
+      ).then((_) => _performSearch(_searchController.text));
+    }
+  }
+
+  void _navigateToMustRememberDetail(SearchResult result) async {
+    // 从数据库获取完整的必记必背数据
+    final db = DatabaseService();
+    final row = await db.queryMustRememberByUuid(result.id);
+    
+    if (mounted && row != null) {
+      final item = _rowToMustRemember(row);
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => MustRememberDetailScreen(
+            item: item,
+            onUpdated: () => _performSearch(_searchController.text),
+            onDeleted: () => _performSearch(_searchController.text),
+          ),
+        ),
+      );
+    }
+  }
+  
+  MustRemember _rowToMustRemember(Map<String, dynamic> r) {
+    int? nextReviewTime;
+    if (r['next_review_time'] != null) {
+      if (r['next_review_time'] is int) {
+        nextReviewTime = r['next_review_time'] as int;
+      } else if (r['next_review_time'] is String) {
+        nextReviewTime = DateTime.tryParse(r['next_review_time'] as String)
+                ?.millisecondsSinceEpoch;
+      }
+    }
+
+    int reviewInterval = 0;
+    if (r['review_interval'] != null) {
+      reviewInterval = r['review_interval'] is int
+          ? r['review_interval'] as int
+          : int.tryParse(r['review_interval'].toString()) ?? 0;
+    }
+
+    return MustRemember(
+      id: r['uuid'] as String? ?? r['id'].toString(),
+      title: r['title'] as String? ?? '',
+      content: r['content'] as String? ?? '',
+      subject: r['subject'] as String? ?? '其他',
+      category: r['category'] as String? ?? '其他',
+      memoryLevel: r['memory_level'] as int? ?? 0,
+      nextReviewTime: nextReviewTime,
+      reviewInterval: reviewInterval,
+      reviewCount: r['review_count'] as int? ?? 0,
+      isMastered: (r['is_mastered'] as int?) == 1,
+      createdAt: r['created_at'] != null
+          ? DateTime.tryParse(r['created_at'] as String)
+                  ?.millisecondsSinceEpoch ??
+              DateTime.now().millisecondsSinceEpoch
+          : DateTime.now().millisecondsSinceEpoch,
+      updatedAt: r['updated_at'] != null
+          ? DateTime.tryParse(r['updated_at'] as String)
+                  ?.millisecondsSinceEpoch ??
+              DateTime.now().millisecondsSinceEpoch
+          : DateTime.now().millisecondsSinceEpoch,
     );
   }
 

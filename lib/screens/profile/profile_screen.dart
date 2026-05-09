@@ -11,6 +11,17 @@ import '../../services/database_service.dart';
 import '../../services/export_service.dart';
 import '../../services/storage_service.dart';
 import '../../utils/constants.dart';
+import '../knowledge/knowledge_screen.dart';
+import '../notes/notes_screen.dart';
+import '../wrong_questions/wrong_questions_screen.dart';
+import '../mother_questions/mother_questions_screen.dart';
+import '../must_remember/must_remember_screen.dart';
+import '../history/history_screen.dart';
+import '../analysis/analysis_screen.dart';
+import '../mind_map/mind_map_screen.dart';
+import '../habits/habits_screen.dart';
+import '../exam_papers/exam_papers_screen.dart';
+import '../settings/settings_screen.dart';
 
 /// 个人中心页面
 class ProfileScreen extends StatefulWidget {
@@ -606,7 +617,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   /// 导航到子页面
   void _navigateTo(String route) {
-    Navigator.of(context).pushNamed(route);
+    Widget? targetPage;
+    
+    switch (route) {
+      case '/knowledge':
+        targetPage = const KnowledgeScreen();
+        break;
+      case '/notes':
+        targetPage = const NotesScreen();
+        break;
+      case '/wrong_questions':
+        targetPage = const WrongQuestionsScreen();
+        break;
+      case '/mother_questions':
+        targetPage = const MotherQuestionsScreen();
+        break;
+      case '/must_remember':
+        targetPage = const MustRememberScreen();
+        break;
+      case '/history':
+        targetPage = const HistoryScreen();
+        break;
+      case '/analysis':
+        targetPage = const AnalysisScreen();
+        break;
+      case '/mind_map':
+        targetPage = const MindMapScreen();
+        break;
+      case '/habits':
+        targetPage = const HabitsScreen();
+        break;
+      case '/exam_papers':
+        targetPage = const ExamPapersScreen();
+        break;
+      case '/settings':
+        targetPage = const SettingsScreen();
+        break;
+      case '/exam':
+        // 考试模块暂时显示提示
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('考试功能开发中...')),
+        );
+        return;
+      default:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('页面 $route 开发中...')),
+        );
+        return;
+    }
+    
+    if (targetPage != null) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (context) => targetPage!),
+      );
+    }
   }
 
   @override
@@ -1161,9 +1225,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       child: Column(
         children: [
           ListTile(
+            leading: const Icon(Icons.palette, color: Colors.deepPurple),
+            title: const Text('主题设置'),
+            subtitle: const Text('主题色、字体大小、深色模式'),
+            trailing: const Icon(Icons.chevron_right, size: 20),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const SettingsScreen(),
+              ),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Divider(height: 1),
+          ),
+          ListTile(
             leading: const Icon(Icons.settings, color: Colors.grey),
             title: const Text('设置'),
-            subtitle: const Text('主题、学习目标、通知等'),
+            subtitle: const Text('学习目标、通知等'),
             trailing: const Icon(Icons.chevron_right, size: 20),
             onTap: () => _navigateTo('/settings'),
           ),

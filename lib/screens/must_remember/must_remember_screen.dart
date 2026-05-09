@@ -13,6 +13,7 @@ import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/exam_method_keypoint_input.dart';
 import '../../widgets/input_method_selector.dart';
+import '../../widgets/symbol_picker.dart';
 
 // ============================================================
 // MustRememberScreen - 必记必背主页面
@@ -42,6 +43,9 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
 
   // 学科筛选
   String? _selectedSubject;
+
+  // 分类筛选
+  String? _selectedCategory;
 
   // 多选模式
   bool _isSelectionMode = false;
@@ -131,6 +135,9 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
     var result = _items.where((item) {
       if (category != null && item.category != category) return false;
       if (_selectedSubject != null && item.subject != _selectedSubject) {
+        return false;
+      }
+      if (_selectedCategory != null && item.category != _selectedCategory) {
         return false;
       }
       if (_searchQuery.isNotEmpty) {
@@ -451,6 +458,56 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
             ),
           ),
 
+          // 筛选状态标签
+          if (_selectedSubject != null || _selectedCategory != null)
+            Container(
+              height: 36,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: ListView(
+                scrollDirection: Axis.horizontal,
+                children: [
+                  if (_selectedSubject != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: InputChip(
+                        avatar: const Icon(Icons.close, size: 14),
+                        label: Text('学科: $_selectedSubject'),
+                        backgroundColor: getSubjectColor(_selectedSubject!).withOpacity(0.1),
+                        labelStyle: TextStyle(
+                          color: getSubjectColor(_selectedSubject!),
+                          fontSize: AppFontSize.sm,
+                        ),
+                        onDeleted: () {
+                          setState(() {
+                            _selectedSubject = null;
+                            _applyFilters();
+                          });
+                        },
+                      ),
+                    ),
+                  if (_selectedCategory != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: InputChip(
+                        avatar: const Icon(Icons.close, size: 14),
+                        label: Text('分类: $_selectedCategory'),
+                        backgroundColor: _getCategoryColor(_selectedCategory!).withOpacity(0.1),
+                        labelStyle: TextStyle(
+                          color: _getCategoryColor(_selectedCategory!),
+                          fontSize: AppFontSize.sm,
+                        ),
+                        onDeleted: () {
+                          setState(() {
+                            _selectedCategory = null;
+                            _applyFilters();
+                          });
+                        },
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
           // 列表
           Expanded(
             child: _isLoading
@@ -627,18 +684,34 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
                     // 标签行
                     Row(
                       children: [
-                        AppTag(
-                          label: item.subject,
-                          color: getSubjectColor(item.subject),
-                          dense: true,
-                          fontSize: AppFontSize.xs,
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedSubject = item.subject;
+                              _applyFilters();
+                            });
+                          },
+                          child: AppTag(
+                            label: item.subject,
+                            color: getSubjectColor(item.subject),
+                            dense: true,
+                            fontSize: AppFontSize.xs,
+                          ),
                         ),
                         const SizedBox(width: 6),
-                        AppTag(
-                          label: item.category,
-                          color: _getCategoryColor(item.category),
-                          dense: true,
-                          fontSize: AppFontSize.xs,
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedCategory = item.category;
+                              _applyFilters();
+                            });
+                          },
+                          child: AppTag(
+                            label: item.category,
+                            color: _getCategoryColor(item.category),
+                            dense: true,
+                            fontSize: AppFontSize.xs,
+                          ),
                         ),
                         const Spacer(),
                         if (isDueForReview && !item.isMastered)
@@ -1113,6 +1186,23 @@ class _MustRememberDetailScreenState extends State<MustRememberDetailScreen> {
     }
   }
 
+  /// 转为题目功能
+  void _convertToQuestion() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (context) => _ConvertToQuestionSheet(
+        item: _item,
+        onConverted: () {
+          widget.onUpdated?.call();
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1425,6 +1515,19 @@ class _MustRememberDetailScreenState extends State<MustRememberDetailScreen> {
                 ),
               ],
             ),
+
+            const SizedBox(height: 12),
+
+            // 转为题目按钮
+            SizedBox(
+              width: double.infinity,
+              child: AppButton(
+                text: '转为题目',
+                icon: Icons.transform,
+                style: AppButtonStyle.outlined,
+                onPressed: _convertToQuestion,
+              ),
+            ),
           ],
         ),
       ),
@@ -1483,6 +1586,384 @@ class _MustRememberDetailScreenState extends State<MustRememberDetailScreen> {
       default:
         return AppColors.textSecondary;
     }
+  }
+}
+
+// ============================================================
+// _ConvertToQuestionSheet - 转为题目底部弹出组件
+// ============================================================
+
+class _ConvertToQuestionSheet extends StatefulWidget {
+  final MustRemember item;
+  final VoidCallback? onConverted;
+
+  const _ConvertToQuestionSheet({
+    required this.item,
+    this.onConverted,
+  });
+
+  @override
+  State<_ConvertToQuestionSheet> createState() => _ConvertToQuestionSheetState();
+}
+
+class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
+  final DatabaseService _db = DatabaseService();
+  final TextEditingController _questionController = TextEditingController();
+  final TextEditingController _answerController = TextEditingController();
+  final TextEditingController _analysisController = TextEditingController();
+  
+  String _questionType = 'fillBlank'; // fillBlank, choice, shortAnswer
+  String _targetTable = 'mother'; // mother, wrong
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _autoGenerateQuestion();
+  }
+
+  @override
+  void dispose() {
+    _questionController.dispose();
+    _answerController.dispose();
+    _analysisController.dispose();
+    super.dispose();
+  }
+
+  /// 自动生成题目
+  void _autoGenerateQuestion() {
+    final content = widget.item.content;
+    
+    // 尝试将"xxx是yyy"格式转换为填空题
+    final patterns = [
+      // 匹配 "A是B" 格式
+      RegExp(r'(.+?)是(.+?)(?=，|。|；|$)'),
+      // 匹配 "A为B" 格式
+      RegExp(r'(.+?)为(.+?)(?=，|。|；|$)'),
+      // 匹配 "A等于B" 格式
+      RegExp(r'(.+?)等于(.+?)(?=，|。|；|$)'),
+      // 匹配 "A叫做B" 格式
+      RegExp(r'(.+?)叫做(.+?)(?=，|。|；|$)'),
+      // 匹配 "A称为B" 格式
+      RegExp(r'(.+?)称为(.+?)(?=，|。|；|$)'),
+    ];
+
+    String? questionText;
+    String? answerText;
+
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(content);
+      if (match != null) {
+        final subject = match.group(1)?.trim() ?? '';
+        final object = match.group(2)?.trim() ?? '';
+        
+        // 生成填空题
+        questionText = '$subject是______。';
+        answerText = object;
+        break;
+      }
+    }
+
+    // 如果没有匹配到特定模式，使用整个内容作为答案
+    if (questionText == null) {
+      // 尝试提取关键词
+      if (content.length > 20) {
+        // 内容较长，取前20个字符作为问题提示
+        questionText = '${content.substring(0, 20)}...（请填写完整内容）';
+        answerText = content;
+      } else {
+        questionText = '请填写以下内容：______';
+        answerText = content;
+      }
+    }
+
+    setState(() {
+      _questionController.text = questionText;
+      _answerController.text = answerText;
+      _analysisController.text = '来源：必背必记 - ${widget.item.title}';
+    });
+  }
+
+  Future<void> _saveQuestion() async {
+    if (_questionController.text.trim().isEmpty) {
+      showSnackBar(context, '请输入题目内容', isError: true);
+      return;
+    }
+    if (_answerController.text.trim().isEmpty) {
+      showSnackBar(context, '请输入答案', isError: true);
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final now = DateTime.now().toIso8601String();
+      
+      if (_targetTable == 'mother') {
+        // 保存到母题表
+        final data = {
+          'uuid': DateTime.now().millisecondsSinceEpoch.toString(),
+          'title': widget.item.title,
+          'question_content': _questionController.text.trim(),
+          'question_type': _questionType == 'choice' ? 'singleChoice' : 'shortAnswer',
+          'correct_answer': _answerController.text.trim(),
+          'analysis': _analysisController.text.trim(),
+          'subject': widget.item.subject,
+          'category': widget.item.category,
+          'difficulty': 2,
+          'variant_count': 0,
+          'mastery_level': 0,
+          'practice_count': 0,
+          'is_favorite': 0,
+          'tags': widget.item.title,
+          'created_at': now,
+          'updated_at': now,
+        };
+        await _db.insertMotherQuestion(data);
+      } else {
+        // 保存到错题表
+        final data = {
+          'uuid': DateTime.now().millisecondsSinceEpoch.toString(),
+          'title': widget.item.title,
+          'question_content': _questionController.text.trim(),
+          'correct_answer': _answerController.text.trim(),
+          'analysis': _analysisController.text.trim(),
+          'subject': widget.item.subject,
+          'error_type': '知识盲区',
+          'error_count': 0,
+          'is_mastered': 0,
+          'created_at': now,
+          'updated_at': now,
+        };
+        await _db.insertWrongQuestion(data);
+      }
+
+      if (mounted) {
+        showSnackBar(context, '已保存到${_targetTable == 'mother' ? '母题集' : '错题本'}');
+        Navigator.of(context).pop();
+        widget.onConverted?.call();
+      }
+    } catch (e) {
+      if (mounted) {
+        showSnackBar(context, '保存失败: $e', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 16,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 标题
+            Row(
+              children: [
+                Icon(Icons.transform, color: theme.colorScheme.primary),
+                const SizedBox(width: 8),
+                Text(
+                  '转为题目',
+                  style: TextStyle(
+                    fontSize: AppFontSize.xl,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // 原内容预览
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '原内容',
+                    style: TextStyle(
+                      fontSize: AppFontSize.xs,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.item.content,
+                    style: TextStyle(
+                      fontSize: AppFontSize.sm,
+                      color: AppColors.textPrimary,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // 题目类型选择
+            Text(
+              '题目类型',
+              style: TextStyle(
+                fontSize: AppFontSize.md,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildTypeChip('填空题', 'fillBlank'),
+                _buildTypeChip('选择题', 'choice'),
+                _buildTypeChip('简答题', 'shortAnswer'),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // 保存位置选择
+            Text(
+              '保存到',
+              style: TextStyle(
+                fontSize: AppFontSize.md,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildTargetChip('母题集', 'mother'),
+                _buildTargetChip('错题本', 'wrong'),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // 题目内容
+            AppInput(
+              label: '题目内容',
+              hintText: '输入题目...',
+              controller: _questionController,
+              multiline: true,
+              maxLines: 3,
+            ),
+            const SizedBox(height: 16),
+
+            // 答案
+            AppInput(
+              label: '答案',
+              hintText: '输入答案...',
+              controller: _answerController,
+              multiline: true,
+              maxLines: 2,
+            ),
+            const SizedBox(height: 16),
+
+            // 解析
+            AppInput(
+              label: '解析（选填）',
+              hintText: '输入解析...',
+              controller: _analysisController,
+              multiline: true,
+              maxLines: 2,
+            ),
+            const SizedBox(height: 24),
+
+            // 保存按钮
+            SizedBox(
+              width: double.infinity,
+              child: AppButton(
+                text: '保存题目',
+                icon: Icons.save,
+                style: AppButtonStyle.primary,
+                isLoading: _isSaving,
+                onPressed: _saveQuestion,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeChip(String label, String value) {
+    final theme = Theme.of(context);
+    final selected = _questionType == value;
+    
+    return GestureDetector(
+      onTap: () => setState(() => _questionType = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? theme.colorScheme.primary : theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(
+            color: selected ? theme.colorScheme.primary : AppColors.divider,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: AppFontSize.sm,
+            color: selected ? theme.colorScheme.onPrimary : AppColors.textSecondary,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTargetChip(String label, String value) {
+    final theme = Theme.of(context);
+    final selected = _targetTable == value;
+    
+    return GestureDetector(
+      onTap: () => setState(() => _targetTable = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? theme.colorScheme.primary : theme.colorScheme.surfaceContainerHighest.withOpacity(0.5),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(
+            color: selected ? theme.colorScheme.primary : AppColors.divider,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: AppFontSize.sm,
+            color: selected ? theme.colorScheme.onPrimary : AppColors.textSecondary,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1844,6 +2325,9 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
             // 内容输入
             _buildSectionTitle('内容'),
             const SizedBox(height: 8),
+            // 特殊符号选择栏
+            CompactSymbolBar(controller: _contentController),
+            const SizedBox(height: 8),
             AppInput(
               hintText: '请输入需要记忆的内容...\n支持公式和特殊符号',
               controller: _contentController,
@@ -1875,62 +2359,6 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
                   label: Text(_isVoiceListening ? '停止录音' : '语音录入'),
                 ),
               ],
-            ),
-
-            // 特殊符号快捷输入
-            const SizedBox(height: 12),
-            _buildSectionTitle('快捷符号'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                '+', '-', '=', '!=', '>', '<', '>=', '<=',
-                'x', '/', '(', ')', '{', '}', '[', ']',
-                '^2', '^3', 'sqrt', 'pi', 'inf',
-                'sin', 'cos', 'tan', 'log', 'ln',
-                '->', '=>', 'forall', 'exists',
-                'alpha', 'beta', 'gamma', 'delta', 'theta',
-                'Sigma', 'Pi', 'Integral',
-              ].map((symbol) {
-                return GestureDetector(
-                  onTap: () {
-                    final text = _contentController.text;
-                    final selection = _contentController.selection;
-                    final newText = text.replaceRange(
-                      selection.start,
-                      selection.end,
-                      symbol,
-                    );
-                    _contentController.text = newText;
-                    // 将光标移到插入符号之后
-                    final newPos = selection.start + symbol.length;
-                    _contentController.selection = TextSelection.collapsed(
-                      offset: newPos,
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest
-                          .withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppColors.divider),
-                    ),
-                    child: Text(
-                      symbol,
-                      style: TextStyle(
-                        fontSize: AppFontSize.sm,
-                        color: AppColors.textPrimary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                );
-              }).toList(),
             ),
 
             const SizedBox(height: 24),

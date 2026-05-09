@@ -13,6 +13,7 @@ import '../../widgets/common_widgets.dart';
 import '../../widgets/question_widgets.dart';
 import '../../widgets/exam_method_keypoint_input.dart';
 import '../../widgets/input_method_selector.dart';
+import '../../widgets/symbol_picker.dart';
 
 // ============================================================
 // WrongQuestionsScreen - 错题本主页面
@@ -777,18 +778,34 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
                     // 标题行
                     Row(
                       children: [
-                        AppTag(
-                          label: q.subject,
-                          color: getSubjectColor(q.subject),
-                          dense: true,
-                          fontSize: AppFontSize.xs,
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _filterSubject = q.subject;
+                              _applyFilters();
+                            });
+                          },
+                          child: AppTag(
+                            label: q.subject,
+                            color: getSubjectColor(q.subject),
+                            dense: true,
+                            fontSize: AppFontSize.xs,
+                          ),
                         ),
                         const SizedBox(width: 6),
-                        AppTag(
-                          label: q.errorType,
-                          color: _getErrorTypeColor(q.errorType),
-                          dense: true,
-                          fontSize: AppFontSize.xs,
+                        GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _filterErrorType = q.errorType;
+                              _applyFilters();
+                            });
+                          },
+                          child: AppTag(
+                            label: q.errorType,
+                            color: _getErrorTypeColor(q.errorType),
+                            dense: true,
+                            fontSize: AppFontSize.xs,
+                          ),
                         ),
                         const Spacer(),
                         if (q.isResolved)
@@ -1916,6 +1933,9 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
 
             // 题目内容
             _buildSectionTitle('题目内容'),
+            const SizedBox(height: 8),
+            // 特殊符号选择栏
+            CompactSymbolBar(controller: _contentController),
             const SizedBox(height: 8),
             Row(
               children: [
