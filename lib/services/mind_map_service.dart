@@ -111,7 +111,7 @@ class MindMapService {
 
   /// 加载必记必背数据
   Future<List<MustRemember>> _loadMustRemember() async {
-    final rows = await _dbService.queryAllMustRemember(limit: 1000);
+    final rows = await _dbService.queryAllMustRemembers(limit: 1000);
     return rows.map((r) => MustRemember.fromJson(r)).toList();
   }
 

@@ -68,6 +68,7 @@ class AppRouter {
         AppRoutes.habits: (context) => const HabitsScreen(),
         AppRoutes.examPapers: (context) => const ExamPapersScreen(),
       };
+}
 
 /// 主应用内容 Widget，包含隐藏式底部导航栏和各页面路由
 class AppContent extends StatefulWidget {

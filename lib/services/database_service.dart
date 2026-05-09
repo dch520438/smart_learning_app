@@ -1297,6 +1297,19 @@ class DatabaseService {
     );
   }
 
+  /// 按学科查询考试结果
+  Future<List<Map<String, dynamic>>> queryExamResultsBySubject(
+    String subject,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableExamResults,
+      where: 'subject = ?',
+      whereArgs: [subject],
+      orderBy: 'created_at DESC',
+    );
+  }
+
   /// 查询通过的考试结果
   Future<List<Map<String, dynamic>>> queryPassedExamResults() async {
     final db = await database;

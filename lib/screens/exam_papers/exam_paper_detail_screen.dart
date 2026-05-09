@@ -197,9 +197,15 @@ class _ExamPaperDetailScreenState extends State<ExamPaperDetailScreen> with Sing
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.mic),
                       onPressed: () async {
-                        final result = await _voiceService.startListening();
-                        if (result != null && result.isNotEmpty) {
-                          notesController.text = result;
+                        final success = await _voiceService.startListening();
+                        if (success) {
+                          // 语音识别通过 onFinalResult 回调返回结果
+                          // 这里使用 onResult 回调来获取中间结果
+                          _voiceService.onFinalResult = (text) {
+                            if (mounted && text.isNotEmpty) {
+                              notesController.text = text;
+                            }
+                          };
                         }
                       },
                     ),

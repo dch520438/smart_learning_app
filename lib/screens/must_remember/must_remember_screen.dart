@@ -1542,7 +1542,7 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
 
   Future<void> _loadExistingExamMethodsAndKeyPoints() async {
     // 从数据库加载已有的考法考点作为选项
-    final items = await _db.queryAllMustRemember(limit: 100);
+    final items = await _db.queryAllMustRemembers(limit: 100);
     final Set<String> examMethodsSet = {};
     final Set<String> keyPointsSet = {};
 

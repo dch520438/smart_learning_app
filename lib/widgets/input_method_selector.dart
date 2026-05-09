@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/ocr_service.dart';
@@ -313,7 +312,7 @@ class InputMethodHandler {
       );
 
       // OCR 识别
-      final text = await _ocrService.recognizeText(File(pickedFile.path));
+      final text = await _ocrService.recognizeText(pickedFile.path);
 
       // 关闭加载对话框
       if (context.mounted) {
@@ -352,7 +351,7 @@ class InputMethodHandler {
       );
 
       // OCR 识别
-      final text = await _ocrService.recognizeText(File(pickedFile.path));
+      final text = await _ocrService.recognizeText(pickedFile.path);
 
       // 关闭加载对话框
       if (context.mounted) {

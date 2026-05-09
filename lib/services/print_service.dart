@@ -258,6 +258,43 @@ class PrintService {
     );
   }
 
+  /// 打印试卷
+  static Future<void> printExamPaper({
+    required BuildContext context,
+    required String paperName,
+    required String subject,
+    String? examDate,
+    required int totalScore,
+    int? obtainedScore,
+    String? questions,
+    String? notes,
+  }) async {
+    final content = StringBuffer();
+    content.writeln('总分: $totalScore');
+    if (obtainedScore != null) {
+      content.writeln('得分: $obtainedScore');
+      final rate = totalScore > 0 ? (obtainedScore / totalScore * 100).toStringAsFixed(1) : '0.0';
+      content.writeln('得分率: $rate%');
+    }
+    if (questions != null && questions.isNotEmpty) {
+      content.writeln('\n题目:\n$questions');
+    }
+    if (notes != null && notes.isNotEmpty) {
+      content.writeln('\n备注:\n$notes');
+    }
+
+    await _printContent(
+      context: context,
+      title: paperName,
+      content: content.toString(),
+      type: '试卷',
+      metadata: {
+        '学科': subject,
+        if (examDate != null) '考试日期': examDate,
+      },
+    );
+  }
+
   /// 批量打印内容
   /// 支持多种内容类型混合打印
   static Future<void> printBatch({
@@ -539,7 +576,7 @@ class PrintService {
         return pw.Container(
           padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: pw.BoxDecoration(
-            color: _getPdfColorForType(entry.key).withOpacity(0.1),
+            color: _withOpacity(_getPdfColorForType(entry.key), 0.1),
             borderRadius: pw.BorderRadius.circular(20),
             border: pw.Border.all(
               color: _getPdfColorForType(entry.key),
@@ -586,6 +623,11 @@ class PrintService {
       case PrintContentType.mustRemember:
         return PdfColors.orange700;
     }
+  }
+
+  /// 为PdfColor添加透明度
+  static PdfColor _withOpacity(PdfColor color, double opacity) {
+    return PdfColor(color.r, color.g, color.b, opacity);
   }
 
   /// 构建项目元数据

@@ -1090,6 +1090,7 @@ class BatchOperationBar extends StatelessWidget {
   final ValueChanged<bool>? onSelectAll;
   final VoidCallback? onDelete;
   final VoidCallback? onExport;
+  final VoidCallback? onPrint;
   final VoidCallback? onCancel;
   final bool isAllSelected;
 
@@ -1100,6 +1101,7 @@ class BatchOperationBar extends StatelessWidget {
     this.onSelectAll,
     this.onDelete,
     this.onExport,
+    this.onPrint,
     this.onCancel,
     this.isAllSelected = false,
   });
@@ -1166,6 +1168,19 @@ class BatchOperationBar extends StatelessWidget {
                 icon: const Icon(Icons.file_download_outlined),
                 onPressed: selectedCount > 0 ? onExport : null,
                 tooltip: '导出',
+                iconSize: 22,
+                color: selectedCount > 0
+                    ? theme.colorScheme.primary
+                    : AppColors.textHint,
+              ),
+              const SizedBox(width: 4),
+            ],
+            // 打印
+            if (onPrint != null) ...[
+              IconButton(
+                icon: const Icon(Icons.print_outlined),
+                onPressed: selectedCount > 0 ? onPrint : null,
+                tooltip: '打印',
                 iconSize: 22,
                 color: selectedCount > 0
                     ? theme.colorScheme.primary

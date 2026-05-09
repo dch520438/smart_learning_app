@@ -581,10 +581,11 @@ class _MindMapScreenState extends State<MindMapScreen> {
         boundaryMargin: const EdgeInsets.all(100),
         minScale: 0.5,
         maxScale: 3.0,
-        transformationController: TransformationController()
-          ..value = Matrix4.identity()
+        transformationController: TransformationController(
+          value: Matrix4.identity()
             ..scale(_viewState.scale)
             ..translate(_viewState.offset.dx, _viewState.offset.dy),
+        ),
         onInteractionUpdate: (details) {
           // 更新视图状态
         },
