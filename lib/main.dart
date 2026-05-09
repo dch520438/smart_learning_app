@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:sqlite3/open.dart';
 
 import 'app.dart';
 import 'providers/theme_provider.dart';
@@ -16,8 +17,44 @@ void main() async {
 
   // 桌面端初始化 SQLite FFI
   if (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
+    // 在 Linux ARM64 上，使用系统 SQLite 库避免 GLIBC 版本不兼容
+    if (Platform.isLinux) {
+      final arch = Platform.executable;
+      try {
+        // 尝试加载系统 SQLite 库
+        final candidates = [
+          '/usr/lib/aarch64-linux-gnu/libsqlite3.so.0',
+          '/usr/lib/aarch64-linux-gnu/libsqlite3.so',
+          '/usr/lib/libsqlite3.so.0',
+          '/usr/lib/libsqlite3.so',
+          '/usr/lib64/libsqlite3.so.0',
+          '/usr/lib64/libsqlite3.so',
+        ];
+        bool loaded = false;
+        for (final libPath in candidates) {
+          if (File(libPath).existsSync()) {
+            try {
+              open.overrideFor(OperatingSystem.linux, () {
+                return DynamicLibrary.open(libPath);
+              });
+              loaded = true;
+              break;
+            } catch (_) {
+              continue;
+            }
+          }
+        }
+        if (!loaded) {
+          // 回退到默认
+          sqfliteFfiInit();
+        }
+      } catch (_) {
+        sqfliteFfiInit();
+      }
+    }
+    // 初始化 sqflite FFI
     sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
+    databaseFactory = databaseFactoryFfiNoIsolate;
   }
 
   // 设置系统UI样式
@@ -29,203 +66,23 @@ void main() async {
     ),
   );
 
-  // 限制屏幕方向
+  // 屏幕方向限制
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
   // 初始化 SharedPreferences
-  final SharedPreferences prefs = await SharedPreferences.getInstance();
+  final prefs = await SharedPreferences.getInstance();
 
+  // 运行应用
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider<ThemeProvider>(
-          create: (_) => ThemeProvider(prefs),
-        ),
-        ChangeNotifierProvider<NavigationProvider>(
-          create: (_) => NavigationProvider(),
-        ),
+        ChangeNotifierProvider(create: (_) => ThemeProvider(prefs)),
+        ChangeNotifierProvider(create: (_) => NavigationProvider()),
       ],
       child: const SmartLearningApp(),
     ),
   );
-}
-
-/// 应用根组件，负责主题和国际化配置
-class SmartLearningApp extends StatelessWidget {
-  const SmartLearningApp({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<ThemeProvider>(
-      builder: (context, themeProvider, child) {
-        return MaterialApp(
-          title: '智慧学习',
-          debugShowCheckedModeBanner: false,
-
-          // 主题配置
-          theme: ThemeData(
-            useMaterial3: true,
-            colorSchemeSeed: const Color(0xFF4A90D9),
-            brightness: Brightness.light,
-            // fontFamily: 'NotoSansSC', // 注释掉，使用系统默认字体
-            appBarTheme: const AppBarTheme(
-              centerTitle: true,
-              elevation: 0,
-              scrolledUnderElevation: 1,
-              backgroundColor: Colors.white,
-              foregroundColor: Color(0xFF333333),
-              titleTextStyle: TextStyle(
-                color: Color(0xFF333333),
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            scaffoldBackgroundColor: const Color(0xFFF5F5F5),
-            cardTheme: CardThemeData(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-            bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-              type: BottomNavigationBarType.fixed,
-              selectedItemColor: Color(0xFF4A90D9),
-              unselectedItemColor: Color(0xFF999999),
-              backgroundColor: Colors.white,
-              elevation: 8,
-            ),
-            floatingActionButtonTheme: const FloatingActionButtonThemeData(
-              backgroundColor: Color(0xFF4A90D9),
-              foregroundColor: Colors.white,
-              elevation: 4,
-            ),
-            inputDecorationTheme: InputDecorationTheme(
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              hintStyle: TextStyle(color: Colors.grey[400]),
-            ),
-            elevatedButtonTheme: ElevatedButtonThemeData(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4A90D9),
-                foregroundColor: Colors.white,
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF4A90D9),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-
-          // 暗色主题
-          darkTheme: ThemeData(
-            useMaterial3: true,
-            colorSchemeSeed: const Color(0xFF4A90D9),
-            brightness: Brightness.dark,
-            // fontFamily: 'NotoSansSC', // 注释掉，使用系统默认字体
-            appBarTheme: const AppBarTheme(
-              centerTitle: true,
-              elevation: 0,
-              scrolledUnderElevation: 1,
-              backgroundColor: Color(0xFF1E1E1E),
-              foregroundColor: Color(0xFFE0E0E0),
-              titleTextStyle: TextStyle(
-                color: Color(0xFFE0E0E0),
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            scaffoldBackgroundColor: const Color(0xFF121212),
-            cardTheme: CardThemeData(
-              elevation: 2,
-              color: const Color(0xFF1E1E1E),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            ),
-            bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-              type: BottomNavigationBarType.fixed,
-              selectedItemColor: Color(0xFF6DB3F8),
-              unselectedItemColor: Color(0xFF777777),
-              backgroundColor: Color(0xFF1E1E1E),
-              elevation: 8,
-            ),
-            floatingActionButtonTheme: const FloatingActionButtonThemeData(
-              backgroundColor: Color(0xFF4A90D9),
-              foregroundColor: Colors.white,
-              elevation: 4,
-            ),
-            inputDecorationTheme: InputDecorationTheme(
-              filled: true,
-              fillColor: const Color(0xFF2A2A2A),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              hintStyle: TextStyle(color: Colors.grey[600]),
-            ),
-            elevatedButtonTheme: ElevatedButtonThemeData(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4A90D9),
-                foregroundColor: Colors.white,
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF6DB3F8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
-            ),
-          ),
-
-          // 主题模式
-          themeMode: themeProvider.themeMode,
-
-          // 路由配置
-          initialRoute: '/',
-          routes: {
-            '/': (context) => const App(),
-          },
-
-          // 过渡动画
-          onGenerateRoute: (settings) {
-            return MaterialPageRoute(
-              builder: (context) => const App(),
-              settings: settings,
-            );
-          },
-        );
-      },
-    );
-  }
 }
