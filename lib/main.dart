@@ -13,6 +13,20 @@ import 'app.dart';
 import 'providers/theme_provider.dart';
 import 'providers/navigation_provider.dart';
 import 'services/usage_time_service.dart';
+import 'screens/search/search_screen.dart';
+import 'screens/wrong_questions/wrong_questions_screen.dart';
+import 'screens/habits/habits_screen.dart';
+import 'screens/history/history_screen.dart';
+import 'screens/knowledge/knowledge_screen.dart';
+import 'screens/notes/notes_screen.dart';
+import 'screens/exam/exam_screen.dart';
+import 'screens/mind_map/mind_map_screen.dart';
+import 'screens/analysis/analysis_screen.dart';
+import 'screens/must_remember/must_remember_screen.dart';
+import 'screens/mother_questions/mother_questions_screen.dart';
+import 'screens/web_knowledge/web_knowledge_screen.dart';
+import 'screens/settings/settings_screen.dart';
+import 'screens/exam_papers/exam_papers_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -97,6 +111,43 @@ class SmartLearningApp extends StatelessWidget {
       theme: themeProvider.lightTheme,
       darkTheme: themeProvider.darkTheme,
       home: const AppContent(),
+      onGenerateRoute: (settings) {
+        // 命名路由支持，供 pushNamed 使用
+        final uri = Uri.parse(settings.name ?? '/');
+        final path = uri.path;
+        switch (path) {
+          case '/search':
+            return MaterialPageRoute(builder: (_) => const SearchScreen());
+          case '/wrong_questions':
+            return MaterialPageRoute(builder: (_) => const WrongQuestionsScreen());
+          case '/habits':
+            return MaterialPageRoute(builder: (_) => const HabitsScreen());
+          case '/history':
+            return MaterialPageRoute(builder: (_) => const HistoryScreen());
+          case '/knowledge':
+            return MaterialPageRoute(builder: (_) => const KnowledgeScreen());
+          case '/notes':
+            return MaterialPageRoute(builder: (_) => const NotesScreen());
+          case '/exam':
+            return MaterialPageRoute(builder: (_) => const ExamScreen());
+          case '/mind_map':
+            return MaterialPageRoute(builder: (_) => const MindMapScreen());
+          case '/analysis':
+            return MaterialPageRoute(builder: (_) => const AnalysisScreen());
+          case '/must_remember':
+            return MaterialPageRoute(builder: (_) => const MustRememberScreen());
+          case '/mother_questions':
+            return MaterialPageRoute(builder: (_) => const MotherQuestionsScreen());
+          case '/web_knowledge':
+            return MaterialPageRoute(builder: (_) => const WebKnowledgeScreen());
+          case '/settings':
+            return MaterialPageRoute(builder: (_) => const SettingsScreen());
+          case '/exam_papers':
+            return MaterialPageRoute(builder: (_) => const ExamPapersScreen());
+          default:
+            return MaterialPageRoute(builder: (_) => const AppContent());
+        }
+      },
     );
   }
 }

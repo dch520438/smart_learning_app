@@ -178,16 +178,17 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   // 获取字体族名称
+  // 注意：在 Linux 上使用系统字体名称，确保中文字体正确显示
   String? get fontFamilyName {
     switch (_fontFamily) {
       case AppFontFamily.system:
-        return null;
+        return null; // 使用 Flutter/系统默认字体
       case AppFontFamily.songti:
-        return 'Songti';
+        return 'Noto Serif CJK SC';  // Linux 系统常见宋体
       case AppFontFamily.heiti:
-        return 'Heiti';
+        return 'Noto Sans CJK SC';   // Linux 系统常见黑体
       case AppFontFamily.kaiti:
-        return 'Kaiti';
+        return 'AR PL UKai CN';      // Linux 系统常见楷体
     }
   }
 
