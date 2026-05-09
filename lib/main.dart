@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -14,9 +15,20 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // 桌面端初始化 SQLite FFI
-  if (Platform.isLinux || Platform.isWindows || Platform.isMacOS) {
+  if (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS)) {
     sqfliteFfiInit();
-    databaseFactory = databaseFactoryFfi;
+    // 尝试使用系统 SQLite 库，避免 GLIBC 版本不兼容
+    try {
+      databaseFactory = databaseFactoryFfi;
+    } catch (e) {
+      // 如果默认方式失败，尝试指定系统库路径
+      final libPath = Platform.isLinux
+          ? '/usr/lib/aarch64-linux-gnu/libsqlite3.so'
+          : null;
+      if (libPath != null && File(libPath).existsSync()) {
+        databaseFactory = createDatabaseFactoryFfi(ffi: null, open: null);
+      }
+    }
   }
 
   // 设置系统UI样式
