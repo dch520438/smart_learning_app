@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/mother_question.dart';
 import '../../services/database_service.dart';
+import '../../services/export_service.dart';
 import '../../services/ocr_service.dart';
+import '../../services/print_service.dart';
 import '../../services/voice_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
@@ -22,6 +25,7 @@ class MotherQuestionsScreen extends StatefulWidget {
 
 class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
   final DatabaseService _db = DatabaseService();
+  final ExportService _exportService = ExportService();
   final ScrollController _scrollController = ScrollController();
 
   List<Map<String, dynamic>> _questions = [];
@@ -140,6 +144,45 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
     });
   }
 
+  Future<void> _batchExport() async {
+    if (_selectedIds.isEmpty) return;
+    try {
+      AppLoading.show(context, message: '正在导出...');
+
+      // 获取选中的母题数据
+      final selectedQuestions = _questions.where((q) {
+        final id = q['id'] as int?;
+        return id != null && _selectedIds.contains(id);
+      }).toList();
+
+      // 构建导出数据
+      final exportData = {
+        'export_version': '1.0',
+        'export_time': DateTime.now().toIso8601String(),
+        'mother_questions': selectedQuestions,
+      };
+
+      // 保存到文件
+      final result = await _exportService.exportAllToJson(
+        fileName: 'mother_questions_export_${DateTime.now().millisecondsSinceEpoch}.json',
+      );
+
+      AppLoading.hide(context);
+      _exitSelectionMode();
+
+      if (result.success && mounted) {
+        showSnackBar(context, '已导出 ${_selectedIds.length} 道母题到 ${result.fileName}');
+      } else if (mounted) {
+        showSnackBar(context, '导出失败: ${result.errorMessage}', isError: true);
+      }
+    } catch (e) {
+      AppLoading.hide(context);
+      if (mounted) {
+        showSnackBar(context, '导出失败: $e', isError: true);
+      }
+    }
+  }
+
   Future<void> _showSearch() async {
     final keyword = await showSearch<String>(
       context: context,
@@ -234,6 +277,7 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
                       );
                     }
                   : null,
+              onExport: _batchExport,
               onCancel: _exitSelectionMode,
             )
           : null,
@@ -254,30 +298,24 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
         children: [
           // 学科筛选
           SizedBox(
-            height: 36,
+            height: 48,
             child: ListView(
               scrollDirection: Axis.horizontal,
               children: [
-                AppTag(
-                  label: '全部',
-                  color: AppColors.primary,
-                  selected: _selectedSubject == '全部',
-                  onTap: () {
-                    setState(() {
-                      _selectedSubject = '全部';
-                    });
-                    _loadQuestions();
-                  },
-                ),
+                _buildSubjectChip('全部', _selectedSubject == '全部', () {
+                  setState(() {
+                    _selectedSubject = '全部';
+                  });
+                  _loadQuestions();
+                }),
                 const SizedBox(width: 8),
                 ...kSubjectNames.map((subject) {
                   return Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: AppTag(
-                      label: subject,
-                      color: getSubjectColor(subject),
-                      selected: _selectedSubject == subject,
-                      onTap: () {
+                    child: _buildSubjectChip(
+                      subject,
+                      _selectedSubject == subject,
+                      () {
                         setState(() => _selectedSubject = subject);
                         _loadQuestions();
                       },
@@ -543,6 +581,40 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
     ).then((_) => _loadQuestions());
   }
 
+  // ==================== 学科筛选Chip ====================
+
+  Widget _buildSubjectChip(
+    String label,
+    bool selected,
+    VoidCallback onTap,
+  ) {
+    final color = label == '全部' ? AppColors.primary : getSubjectColor(label);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? color : color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(
+            color: selected ? color : color.withOpacity(0.3),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: AppFontSize.sm,
+            color: selected ? Colors.white : color,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
   Future<void> _showAddMotherQuestion(BuildContext context) async {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
@@ -709,6 +781,22 @@ class _MotherQuestionDetailScreenState
       appBar: AppBar(
         title: Text(title),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.print_outlined),
+            onPressed: () => PrintService.printMotherQuestion(
+              context: context,
+              title: title,
+              question: content,
+              options: options.isNotEmpty ? options : null,
+              correctAnswer: correctAnswer,
+              analysis: analysis,
+              subject: subject,
+              difficulty: difficulty,
+              tags: tags,
+              masteryLevel: masteryLevel,
+            ),
+            tooltip: '打印',
+          ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
             onPressed: _deleteQuestion,
@@ -1186,6 +1274,13 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
   }
 
   Future<void> _takePhoto() async {
+    // Linux平台不支持相机功能
+    if (Platform.isLinux) {
+      if (mounted) {
+        showSnackBar(context, 'Linux平台暂不支持拍照功能，请使用相册选择', isError: true);
+      }
+      return;
+    }
     try {
       final image = await _imagePicker.pickImage(
         source: ImageSource.camera,
@@ -1199,7 +1294,7 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
       }
     } catch (e) {
       if (mounted) {
-        showSnackBar(context, '拍照失败', isError: true);
+        showSnackBar(context, '拍照失败: $e', isError: true);
       }
     }
   }
@@ -1422,18 +1517,19 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
                     padding: EdgeInsets.zero,
                   ),
                   const SizedBox(width: 4),
-                  // 拍照按钮
-                  IconButton(
-                    icon: const Icon(Icons.camera_alt, size: 20),
-                    onPressed: _takePhoto,
-                    tooltip: '拍照识别',
-                    color: AppColors.info,
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
+                  // 拍照按钮（Linux平台不显示）
+                  if (!Platform.isLinux)
+                    IconButton(
+                      icon: const Icon(Icons.camera_alt, size: 20),
+                      onPressed: _takePhoto,
+                      tooltip: '拍照识别',
+                      color: AppColors.info,
+                      constraints: const BoxConstraints(
+                        minWidth: 36,
+                        minHeight: 36,
+                      ),
+                      padding: EdgeInsets.zero,
                     ),
-                    padding: EdgeInsets.zero,
-                  ),
                   const SizedBox(width: 4),
                   // 语音按钮
                   IconButton(

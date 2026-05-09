@@ -189,6 +189,181 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  void _showAddScoreDialog() {
+    final TextEditingController examNameController = TextEditingController();
+    final TextEditingController scoreController = TextEditingController();
+    final TextEditingController totalScoreController = TextEditingController(text: '100');
+    String selectedSubject = kSubjectNames.first;
+    DateTime selectedDate = DateTime.now();
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('添加考试记录'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: examNameController,
+                  decoration: const InputDecoration(
+                    labelText: '考试名称',
+                    hintText: '如：期中考试、模拟测试',
+                    prefixIcon: Icon(Icons.edit),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text('学科', style: TextStyle(fontSize: AppFontSize.md, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: kSubjectNames.map((subject) {
+                    return AppTag(
+                      label: subject,
+                      color: getSubjectColor(subject),
+                      selected: selectedSubject == subject,
+                      onTap: () => setDialogState(() => selectedSubject = subject),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: scoreController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: '得分',
+                          hintText: '0',
+                          prefixIcon: Icon(Icons.score),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: totalScoreController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: '总分',
+                          hintText: '100',
+                          prefixIcon: Icon(Icons.format_list_numbered),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.calendar_today),
+                  title: const Text('考试日期'),
+                  subtitle: Text(formatDate(selectedDate)),
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime.now(),
+                    );
+                    if (picked != null) {
+                      setDialogState(() => selectedDate = picked);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (examNameController.text.trim().isEmpty) {
+                  showSnackBar(context, '请输入考试名称', isError: true);
+                  return;
+                }
+                if (scoreController.text.trim().isEmpty) {
+                  showSnackBar(context, '请输入得分', isError: true);
+                  return;
+                }
+
+                final score = double.tryParse(scoreController.text) ?? 0;
+                final totalScore = double.tryParse(totalScoreController.text) ?? 100;
+                final accuracy = totalScore > 0 ? score / totalScore : 0;
+                final isPassed = accuracy >= 0.6;
+
+                try {
+                  // 创建考试记录
+                  final examData = {
+                    'uuid': generateId(),
+                    'title': examNameController.text.trim(),
+                    'description': '手动录入的考试记录',
+                    'subject': selectedSubject,
+                    'exam_type': 'manual',
+                    'total_questions': 0,
+                    'total_score': totalScore,
+                    'time_limit': 0,
+                    'passing_score': totalScore * 0.6,
+                    'is_completed': 1,
+                  };
+                  final examId = await _db.insertExam(examData);
+
+                  // 创建考试结果
+                  final resultData = {
+                    'uuid': generateId(),
+                    'exam_id': examId,
+                    'score': score,
+                    'correct_count': 0,
+                    'wrong_count': 0,
+                    'total_count': 0,
+                    'time_spent': 0,
+                    'accuracy': accuracy,
+                    'is_passed': isPassed ? 1 : 0,
+                    'created_at': selectedDate.toIso8601String(),
+                  };
+                  await _db.insertExamResult(resultData);
+
+                  // 添加学习记录
+                  final studyRecord = {
+                    'uuid': generateId(),
+                    'record_type': 'exam',
+                    'title': examNameController.text.trim(),
+                    'description': '考试得分: $score/$totalScore',
+                    'subject': selectedSubject,
+                    'duration': 0,
+                    'related_id': examId,
+                    'related_type': 'exam',
+                    'score': score,
+                    'is_completed': 1,
+                  };
+                  await _db.insertStudyRecord(studyRecord);
+
+                  if (mounted) {
+                    Navigator.pop(context);
+                    showSnackBar(context, '考试记录已添加');
+                    _loadData();
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    showSnackBar(context, '添加失败: $e', isError: true);
+                  }
+                }
+              },
+              child: const Text('保存'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -196,6 +371,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
       appBar: AppBar(
         title: const Text('学习历史'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _showAddScoreDialog,
+            tooltip: '添加考试记录',
+          ),
           PopupMenuButton<_TimeRange>(
             initialValue: _selectedRange,
             onSelected: (val) {
@@ -252,6 +432,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 ],
               ),
             ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showAddScoreDialog,
+        icon: const Icon(Icons.add),
+        label: const Text('添加考试'),
+      ),
     );
   }
 

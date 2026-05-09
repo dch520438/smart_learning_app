@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../screens/notes/notes_screen.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
 import 'common_widgets.dart';
@@ -264,6 +265,15 @@ class NoteCard extends StatelessWidget {
                           color: getSubjectColor(subject!),
                           dense: true,
                           fontSize: AppFontSize.xs,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => NotesScreen(
+                                  initialFilterTag: subject,
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 6),
                       ],
@@ -287,11 +297,22 @@ class NoteCard extends StatelessWidget {
                           runSpacing: 4,
                           children: tags!
                               .take(3)
-                              .map((tag) => Text(
-                                    '#$tag',
-                                    style: TextStyle(
-                                      fontSize: AppFontSize.xs,
-                                      color: theme.colorScheme.primary,
+                              .map((tag) => GestureDetector(
+                                    onTap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => NotesScreen(
+                                            initialFilterTag: tag,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      '#$tag',
+                                      style: TextStyle(
+                                        fontSize: AppFontSize.xs,
+                                        color: theme.colorScheme.primary,
+                                      ),
                                     ),
                                   ))
                               .toList(),

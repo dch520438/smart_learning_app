@@ -4,6 +4,14 @@ import '../../services/database_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../knowledge/knowledge_screen.dart';
+import '../notes/notes_screen.dart';
+import '../exam/exam_screen.dart';
+import '../mind_map/mind_map_screen.dart';
+import '../analysis/analysis_screen.dart';
+import '../must_remember/must_remember_screen.dart';
+import '../wrong_questions/wrong_questions_screen.dart';
+import '../mother_questions/mother_questions_screen.dart';
 
 /// 首页 - 学习仪表盘
 class HomeScreen extends StatefulWidget {
@@ -334,6 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               '${_getGreeting()}，$_userName',
                               style: theme.textTheme.headlineSmall?.copyWith(
                                 fontWeight: FontWeight.bold,
+                                fontSize: 24,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -372,6 +381,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 '今日学习概览',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
+                  fontSize: 16,
                 ),
               ),
               const SizedBox(height: 12),
@@ -407,7 +417,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       Text(
                                         '${_todayStudyMinutes}',
                                         style: TextStyle(
-                                          fontSize: 22,
+                                          fontSize: 28,
                                           fontWeight: FontWeight.bold,
                                           color: theme.colorScheme.primary,
                                         ),
@@ -415,7 +425,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       const Text(
                                         '分钟',
                                         style: TextStyle(
-                                          fontSize: 11,
+                                          fontSize: 12,
                                           color: AppColors.textSecondary,
                                         ),
                                       ),
@@ -478,6 +488,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 '待办提醒',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
+                  fontSize: 16,
                 ),
               ),
               const SizedBox(height: 12),
@@ -486,7 +497,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: Card(
                       child: InkWell(
-                        onTap: () => Navigator.of(context).pushNamed('/must_remember'),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const MustRememberScreen()),
+                        ),
                         borderRadius: BorderRadius.circular(12),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -509,7 +522,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Text(
                                 '$_pendingReviewCount',
                                 style: const TextStyle(
-                                  fontSize: 20,
+                                  fontSize: 28,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.orange,
                                 ),
@@ -518,7 +531,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Text(
                                 '待复习',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 18,
                                   color: isDark ? Colors.grey[400] : Colors.grey[600],
                                 ),
                               ),
@@ -532,7 +545,9 @@ class _HomeScreenState extends State<HomeScreen> {
                   Expanded(
                     child: Card(
                       child: InkWell(
-                        onTap: () => Navigator.of(context).pushNamed('/wrong_questions'),
+                        onTap: () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => const WrongQuestionsScreen()),
+                        ),
                         borderRadius: BorderRadius.circular(12),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -555,7 +570,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Text(
                                 '$_pendingWrongQuestions',
                                 style: const TextStyle(
-                                  fontSize: 20,
+                                  fontSize: 28,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.red,
                                 ),
@@ -564,7 +579,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Text(
                                 '待重做错题',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: 18,
                                   color: isDark ? Colors.grey[400] : Colors.grey[600],
                                 ),
                               ),
@@ -605,7 +620,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Text(
                               '${(studyProgress * 100).toInt()}%',
                               style: TextStyle(
-                                fontSize: 20,
+                                fontSize: 28,
                                 fontWeight: FontWeight.bold,
                                 color: studyProgress >= 1.0
                                     ? AppColors.success
@@ -616,7 +631,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             Text(
                               '目标进度',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 18,
                                 color: isDark ? Colors.grey[400] : Colors.grey[600],
                               ),
                             ),
@@ -634,6 +649,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 '快捷入口',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
+                  fontSize: 16,
                 ),
               ),
               const SizedBox(height: 12),
@@ -649,49 +665,65 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.auto_stories,
                     label: '知识点积累',
                     color: Colors.blue,
-                    onTap: () {},
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const KnowledgeScreen()),
+                    ),
                   ),
                   _QuickEntry(
                     icon: Icons.edit_note,
                     label: '学习笔记',
                     color: Colors.green,
-                    onTap: () {},
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const NotesScreen()),
+                    ),
                   ),
                   _QuickEntry(
                     icon: Icons.error_outline,
                     label: '错题本',
                     color: Colors.red,
-                    onTap: () => Navigator.of(context).pushNamed('/wrong_questions'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const WrongQuestionsScreen()),
+                    ),
                   ),
                   _QuickEntry(
                     icon: Icons.star_outline,
                     label: '必记必背',
                     color: Colors.orange,
-                    onTap: () => Navigator.of(context).pushNamed('/must_remember'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MustRememberScreen()),
+                    ),
                   ),
                   _QuickEntry(
                     icon: Icons.psychology,
                     label: '母题集',
                     color: Colors.purple,
-                    onTap: () => Navigator.of(context).pushNamed('/mother_questions'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MotherQuestionsScreen()),
+                    ),
                   ),
                   _QuickEntry(
                     icon: Icons.quiz_outlined,
                     label: '模拟测试',
                     color: Colors.teal,
-                    onTap: () {},
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ExamScreen()),
+                    ),
                   ),
                   _QuickEntry(
                     icon: Icons.account_tree_outlined,
                     label: '思维导图',
                     color: Colors.indigo,
-                    onTap: () => Navigator.of(context).pushNamed('/mind_map'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const MindMapScreen()),
+                    ),
                   ),
                   _QuickEntry(
                     icon: Icons.bar_chart,
                     label: '学习分析',
                     color: Colors.amber.shade700,
-                    onTap: () => Navigator.of(context).pushNamed('/analysis'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const AnalysisScreen()),
+                    ),
                   ),
                 ],
               ),
@@ -702,6 +734,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 '学习趋势',
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.w600,
+                  fontSize: 16,
                 ),
               ),
               const SizedBox(height: 12),
@@ -758,6 +791,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     '最近学习活动',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w600,
+                      fontSize: 16,
                     ),
                   ),
                   TextButton(
@@ -1105,7 +1139,7 @@ class _QuickEntry extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             label,
-            style: const TextStyle(fontSize: 11),
+            style: const TextStyle(fontSize: 16),
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,

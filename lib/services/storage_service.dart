@@ -44,22 +44,30 @@ class StorageService {
 
   /// 获取附件目录
   Future<String> getAttachmentDir() async {
-    final root = await getRootDir();
-    final dir = Directory('$root/$_attachmentDir');
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
+    try {
+      final root = await getRootDir();
+      final dir = Directory('$root/$_attachmentDir');
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      return dir.path;
+    } catch (e) {
+      throw StorageException('创建附件目录失败: $e');
     }
-    return dir.path;
   }
 
   /// 获取图片目录
   Future<String> getImageDir() async {
-    final root = await getRootDir();
-    final dir = Directory('$root/$_attachmentDir/$_imageDir');
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
+    try {
+      final root = await getRootDir();
+      final dir = Directory('$root/$_attachmentDir/$_imageDir');
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      return dir.path;
+    } catch (e) {
+      throw StorageException('创建图片目录失败: $e');
     }
-    return dir.path;
   }
 
   /// 获取文档目录
@@ -164,46 +172,52 @@ class StorageService {
     String? subDir,
     String? fileName,
   }) async {
-    final File sourceFile = File(sourcePath);
-    if (!await sourceFile.exists()) {
-      throw FileNotFoundException('源文件不存在: $sourcePath');
-    }
-
-    // 确定目标目录
-    String targetDir;
-    if (subDir != null) {
-      final attachmentDir = await getAttachmentDir();
-      targetDir = '$attachmentDir/$subDir';
-    } else {
-      // 根据文件扩展名自动选择目录
-      final ext = _getFileExtension(sourcePath).toLowerCase();
-      if (_imageExtensions.contains(ext)) {
-        targetDir = await getImageDir();
-      } else if (_documentExtensions.contains(ext)) {
-        targetDir = await getDocumentDir();
-      } else {
-        targetDir = await getAttachmentDir();
+    try {
+      final File sourceFile = File(sourcePath);
+      if (!await sourceFile.exists()) {
+        throw FileNotFoundException('源文件不存在: $sourcePath');
       }
+
+      // 确定目标目录
+      String targetDir;
+      if (subDir != null) {
+        final attachmentDir = await getAttachmentDir();
+        targetDir = '$attachmentDir/$subDir';
+      } else {
+        // 根据文件扩展名自动选择目录
+        final ext = _getFileExtension(sourcePath).toLowerCase();
+        if (_imageExtensions.contains(ext)) {
+          targetDir = await getImageDir();
+        } else if (_documentExtensions.contains(ext)) {
+          targetDir = await getDocumentDir();
+        } else {
+          targetDir = await getAttachmentDir();
+        }
+      }
+
+      // 确保目录存在
+      final dir = Directory(targetDir);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      // 确定文件名
+      final finalFileName = fileName ?? _generateFileName(sourcePath);
+      final targetPath = '$targetDir/$finalFileName';
+
+      // 复制文件
+      final targetFile = File(targetPath);
+      if (await targetFile.exists()) {
+        await targetFile.delete();
+      }
+      await sourceFile.copy(targetPath);
+
+      return targetPath;
+    } on FileNotFoundException {
+      rethrow;
+    } catch (e) {
+      throw StorageException('保存文件失败: $e');
     }
-
-    // 确保目录存在
-    final dir = Directory(targetDir);
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-
-    // 确定文件名
-    final finalFileName = fileName ?? _generateFileName(sourcePath);
-    final targetPath = '$targetDir/$finalFileName';
-
-    // 复制文件
-    final targetFile = File(targetPath);
-    if (await targetFile.exists()) {
-      await targetFile.delete();
-    }
-    await sourceFile.copy(targetPath);
-
-    return targetPath;
   }
 
   /// 保存字节数据为文件
@@ -665,4 +679,13 @@ class FileNotFoundException implements Exception {
 
   @override
   String toString() => 'FileNotFoundException: $message';
+}
+
+/// 存储异常
+class StorageException implements Exception {
+  final String message;
+  const StorageException(this.message);
+
+  @override
+  String toString() => 'StorageException: $message';
 }

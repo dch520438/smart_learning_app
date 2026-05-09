@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../screens/knowledge/knowledge_screen.dart';
+import '../services/print_service.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
 import 'common_widgets.dart';
@@ -101,6 +103,15 @@ class KnowledgePointCard extends StatelessWidget {
                             color: subjectColor,
                             dense: true,
                             fontSize: AppFontSize.xs,
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => KnowledgeScreen(
+                                    initialFilterTag: subject,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                           const SizedBox(width: 8),
                           DifficultyStars(
@@ -553,6 +564,18 @@ class KnowledgeDetailPage extends StatelessWidget {
         title: const Text('知识点详情'),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.print_outlined),
+            onPressed: () => PrintService.printKnowledgePoint(
+              context: context,
+              title: title,
+              content: content ?? summary ?? '',
+              subject: subject,
+              difficulty: difficulty,
+              masteryLevel: mastery,
+            ),
+            tooltip: '打印',
+          ),
           IconButton(
             icon: const Icon(Icons.edit_outlined),
             onPressed: onEdit,

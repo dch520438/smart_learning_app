@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../screens/wrong_questions/wrong_questions_screen.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
 import 'common_widgets.dart';
@@ -250,6 +251,15 @@ class _QuestionCardState extends State<QuestionCard> {
                   color: getSubjectColor(widget.subject!),
                   dense: true,
                   fontSize: AppFontSize.xs,
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => WrongQuestionsScreen(
+                          initialFilterTag: widget.subject,
+                        ),
+                      ),
+                    );
+                  },
                 ),
                 const SizedBox(width: 8),
               ],

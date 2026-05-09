@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/wrong_question.dart';
 import '../../services/database_service.dart';
+import '../../services/export_service.dart';
 import '../../services/ocr_service.dart';
+import '../../services/print_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -14,7 +17,9 @@ import '../../widgets/question_widgets.dart';
 // ============================================================
 
 class WrongQuestionsScreen extends StatefulWidget {
-  const WrongQuestionsScreen({super.key});
+  final String? initialFilterTag;
+
+  const WrongQuestionsScreen({super.key, this.initialFilterTag});
 
   @override
   State<WrongQuestionsScreen> createState() => _WrongQuestionsScreenState();
@@ -22,6 +27,7 @@ class WrongQuestionsScreen extends StatefulWidget {
 
 class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
   final DatabaseService _db = DatabaseService();
+  final ExportService _exportService = ExportService();
   final OcrService _ocrService = OcrService();
 
   List<WrongQuestion> _questions = [];
@@ -32,6 +38,7 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
   String? _filterSubject;
   String? _filterErrorType;
   bool? _filterResolved;
+  String? _filterTag;
   String _searchQuery = '';
 
   // 多选模式
@@ -46,6 +53,7 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
   @override
   void initState() {
     super.initState();
+    _filterTag = widget.initialFilterTag;
     _loadData();
   }
 
@@ -148,6 +156,13 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
       if (_filterResolved != null && q.isResolved != _filterResolved) {
         return false;
       }
+      if (_filterTag != null) {
+        final tag = _filterTag!.toLowerCase();
+        if (!q.subject.toLowerCase().contains(tag) &&
+            !q.errorType.toLowerCase().contains(tag)) {
+          return false;
+        }
+      }
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase();
         if (!q.title.toLowerCase().contains(query) &&
@@ -244,6 +259,47 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
     }
   }
 
+  Future<void> _batchExport() async {
+    if (_selectedIds.isEmpty) return;
+    try {
+      AppLoading.show(context, message: '正在导出...');
+
+      // 获取选中的错题数据
+      final selectedQuestions = _questions.where((q) {
+        return _selectedIds.contains(q.id);
+      }).toList();
+
+      // 构建导出数据
+      final exportData = {
+        'export_version': '1.0',
+        'export_time': DateTime.now().toIso8601String(),
+        'wrong_questions': selectedQuestions.map((q) => q.toJson()).toList(),
+      };
+
+      // 保存到文件
+      final result = await _exportService.exportAllToJson(
+        fileName: 'wrong_questions_export_${DateTime.now().millisecondsSinceEpoch}.json',
+      );
+
+      AppLoading.hide(context);
+      setState(() {
+        _isSelectionMode = false;
+        _selectedIds.clear();
+      });
+
+      if (result.success && mounted) {
+        showSnackBar(context, '已导出 ${_selectedIds.length} 道错题到 ${result.fileName}');
+      } else if (mounted) {
+        showSnackBar(context, '导出失败: ${result.errorMessage}', isError: true);
+      }
+    } catch (e) {
+      AppLoading.hide(context);
+      if (mounted) {
+        showSnackBar(context, '导出失败: $e', isError: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -310,6 +366,8 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
         children: [
           // 统计信息栏
           _buildStatsBar(theme),
+          // 学科筛选栏
+          _buildSubjectFilterBar(theme),
           // 筛选栏
           _buildFilterBar(theme),
           // 列表
@@ -352,6 +410,7 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
                   _filteredQuestions.isNotEmpty,
               onSelectAll: (_) => _selectAll(),
               onDelete: _batchDelete,
+              onExport: _batchExport,
               onCancel: () {
                 setState(() {
                   _isSelectionMode = false;
@@ -455,6 +514,71 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
     );
   }
 
+  Widget _buildSubjectFilterBar(ThemeData theme) {
+    return Container(
+      height: 48,
+      margin: const EdgeInsets.only(top: 8, bottom: 4),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          // 全部选项
+          _buildSubjectChip('全部', _filterSubject == null, () {
+            setState(() => _filterSubject = null);
+            _applyFilters();
+          }),
+          const SizedBox(width: 8),
+          // 各学科选项
+          ...kSubjectNames.map((subject) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _buildSubjectChip(
+                subject,
+                _filterSubject == subject,
+                () {
+                  setState(() => _filterSubject = subject);
+                  _applyFilters();
+                },
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubjectChip(
+    String label,
+    bool selected,
+    VoidCallback onTap,
+  ) {
+    final color = label == '全部' ? AppColors.primary : getSubjectColor(label);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? color : color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(
+            color: selected ? color : color.withOpacity(0.3),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: AppFontSize.sm,
+            color: selected ? Colors.white : color,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildFilterBar(ThemeData theme) {
     return Container(
       height: 44,
@@ -463,22 +587,6 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
         children: [
-          // 学科筛选
-          _buildFilterChip('全部学科', _filterSubject == null, () {
-            setState(() => _filterSubject = null);
-            _applyFilters();
-          }),
-          ...kSubjectNames.take(5).map((s) => _buildFilterChip(
-                s,
-                _filterSubject == s,
-                () {
-                  setState(() => _filterSubject = s);
-                  _applyFilters();
-                },
-              )),
-          const SizedBox(width: 8),
-          Container(width: 1, height: 24, color: AppColors.divider),
-          const SizedBox(width: 8),
           // 错误类型筛选
           _buildFilterChip('粗心', _filterErrorType == '粗心', () {
             setState(() => _filterErrorType = '粗心');
@@ -906,6 +1014,24 @@ class _WrongQuestionDetailScreenState extends State<WrongQuestionDetailScreen> {
       appBar: AppBar(
         title: Text(_question.isResolved ? '错题详情 (已解决)' : '错题详情'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.print_outlined),
+            onPressed: () => PrintService.printWrongQuestion(
+              context: context,
+              question: _question.content,
+              options: _question.options.isNotEmpty
+                  ? _question.options.asMap().entries.map((e) => '${['A', 'B', 'C', 'D', 'E', 'F'][e.key]}. ${e.value}').join('\n')
+                  : null,
+              correctAnswer: _question.correctAnswer,
+              myAnswer: _question.myAnswer,
+              analysis: _question.analysis,
+              subject: _question.subject,
+              errorType: _question.errorType,
+              isMastered: _question.isResolved,
+              createdAt: formatDate(DateTime.fromMillisecondsSinceEpoch(_question.createdAt)),
+            ),
+            tooltip: '打印',
+          ),
           IconButton(
             icon: Icon(
               _question.isResolved
@@ -1433,7 +1559,7 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
     super.dispose();
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImageFromGallery() async {
     try {
       final picked = await _imagePicker.pickImage(
         source: ImageSource.gallery,
@@ -1448,6 +1574,69 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
     } catch (e) {
       if (mounted) showSnackBar(context, '选择图片失败: $e', isError: true);
     }
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      final picked = await _imagePicker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+      if (picked != null) {
+        setState(() => _attachmentPaths.add(picked.path));
+        showSnackBar(context, '已添加图片');
+      }
+    } catch (e) {
+      if (mounted) showSnackBar(context, '拍照失败: $e', isError: true);
+    }
+  }
+
+  void _showImagePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 12, bottom: 16),
+              decoration: BoxDecoration(
+                color: AppColors.divider,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Linux平台不支持相机功能，只显示相册选项
+            if (!Platform.isLinux)
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('拍照'),
+                subtitle: const Text('使用相机拍摄题目'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickImageFromCamera();
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('从相册选择'),
+              subtitle: const Text('选择已有图片'),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImageFromGallery();
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _pickImageForOcr() async {
@@ -1628,7 +1817,7 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
                 ),
                 const SizedBox(width: 8),
                 TextButton.icon(
-                  onPressed: _pickImage,
+                  onPressed: _showImagePickerOptions,
                   icon: const Icon(Icons.image, size: 18),
                   label: const Text('添加附件'),
                 ),

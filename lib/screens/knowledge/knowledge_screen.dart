@@ -1,9 +1,10 @@
 import 'dart:convert';
-import 'dart:io' as io;
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/knowledge_point.dart';
 import '../../services/database_service.dart';
+import '../../services/export_service.dart';
 import '../../services/ocr_service.dart';
 import '../../services/voice_service.dart';
 import '../../widgets/common_widgets.dart';
@@ -16,7 +17,9 @@ import '../../utils/helpers.dart';
 // ============================================================
 
 class KnowledgeScreen extends StatefulWidget {
-  const KnowledgeScreen({super.key});
+  final String? initialFilterTag;
+
+  const KnowledgeScreen({super.key, this.initialFilterTag});
 
   @override
   State<KnowledgeScreen> createState() => _KnowledgeScreenState();
@@ -25,6 +28,7 @@ class KnowledgeScreen extends StatefulWidget {
 class _KnowledgeScreenState extends State<KnowledgeScreen> {
   // 服务
   final DatabaseService _dbService = DatabaseService();
+  final ExportService _exportService = ExportService();
   final OcrService _ocrService = OcrService();
   final VoiceService _voiceService = VoiceService();
 
@@ -47,6 +51,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
   String? _selectedSubject;
   int? _selectedDifficulty;
   int? _selectedMasteryRange;
+  String? _selectedTag;
 
   // 多选模式
   bool _isSelectionMode = false;
@@ -59,6 +64,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedTag = widget.initialFilterTag;
     _loadData();
   }
 
@@ -171,6 +177,15 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
       }).toList();
     }
 
+    // 标签过滤
+    if (_selectedTag != null) {
+      final tag = _selectedTag!.toLowerCase();
+      points = points.where((p) {
+        final tags = (p['tags'] as String? ?? '').toLowerCase();
+        return tags.contains(tag);
+      }).toList();
+    }
+
     setState(() {
       _filteredPoints = points;
     });
@@ -196,9 +211,15 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
       _selectedSubject = null;
       _selectedDifficulty = null;
       _selectedMasteryRange = null;
+      _selectedTag = null;
       _searchKeyword = '';
       _searchController.clear();
     });
+    _applyFilters();
+  }
+
+  void _onTagChanged(String? tag) {
+    setState(() => _selectedTag = tag);
     _applyFilters();
   }
 
@@ -273,6 +294,45 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
     }
   }
 
+  Future<void> _batchExport() async {
+    if (_selectedIds.isEmpty) return;
+    try {
+      AppLoading.show(context, message: '正在导出...');
+
+      // 获取选中的知识点数据
+      final selectedPoints = _knowledgePoints.where((p) {
+        final id = p['id'] as int?;
+        return id != null && _selectedIds.contains(id);
+      }).toList();
+
+      // 构建导出数据
+      final exportData = {
+        'export_version': '1.0',
+        'export_time': DateTime.now().toIso8601String(),
+        'knowledge_points': selectedPoints,
+      };
+
+      // 保存到文件
+      final result = await _exportService.exportAllToJson(
+        fileName: 'knowledge_points_export_${DateTime.now().millisecondsSinceEpoch}.json',
+      );
+
+      AppLoading.hide(context);
+      _exitSelectionMode();
+
+      if (result.success && mounted) {
+        showSnackBar(context, '已导出 ${_selectedIds.length} 个知识点到 ${result.fileName}');
+      } else if (mounted) {
+        showSnackBar(context, '导出失败: ${result.errorMessage}', isError: true);
+      }
+    } catch (e) {
+      AppLoading.hide(context);
+      if (mounted) {
+        showSnackBar(context, '导出失败: $e', isError: true);
+      }
+    }
+  }
+
   // ==================== CRUD 操作 ====================
 
   Future<void> _deleteKnowledgePoint(int dbId, String title) async {
@@ -332,7 +392,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
               ListTile(
                 leading: const Icon(Icons.camera_alt_outlined),
                 title: const Text('OCR识别添加'),
-                subtitle: const Text('拍照或选择图片识别文字'),
+                subtitle: Text(Platform.isLinux ? '选择图片识别文字' : '拍照或选择图片识别文字'),
                 onTap: () {
                   Navigator.pop(context);
                   _startOcrAdd();
@@ -368,6 +428,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
   Future<void> _startOcrAdd() async {
     try {
       final picker = ImagePicker();
+      // Linux平台只支持相册选择
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
         maxWidth: 1920,
@@ -565,6 +626,9 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
       ),
       body: Column(
         children: [
+          // 学科筛选栏
+          _buildSubjectFilterBar(theme),
+
           // 搜索栏
           AppSearchBar(
             controller: _searchController,
@@ -576,7 +640,8 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
           // 筛选条件标签
           if (_selectedSubject != null ||
               _selectedDifficulty != null ||
-              _selectedMasteryRange != null)
+              _selectedMasteryRange != null ||
+              _selectedTag != null)
             Container(
               height: 36,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -632,6 +697,20 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                         label: Text(
                             '掌握度 ${_selectedMasteryRange}%-${_selectedMasteryRange! + 25}%'),
                         onDeleted: () => _onMasteryRangeChanged(null),
+                      ),
+                    ),
+                  if (_selectedTag != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: InputChip(
+                        avatar: const Icon(Icons.close, size: 14),
+                        label: Text('标签: $_selectedTag'),
+                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        labelStyle: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: AppFontSize.sm,
+                        ),
+                        onDeleted: () => _onTagChanged(null),
                       ),
                     ),
                 ],
@@ -746,6 +825,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
                   _filteredPoints.length,
               onSelectAll: (selectAll) => _selectAll(),
               onDelete: _batchDelete,
+              onExport: _batchExport,
               onCancel: _exitSelectionMode,
             )
           : null,
@@ -774,6 +854,70 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
           .toList();
     }
     return [];
+  }
+
+  // ==================== 学科筛选栏 ====================
+
+  Widget _buildSubjectFilterBar(ThemeData theme) {
+    return Container(
+      height: 48,
+      margin: const EdgeInsets.only(top: 8, bottom: 4),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          // 全部选项
+          _buildSubjectChip('全部', _selectedSubject == null, () {
+            _onSubjectChanged(null);
+          }),
+          const SizedBox(width: 8),
+          // 各学科选项
+          ...kSubjectNames.map((subject) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _buildSubjectChip(
+                subject,
+                _selectedSubject == subject,
+                () => _onSubjectChanged(subject),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubjectChip(
+    String label,
+    bool selected,
+    VoidCallback onTap,
+  ) {
+    final theme = Theme.of(context);
+    final color = label == '全部' ? AppColors.primary : getSubjectColor(label);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? color : color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(
+            color: selected ? color : color.withOpacity(0.3),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: AppFontSize.sm,
+            color: selected ? Colors.white : color,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -1289,7 +1433,7 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
       if (uri != null && uri.scheme.isNotEmpty) {
         return NetworkImage(path);
       }
-      final file = io.File(path);
+      final file = File(path);
       if (file.existsSync()) {
         return FileImage(file);
       }

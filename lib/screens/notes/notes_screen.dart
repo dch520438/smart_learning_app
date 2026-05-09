@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../models/note.dart';
 import '../../services/database_service.dart';
+import '../../services/print_service.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/note_widgets.dart';
 import '../../utils/constants.dart';
@@ -12,7 +13,9 @@ import '../../utils/helpers.dart';
 // ============================================================
 
 class NotesScreen extends StatefulWidget {
-  const NotesScreen({super.key});
+  final String? initialFilterTag;
+
+  const NotesScreen({super.key, this.initialFilterTag});
 
   @override
   State<NotesScreen> createState() => _NotesScreenState();
@@ -20,6 +23,7 @@ class NotesScreen extends StatefulWidget {
 
 class _NotesScreenState extends State<NotesScreen> {
   final DatabaseService _dbService = DatabaseService();
+  final ExportService _exportService = ExportService();
 
   // 数据
   List<Map<String, dynamic>> _notes = [];
@@ -35,6 +39,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
   // 筛选
   String? _selectedSubject;
+  String? _selectedTag;
   String _sortBy = 'updated_at'; // 'updated_at' or 'created_at'
   bool _sortDescending = true;
 
@@ -45,6 +50,7 @@ class _NotesScreenState extends State<NotesScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedTag = widget.initialFilterTag;
     _loadData();
   }
 
@@ -107,6 +113,15 @@ class _NotesScreenState extends State<NotesScreen> {
       notes = notes
           .where((n) => (n['subject'] as String?) == _selectedSubject)
           .toList();
+    }
+
+    // 标签过滤
+    if (_selectedTag != null) {
+      final tag = _selectedTag!.toLowerCase();
+      notes = notes.where((n) {
+        final tags = (n['tags'] as String? ?? '').toLowerCase();
+        return tags.contains(tag);
+      }).toList();
     }
 
     setState(() {
@@ -400,6 +415,9 @@ class _NotesScreenState extends State<NotesScreen> {
       ),
       body: Column(
         children: [
+          // 学科筛选栏
+          _buildSubjectFilterBar(theme),
+
           // 搜索栏
           AppSearchBar(
             controller: _searchController,
@@ -409,7 +427,7 @@ class _NotesScreenState extends State<NotesScreen> {
           ),
 
           // 筛选条件标签
-          if (_selectedSubject != null)
+          if (_selectedSubject != null || _selectedTag != null)
             Container(
               height: 36,
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -417,37 +435,42 @@ class _NotesScreenState extends State<NotesScreen> {
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: InputChip(
-                      avatar: Icon(
-                        Icons.close,
-                        size: 14,
-                        color: getSubjectColor(_selectedSubject!),
+                  if (_selectedSubject != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: InputChip(
+                        avatar: Icon(
+                          Icons.close,
+                          size: 14,
+                          color: getSubjectColor(_selectedSubject!),
+                        ),
+                        label: Text(_selectedSubject!),
+                        backgroundColor:
+                            getSubjectColor(_selectedSubject!).withOpacity(0.1),
+                        labelStyle: TextStyle(
+                          color: getSubjectColor(_selectedSubject!),
+                          fontSize: AppFontSize.sm,
+                        ),
+                        onDeleted: () => _onSubjectFilterChanged(null),
                       ),
-                      label: Text(_selectedSubject!),
-                      backgroundColor:
-                          getSubjectColor(_selectedSubject!).withOpacity(0.1),
-                      labelStyle: TextStyle(
-                        color: getSubjectColor(_selectedSubject!),
-                        fontSize: AppFontSize.sm,
+                    ),
+                  if (_selectedTag != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: InputChip(
+                        avatar: const Icon(Icons.close, size: 14),
+                        label: Text('标签: $_selectedTag'),
+                        backgroundColor: AppColors.primary.withOpacity(0.1),
+                        labelStyle: TextStyle(
+                          color: AppColors.primary,
+                          fontSize: AppFontSize.sm,
+                        ),
+                        onDeleted: () {
+                          setState(() => _selectedTag = null);
+                          _applyFilters();
+                        },
                       ),
-                      onDeleted: () => _onSubjectFilterChanged(null),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: InputChip(
-                      avatar: const Icon(Icons.sort, size: 14),
-                      label: Text(_sortBy == 'updated_at' ? '按修改时间' : '按创建时间'),
-                      onDeleted: () {
-                        setState(() {
-                          _sortDescending = !_sortDescending;
-                        });
-                        _loadData();
-                      },
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -484,6 +507,7 @@ class _NotesScreenState extends State<NotesScreen> {
                   _selectedIds.length == _filteredNotes.length,
               onSelectAll: (_) => _selectAll(),
               onDelete: _batchDelete,
+              onExport: _batchExport,
               onCancel: _exitSelectionMode,
             )
           : null,
@@ -722,6 +746,69 @@ class _NotesScreenState extends State<NotesScreen> {
     if (colorValue is String) return parseColor(colorValue);
     return AppColors.primary;
   }
+
+  // ==================== 学科筛选栏 ====================
+
+  Widget _buildSubjectFilterBar(ThemeData theme) {
+    return Container(
+      height: 48,
+      margin: const EdgeInsets.only(top: 8, bottom: 4),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          // 全部选项
+          _buildSubjectChip('全部', _selectedSubject == null, () {
+            _onSubjectFilterChanged(null);
+          }),
+          const SizedBox(width: 8),
+          // 各学科选项
+          ...kSubjectNames.map((subject) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _buildSubjectChip(
+                subject,
+                _selectedSubject == subject,
+                () => _onSubjectFilterChanged(subject),
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubjectChip(
+    String label,
+    bool selected,
+    VoidCallback onTap,
+  ) {
+    final color = label == '全部' ? AppColors.primary : getSubjectColor(label);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? color : color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(
+            color: selected ? color : color.withOpacity(0.3),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: AppFontSize.sm,
+            color: selected ? Colors.white : color,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ============================================================
@@ -918,6 +1005,19 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         title: Text(_isEditing ? '编辑笔记' : '新建笔记'),
         centerTitle: true,
         actions: [
+          // 打印按钮（仅在编辑已有笔记时显示）
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.print_outlined),
+              onPressed: () => PrintService.printNote(
+                context: context,
+                title: _titleController.text.isEmpty ? '无标题' : _titleController.text,
+                content: _contentController.text,
+                subject: _selectedSubject,
+                tags: _tags.join(', '),
+              ),
+              tooltip: '打印',
+            ),
           // 预览切换
           IconButton(
             icon: Icon(

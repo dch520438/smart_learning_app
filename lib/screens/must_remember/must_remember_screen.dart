@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/must_remember.dart';
 import '../../services/database_service.dart';
+import '../../services/export_service.dart';
 import '../../services/ocr_service.dart';
+import '../../services/print_service.dart';
 import '../../services/voice_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
@@ -22,6 +25,7 @@ class MustRememberScreen extends StatefulWidget {
 
 class _MustRememberScreenState extends State<MustRememberScreen> {
   final DatabaseService _db = DatabaseService();
+  final ExportService _exportService = ExportService();
 
   List<MustRemember> _items = [];
   List<MustRemember> _filteredItems = [];
@@ -33,6 +37,9 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
 
   // 搜索
   String _searchQuery = '';
+
+  // 学科筛选
+  String? _selectedSubject;
 
   // 多选模式
   bool _isSelectionMode = false;
@@ -121,6 +128,9 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
 
     var result = _items.where((item) {
       if (category != null && item.category != category) return false;
+      if (_selectedSubject != null && item.subject != _selectedSubject) {
+        return false;
+      }
       if (_searchQuery.isNotEmpty) {
         final query = _searchQuery.toLowerCase();
         if (!item.title.toLowerCase().contains(query) &&
@@ -234,6 +244,47 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
     }
   }
 
+  Future<void> _batchExport() async {
+    if (_selectedIds.isEmpty) return;
+    try {
+      AppLoading.show(context, message: '正在导出...');
+
+      // 获取选中的必记内容数据
+      final selectedItems = _items.where((item) {
+        return _selectedIds.contains(item.id);
+      }).toList();
+
+      // 构建导出数据
+      final exportData = {
+        'export_version': '1.0',
+        'export_time': DateTime.now().toIso8601String(),
+        'must_remembers': selectedItems.map((item) => item.toJson()).toList(),
+      };
+
+      // 保存到文件
+      final result = await _exportService.exportAllToJson(
+        fileName: 'must_remember_export_${DateTime.now().millisecondsSinceEpoch}.json',
+      );
+
+      AppLoading.hide(context);
+      setState(() {
+        _isSelectionMode = false;
+        _selectedIds.clear();
+      });
+
+      if (result.success && mounted) {
+        showSnackBar(context, '已导出 ${_selectedIds.length} 条必记内容到 ${result.fileName}');
+      } else if (mounted) {
+        showSnackBar(context, '导出失败: ${result.errorMessage}', isError: true);
+      }
+    } catch (e) {
+      AppLoading.hide(context);
+      if (mounted) {
+        showSnackBar(context, '导出失败: $e', isError: true);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -265,10 +316,13 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
       ),
       body: Column(
         children: [
+          // 学科筛选栏
+          _buildSubjectFilterBar(theme),
+
           // 今日待复习提示
           if (_todayReviewCount > 0)
             Container(
-              margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
                 color: AppColors.warning.withOpacity(0.08),
@@ -394,6 +448,7 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
                   _filteredItems.isNotEmpty,
               onSelectAll: (_) => _selectAll(),
               onDelete: _batchDelete,
+              onExport: _batchExport,
               onCancel: () {
                 setState(() {
                   _isSelectionMode = false;
@@ -620,6 +675,73 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
     } else {
       return formatDate(reviewTime);
     }
+  }
+
+  // ==================== 学科筛选栏 ====================
+
+  Widget _buildSubjectFilterBar(ThemeData theme) {
+    return Container(
+      height: 48,
+      margin: const EdgeInsets.only(top: 8, bottom: 4),
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: [
+          // 全部选项
+          _buildSubjectChip('全部', _selectedSubject == null, () {
+            setState(() => _selectedSubject = null);
+            _applyFilters();
+          }),
+          const SizedBox(width: 8),
+          // 各学科选项
+          ...kSubjectNames.map((subject) {
+            return Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: _buildSubjectChip(
+                subject,
+                _selectedSubject == subject,
+                () {
+                  setState(() => _selectedSubject = subject);
+                  _applyFilters();
+                },
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSubjectChip(
+    String label,
+    bool selected,
+    VoidCallback onTap,
+  ) {
+    final color = label == '全部' ? AppColors.primary : getSubjectColor(label);
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? color : color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(
+            color: selected ? color : color.withOpacity(0.3),
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: AppFontSize.sm,
+            color: selected ? Colors.white : color,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
   }
 
   Color _getCategoryColor(String category) {
@@ -945,6 +1067,24 @@ class _MustRememberDetailScreenState extends State<MustRememberDetailScreen> {
       appBar: AppBar(
         title: Text(_item.isMastered ? '详情 (已掌握)' : '学习模式'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.print_outlined),
+            onPressed: () => PrintService.printMustRemember(
+              context: context,
+              title: _item.title,
+              content: _item.content,
+              subject: _item.subject,
+              category: _item.category,
+              memoryLevel: _item.memoryLevel,
+              reviewCount: _item.reviewCount,
+              nextReviewTime: _item.nextReviewTime != null
+                  ? formatDate(DateTime.fromMillisecondsSinceEpoch(_item.nextReviewTime!))
+                  : null,
+              isMastered: _item.isMastered,
+              createdAt: formatDate(DateTime.fromMillisecondsSinceEpoch(_item.createdAt)),
+            ),
+            tooltip: '打印',
+          ),
           IconButton(
             icon: Icon(
               _item.isMastered
@@ -1382,6 +1522,43 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
   }
 
   Future<void> _pickImageForOcr() async {
+    // Linux平台不支持相机功能，使用相册选择
+    if (Platform.isLinux) {
+      try {
+        final picked = await _imagePicker.pickImage(
+          source: ImageSource.gallery,
+          maxWidth: 1920,
+          maxHeight: 1080,
+          imageQuality: 85,
+        );
+        if (picked == null) return;
+
+        setState(() => _isOcrLoading = true);
+        showSnackBar(context, '正在识别...');
+
+        final result = await _ocrService.recognizeImage(picked.path);
+
+        if (result.success && result.text.isNotEmpty) {
+          setState(() {
+            _contentController.text = result.text;
+            _isOcrLoading = false;
+          });
+          showSnackBar(context, '识别成功');
+        } else {
+          setState(() => _isOcrLoading = false);
+          showSnackBar(
+            context,
+            result.errorMessage ?? '未识别到文字',
+            isError: true,
+          );
+        }
+      } catch (e) {
+        setState(() => _isOcrLoading = false);
+        if (mounted) showSnackBar(context, 'OCR识别失败: $e', isError: true);
+      }
+      return;
+    }
+
     try {
       final picked = await _imagePicker.pickImage(
         source: ImageSource.camera,
@@ -1416,6 +1593,13 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
     }
   }
 
+  /// 艾宾浩斯遗忘曲线计算下次复习时间
+  /// 新内容首次复习间隔为1天
+  int _calculateInitialReviewInterval() {
+    // 首次学习后1天进行第一次复习
+    return 24 * 3600; // 1天（秒）
+  }
+
   Future<void> _save() async {
     if (_titleController.text.trim().isEmpty) {
       showSnackBar(context, '请输入标题', isError: true);
@@ -1429,6 +1613,7 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
     setState(() => _isSaving = true);
 
     try {
+      final now = DateTime.now();
       final data = <String, dynamic>{
         'uuid': widget.item?.id,
         'title': _titleController.text.trim(),
@@ -1445,6 +1630,14 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
             : null,
         'is_mastered': widget.item?.isMastered == true ? 1 : 0,
       };
+
+      // 如果是新添加的内容，按艾宾浩斯遗忘曲线计算首次复习时间
+      if (widget.item == null) {
+        final interval = _calculateInitialReviewInterval();
+        final nextReviewTime = now.add(Duration(seconds: interval));
+        data['next_review_time'] = nextReviewTime.toIso8601String();
+        data['review_interval'] = interval;
+      }
 
       if (widget.item != null) {
         final row = await _db.queryMustRememberByUuid(widget.item!.id);
@@ -1552,7 +1745,7 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
                 TextButton.icon(
                   onPressed: _isOcrLoading ? null : _pickImageForOcr,
                   icon: const Icon(Icons.camera_alt, size: 18),
-                  label: const Text('OCR识别'),
+                  label: Text(Platform.isLinux ? '从相册识别' : 'OCR识别'),
                 ),
                 const SizedBox(width: 8),
                 TextButton.icon(
