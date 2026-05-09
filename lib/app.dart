@@ -23,7 +23,7 @@ class AppContent extends StatefulWidget {
   const AppContent({super.key});
 
   @override
-  State<App> createState() => _AppState();
+  State<AppContent> createState() => _AppContentState();
 }
 
 class _AppContentState extends State<AppContent> with SingleTickerProviderStateMixin {
