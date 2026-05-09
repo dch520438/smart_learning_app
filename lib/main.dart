@@ -60,7 +60,7 @@ class SmartLearningApp extends StatelessWidget {
             useMaterial3: true,
             colorSchemeSeed: const Color(0xFF4A90D9),
             brightness: Brightness.light,
-            fontFamily: 'NotoSansSC',
+            // fontFamily: 'NotoSansSC', // 注释掉，使用系统默认字体
             appBarTheme: const AppBarTheme(
               centerTitle: true,
               elevation: 0,
@@ -131,7 +131,7 @@ class SmartLearningApp extends StatelessWidget {
             useMaterial3: true,
             colorSchemeSeed: const Color(0xFF4A90D9),
             brightness: Brightness.dark,
-            fontFamily: 'NotoSansSC',
+            // fontFamily: 'NotoSansSC', // 注释掉，使用系统默认字体
             appBarTheme: const AppBarTheme(
               centerTitle: true,
               elevation: 0,

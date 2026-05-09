@@ -27,16 +27,13 @@ class App extends StatefulWidget {
 }
 
 class _AppState extends State<App> with SingleTickerProviderStateMixin {
-  // 导航栏动画控制器
   late final AnimationController _animationController;
   late final Animation<Offset> _slideAnimation;
   late final Animation<double> _fadeAnimation;
 
-  // 滑动检测相关
   double _startY = 0;
   double _currentY = 0;
 
-  // 页面列表
   final List<Widget> _pages = const [
     HomeScreen(),
     KnowledgeScreen(),
@@ -48,15 +45,10 @@ class _AppState extends State<App> with SingleTickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _initAnimations();
-  }
-
-  void _initAnimations() {
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
-
     _slideAnimation = Tween<Offset>(
       begin: Offset.zero,
       end: const Offset(0, 1),
@@ -64,7 +56,6 @@ class _AppState extends State<App> with SingleTickerProviderStateMixin {
       parent: _animationController,
       curve: Curves.easeInOut,
     ));
-
     _fadeAnimation = Tween<double>(
       begin: 1.0,
       end: 0.0,
@@ -80,7 +71,6 @@ class _AppState extends State<App> with SingleTickerProviderStateMixin {
     super.dispose();
   }
 
-  /// 处理垂直滑动手势
   void _handleVerticalDragStart(DragStartDetails details) {
     _startY = details.globalPosition.dy;
   }
@@ -88,32 +78,25 @@ class _AppState extends State<App> with SingleTickerProviderStateMixin {
   void _handleVerticalDragUpdate(DragUpdateDetails details) {
     _currentY = details.globalPosition.dy;
     final delta = _currentY - _startY;
-
     final navProvider = context.read<NavigationProvider>();
-
-    // 向下滑动超过阈值时显示导航栏，向上滑动超过阈值时隐藏导航栏
-    if (delta > 30 && navProvider.isNavVisible == false) {
+    if (delta > 30 && !navProvider.isNavVisible) {
       navProvider.showNavigation();
       _animationController.reverse();
-    } else if (delta < -30 && navProvider.isNavVisible == true) {
+    } else if (delta < -30 && navProvider.isNavVisible) {
       navProvider.hideNavigation();
       _animationController.forward();
     }
   }
 
-  /// 切换页面
   void _onTabTapped(int index) {
     final navProvider = context.read<NavigationProvider>();
     navProvider.setIndex(index);
-
-    // 如果导航栏当前是隐藏的，切换页面时自动显示
     if (!navProvider.isNavVisible) {
       navProvider.showNavigation();
       _animationController.reverse();
     }
   }
 
-  /// 导航到子页面
   void _navigateToSubPage(BuildContext context, String route) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -154,7 +137,6 @@ class _AppState extends State<App> with SingleTickerProviderStateMixin {
     final isTablet = screenWidth > 600;
 
     return Scaffold(
-      // 使用 GestureDetector 检测上下滑动来控制导航栏显示/隐藏
       body: GestureDetector(
         onVerticalDragStart: _handleVerticalDragStart,
         onVerticalDragUpdate: _handleVerticalDragUpdate,
@@ -163,8 +145,6 @@ class _AppState extends State<App> with SingleTickerProviderStateMixin {
           children: _pages,
         ),
       ),
-
-      // 隐藏式底部导航栏
       bottomNavigationBar: AnimatedBuilder(
         animation: _animationController,
         builder: (context, child) {
@@ -238,52 +218,13 @@ class _AppState extends State<App> with SingleTickerProviderStateMixin {
           );
         },
       ),
-
-      // 浮动操作按钮（仅在首页显示）
       floatingActionButton: navProvider.currentIndex == 0
           ? FloatingActionButton(
               onPressed: () => _navigateToSubPage(context, '/search'),
-              backgroundColor: isDark
-                  ? const Color(0xFF4A90D9)
-                  : const Color(0xFF4A90D9),
+              backgroundColor: const Color(0xFF4A90D9),
               child: const Icon(Icons.search, color: Colors.white),
             )
           : null,
-    );
-  }
-}
-
-/// AnimatedBuilder 的简化封装，用于导航栏动画
-class AnimatedBuilder extends StatelessWidget {
-  final Animation<double> animation;
-  final Widget Function(BuildContext context, Widget? child) builder;
-  final Widget? child;
-
-  const AnimatedBuilder({
-    super.key,
-    required this.animation,
-    required this.builder,
-    this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder._internal(
-      listenable: animation,
-      builder: builder,
-      child: child,
-    );
-  }
-
-  static Widget _internal({
-    required Listenable listenable,
-    required Widget Function(BuildContext context, Widget? child) builder,
-    Widget? child,
-  }) {
-    return AnimatedBuilder(
-      animation: listenable as Animation<double>,
-      builder: builder,
-      child: child,
     );
   }
 }
