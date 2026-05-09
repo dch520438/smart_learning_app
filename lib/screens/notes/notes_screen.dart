@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../models/note.dart';
 import '../../services/database_service.dart';
+import '../../services/export_service.dart';
 import '../../services/print_service.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/note_widgets.dart';
@@ -214,6 +215,29 @@ class _NotesScreenState extends State<NotesScreen> {
         if (mounted) {
           showSnackBar(context, '删除失败: $e', isError: true);
         }
+      }
+    }
+  }
+
+  Future<void> _batchExport() async {
+    if (_selectedIds.isEmpty) return;
+    try {
+      final notes = <Map<String, dynamic>>[];
+      for (final id in _selectedIds) {
+        final note = _notes.firstWhere((n) => n.id == id, orElse: () => _notes.first);
+        notes.add(note.toJson());
+      }
+      final result = await _exportService.exportModulesToJson(
+        {'notes': notes},
+        'notes_export',
+      );
+      _exitSelectionMode();
+      if (mounted) {
+        showSnackBar(context, '已导出 ${notes.length} 篇笔记到 ${result.filePath}');
+      }
+    } catch (e) {
+      if (mounted) {
+        showSnackBar(context, '导出失败: $e', isError: true);
       }
     }
   }

@@ -1023,7 +1023,7 @@ class _WrongQuestionDetailScreenState extends State<WrongQuestionDetailScreen> {
                   ? _question.options.asMap().entries.map((e) => '${['A', 'B', 'C', 'D', 'E', 'F'][e.key]}. ${e.value}').join('\n')
                   : null,
               correctAnswer: _question.correctAnswer,
-              myAnswer: _question.myAnswer,
+              myAnswer: _question.userAnswer,
               analysis: _question.analysis,
               subject: _question.subject,
               errorType: _question.errorType,
