@@ -46,7 +46,6 @@ void main() async {
     databaseFactory = databaseFactoryFfiNoIsolate;
   }
 
-  // 设置系统UI样式
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -55,16 +54,13 @@ void main() async {
     ),
   );
 
-  // 屏幕方向限制
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // 初始化 SharedPreferences
   final prefs = await SharedPreferences.getInstance();
 
-  // 运行应用
   runApp(
     MultiProvider(
       providers: [
@@ -76,7 +72,6 @@ void main() async {
   );
 }
 
-/// 应用根组件，包含 MaterialApp
 class SmartLearningApp extends StatelessWidget {
   const SmartLearningApp({super.key});
 
@@ -92,11 +87,13 @@ class SmartLearningApp extends StatelessWidget {
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF4A90D9),
         brightness: Brightness.light,
+        fontFamily: 'Noto Sans CJK SC',
       ),
       darkTheme: ThemeData(
         useMaterial3: true,
         colorSchemeSeed: const Color(0xFF4A90D9),
         brightness: Brightness.dark,
+        fontFamily: 'Noto Sans CJK SC',
       ),
       home: const AppContent(),
     );
