@@ -55,13 +55,15 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen>
     with SingleTickerProviderStateMixin {
-  final DatabaseService _db = DatabaseService();
+  DatabaseService? _db;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
   bool _isLoading = false;
+  bool _isInitialized = false;
   String _searchQuery = '';
   List<SearchResult> _allResults = [];
+  String? _errorMessage;
 
   // Tab控制器
   late TabController _tabController;
@@ -71,13 +73,32 @@ class _SearchScreenState extends State<SearchScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
-    _tabController.addListener(() {
-      setState(() {});
-    });
-    // 自动聚焦搜索框
+    _tabController.addListener(_onTabChanged);
+    // 延迟初始化数据库和聚焦
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _searchFocusNode.requestFocus();
+      _initializeSearch();
     });
+  }
+
+  void _onTabChanged() {
+    if (_tabController.indexIsChanging) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _initializeSearch() async {
+    try {
+      _db = DatabaseService();
+      setState(() {
+        _isInitialized = true;
+      });
+      _searchFocusNode.requestFocus();
+    } catch (e) {
+      setState(() {
+        _errorMessage = '初始化失败: $e';
+        _isInitialized = true;
+      });
+    }
   }
 
   @override

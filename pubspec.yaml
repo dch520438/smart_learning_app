@@ -67,3 +67,7 @@ flutter:
     - family: WQYMicroHei
       fonts:
         - asset: fonts/WenQuanYiMicroHei.ttf
+          weight: 400
+        - asset: fonts/WenQuanYiMicroHei.ttf
+          weight: 600
+          style: normal

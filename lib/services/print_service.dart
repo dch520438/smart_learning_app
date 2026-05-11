@@ -18,6 +18,18 @@ enum PrintContentType {
   studySuggestion, // 学习建议
 }
 
+/// 打印选项枚举
+enum PrintOption {
+  /// 直接打印（使用系统打印对话框）
+  print,
+
+  /// 保存PDF文件
+  savePdf,
+
+  /// 打印预览
+  preview,
+}
+
 /// 打印内容项模型
 class PrintContentItem {
   final PrintContentType type;
@@ -99,19 +111,165 @@ class PrintResult {
 /// 打印服务类
 /// 用于生成PDF并打印各类型内容
 class PrintService {
+  /// 日志输出
+  static void _log(String message) {
+    // ignore: avoid_print
+    print('[PrintService] $message');
+  }
+
   /// 检查打印功能是否可用
   static Future<bool> isPrintingAvailable() async {
     try {
-      // 在 Linux 上，printing 插件可能有问题
-      // 我们尝试检测是否可用
       if (Platform.isLinux) {
-        // Linux 上打印功能可能不稳定，返回 true 让用户尝试
-        // 如果失败会捕获异常并提供替代方案
+        // 检查系统是否有打印命令
+        try {
+          final result = await Process.run('which', ['lp']);
+          if (result.exitCode == 0) {
+            _log('Linux平台检测到系统打印命令: lp');
+            return true;
+          }
+        } catch (_) {}
+        // 如果没有lp命令，也返回true，使用PDF预览方式
         return true;
       }
       return true;
     } catch (e) {
+      _log('检测打印功能可用性失败: $e');
       return false;
+    }
+  }
+
+  /// 显示打印选项对话框
+  /// 返回用户选择的打印方式
+  static Future<PrintOption?> showPrintOptionsDialog(
+    BuildContext context, {
+    String title = '选择打印方式',
+    bool showDirectPrint = true,
+    bool showSavePdf = true,
+    bool showPreview = true,
+  }) async {
+    // 默认选项（根据平台不同）
+    final options = <PrintOption>[];
+
+    // 非Linux平台支持直接打印
+    if (!Platform.isLinux) {
+      if (showDirectPrint) options.add(PrintOption.print);
+    } else {
+      // Linux平台如果有lp命令，支持直接打印
+      if (showDirectPrint) {
+        try {
+          final result = await Process.run('which', ['lp']);
+          if (result.exitCode == 0) {
+            options.add(PrintOption.print);
+          }
+        } catch (_) {}
+      }
+    }
+
+    if (showSavePdf) options.add(PrintOption.savePdf);
+    if (showPreview) options.add(PrintOption.preview);
+
+    if (options.isEmpty) {
+      options.add(PrintOption.savePdf);
+    }
+
+    // 如果只有一个选项，直接返回
+    if (options.length == 1) {
+      return options.first;
+    }
+
+    // 显示选择对话框
+    return await showDialog<PrintOption>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: options.map((option) {
+            IconData icon;
+            String label;
+            String description;
+
+            switch (option) {
+              case PrintOption.print:
+                icon = Icons.print;
+                label = '直接打印';
+                description = Platform.isLinux
+                    ? '使用系统打印命令打印'
+                    : '使用系统打印对话框打印';
+                break;
+              case PrintOption.savePdf:
+                icon = Icons.save_alt;
+                label = '保存PDF';
+                description = '将内容保存为PDF文件';
+                break;
+              case PrintOption.preview:
+                icon = Icons.preview;
+                label = '打印预览';
+                description = '预览后选择打印或分享';
+                break;
+            }
+
+            return ListTile(
+              leading: Icon(icon, color: Theme.of(context).colorScheme.primary),
+              title: Text(label),
+              subtitle: Text(description, style: const TextStyle(fontSize: 12)),
+              onTap: () => Navigator.pop(context, option),
+            );
+          }).toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 使用系统打印命令打印PDF（Linux平台）
+  static Future<PrintResult> _printWithSystemCommand(
+    Uint8List pdfBytes,
+    String fileName,
+  ) async {
+    _log('使用系统打印命令打印...');
+
+    try {
+      // 创建临时文件
+      final tempDir = await getTemporaryDirectory();
+      final tempFile = File('${tempDir.path}/$fileName.pdf');
+      await tempFile.writeAsBytes(pdfBytes);
+
+      _log('临时文件: ${tempFile.path}');
+
+      // 尝试使用 lp 命令打印
+      // lp 是CUPS打印系统的标准命令
+      final result = await Process.run('lp', [tempFile.path]);
+
+      if (result.exitCode == 0) {
+        _log('打印任务已提交: ${result.stdout}');
+
+        // 清理临时文件
+        try {
+          await tempFile.delete();
+        } catch (_) {}
+
+        return const PrintResult(success: true);
+      } else {
+        final error = result.stderr.toString();
+        _log('打印失败: $error');
+        return PrintResult(
+          success: false,
+          errorMessage: '打印失败: $error',
+        );
+      }
+    } catch (e) {
+      _log('系统打印失败: $e');
+      return PrintResult(
+        success: false,
+        errorMessage: '系统打印失败: $e',
+      );
     }
   }
 
@@ -569,12 +727,186 @@ class PrintService {
       // 生成 PDF 字节
       final pdfBytes = await pdf.save();
 
-      // 在 Linux 上，提供保存 PDF 的选项
-      if (Platform.isLinux) {
-        return await _savePdfOnLinux(context, pdfBytes, customTitle ?? '学习资料', now);
+      // 显示打印选项让用户选择
+      final option = await showPrintOptionsDialog(
+        context,
+        title: '选择打印方式',
+      );
+
+      if (option == null) {
+        return const PrintResult(success: false, errorMessage: '用户取消了操作');
       }
 
-      // 其他平台：显示打印预览对话框
+      _log('用户选择的打印方式: $option');
+
+      switch (option) {
+        case PrintOption.print:
+          // 直接打印
+          if (Platform.isLinux) {
+            return await _printWithSystemCommand(
+              pdfBytes,
+              customTitle ?? '学习资料',
+            );
+          } else {
+            // 其他平台使用 printing 包直接打印
+            return await Printing.layoutPdf(
+              onLayout: (_) async => pdfBytes,
+              name: customTitle ?? '学习资料',
+            ).then((_) => const PrintResult(success: true))
+              .catchError((e) => PrintResult(success: false, errorMessage: '打印失败: $e'));
+          }
+
+        case PrintOption.savePdf:
+          // 保存 PDF
+          if (Platform.isLinux) {
+            return await _savePdfOnLinux(context, pdfBytes, customTitle ?? '学习资料', now);
+          } else {
+            return await _savePdfOnOtherPlatform(context, pdfBytes, customTitle ?? '学习资料', now);
+          }
+
+        case PrintOption.preview:
+          // 打印预览
+          if (Platform.isLinux) {
+            // Linux 平台没有原生预览，使用 savePdf
+            return await _savePdfOnLinux(context, pdfBytes, customTitle ?? '学习资料', now);
+          } else {
+            return await _showPdfPreview(context, pdfBytes, customTitle ?? '学习资料', now);
+          }
+      }
+    } catch (e) {
+      _log('批量打印失败: $e');
+      // 打印失败，提供替代方案
+      if (context.mounted) {
+        _showPrintErrorDialog(context, e.toString());
+      }
+      return PrintResult(success: false, errorMessage: '生成PDF失败: $e');
+    }
+  }
+
+  /// Linux 平台保存 PDF
+  static Future<PrintResult> _savePdfOnLinux(
+    BuildContext context,
+    Uint8List pdfBytes,
+    String defaultName,
+    DateTime now,
+  ) async {
+    _log('Linux平台保存PDF...');
+    try {
+      // 获取默认下载目录
+      String? defaultDirectory;
+      try {
+        final home = Platform.environment['HOME'];
+        if (home != null) {
+          defaultDirectory = '$home/Downloads';
+          final downloadDir = Directory(defaultDirectory);
+          if (!await downloadDir.exists()) {
+            _log('下载目录不存在，使用HOME目录');
+            defaultDirectory = home;
+          }
+        }
+      } catch (e) {
+        _log('获取默认目录失败: $e');
+      }
+
+      // 使用文件选择器让用户选择保存位置
+      String? outputPath = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: '选择PDF保存位置',
+        initialDirectory: defaultDirectory,
+      );
+
+      if (outputPath == null) {
+        _log('用户取消了保存操作');
+        return const PrintResult(success: false, errorMessage: '用户取消了保存操作');
+      }
+
+      _log('用户选择目录: $outputPath');
+
+      // 构建文件路径
+      final fileName = '${defaultName}_${formatDate(now)}.pdf';
+      final filePath = '$outputPath/$fileName';
+      final file = File(filePath);
+
+      // 写入文件
+      await file.writeAsBytes(pdfBytes);
+
+      // 验证写入成功
+      if (await file.exists()) {
+        final fileSize = await file.length();
+        _log('PDF保存成功，大小: $fileSize 字节');
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('PDF已保存到: $filePath'),
+              duration: const Duration(seconds: 4),
+              action: SnackBarAction(
+                label: '打印',
+                onPressed: () async {
+                  // 可以选择打印已保存的文件
+                  await _printWithSystemCommand(pdfBytes, defaultName);
+                },
+              ),
+            ),
+          );
+        }
+
+        return PrintResult(success: true, filePath: filePath);
+      } else {
+        return const PrintResult(success: false, errorMessage: '文件写入验证失败');
+      }
+    } catch (e) {
+      _log('保存PDF失败: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('保存PDF失败: $e')),
+        );
+      }
+      return PrintResult(success: false, errorMessage: '保存PDF失败: $e');
+    }
+  }
+
+  /// 其他平台保存 PDF
+  static Future<PrintResult> _savePdfOnOtherPlatform(
+    BuildContext context,
+    Uint8List pdfBytes,
+    String defaultName,
+    DateTime now,
+  ) async {
+    _log('其他平台保存PDF...');
+    try {
+      final fileName = '${defaultName}_${formatDate(now)}.pdf';
+
+      final result = await FilePicker.platform.saveFile(
+        dialogTitle: '保存PDF文件',
+        fileName: fileName,
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+      );
+
+      if (result == null) {
+        return const PrintResult(success: false, errorMessage: '用户取消了保存操作');
+      }
+
+      final file = File(result);
+      await file.writeAsBytes(pdfBytes);
+
+      _log('PDF保存成功: ${file.path}');
+      return PrintResult(success: true, filePath: file.path);
+    } catch (e) {
+      _log('保存PDF失败: $e');
+      return PrintResult(success: false, errorMessage: '保存PDF失败: $e');
+    }
+  }
+
+  /// 显示 PDF 预览
+  static Future<PrintResult> _showPdfPreview(
+    BuildContext context,
+    Uint8List pdfBytes,
+    String defaultName,
+    DateTime now,
+  ) async {
+    _log('显示PDF预览...');
+    try {
       if (context.mounted) {
         await showDialog(
           context: context,
@@ -591,88 +923,17 @@ class PrintService {
                   allowSharing: true,
                   canChangePageFormat: false,
                   canChangeOrientation: false,
-                  pdfFileName: '学习资料_${formatDate(now)}.pdf',
+                  pdfFileName: '${defaultName}_${formatDate(now)}.pdf',
                 ),
               ),
             ),
           ),
         );
       }
-
-      return PrintResult(success: true);
+      return const PrintResult(success: true);
     } catch (e) {
-      // 打印失败，提供替代方案
-      if (context.mounted) {
-        _showPrintErrorDialog(context, e.toString());
-      }
-      return PrintResult(success: false, errorMessage: '生成PDF失败: $e');
-    }
-  }
-
-  /// Linux 平台保存 PDF
-  static Future<PrintResult> _savePdfOnLinux(
-    BuildContext context,
-    Uint8List pdfBytes,
-    String defaultName,
-    DateTime now,
-  ) async {
-    try {
-      // 获取默认下载目录
-      String? defaultDirectory;
-      try {
-        final home = Platform.environment['HOME'];
-        if (home != null) {
-          defaultDirectory = '$home/Downloads';
-          final downloadDir = Directory(defaultDirectory);
-          if (!await downloadDir.exists()) {
-            defaultDirectory = home;
-          }
-        }
-      } catch (_) {}
-
-      // 使用文件选择器让用户选择保存位置
-      String? outputPath = await FilePicker.platform.getDirectoryPath(
-        dialogTitle: '选择PDF保存位置',
-        initialDirectory: defaultDirectory,
-      );
-
-      if (outputPath == null) {
-        return const PrintResult(success: false, errorMessage: '用户取消了保存操作');
-      }
-
-      // 构建文件路径
-      final fileName = '${defaultName}_${formatDate(now)}.pdf';
-      final filePath = '$outputPath/$fileName';
-      final file = File(filePath);
-
-      // 写入文件
-      await file.writeAsBytes(pdfBytes);
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('PDF已保存到: $filePath'),
-            duration: const Duration(seconds: 4),
-            action: SnackBarAction(
-              label: '打开目录',
-              onPressed: () async {
-                // 打开文件所在目录
-                final dir = file.parent;
-                // 可以使用 xdg-open 打开目录
-              },
-            ),
-          ),
-        );
-      }
-
-      return PrintResult(success: true, filePath: filePath);
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('保存PDF失败: $e')),
-        );
-      }
-      return PrintResult(success: false, errorMessage: '保存PDF失败: $e');
+      _log('PDF预览失败: $e');
+      return PrintResult(success: false, errorMessage: 'PDF预览失败: $e');
     }
   }
 
@@ -965,36 +1226,47 @@ class PrintService {
       // 生成 PDF 字节
       final pdfBytes = await pdf.save();
 
-      // 在 Linux 上，提供保存 PDF 的选项
-      if (Platform.isLinux) {
-        return await _savePdfOnLinux(context, pdfBytes, type, now);
-      }
-
-      // 其他平台：显示打印预览对话框
-      await showDialog(
-        context: context,
-        builder: (context) => Dialog(
-          insetPadding: const EdgeInsets.all(16),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: SizedBox(
-              width: double.infinity,
-              height: MediaQuery.of(context).size.height * 0.8,
-              child: PdfPreview(
-                build: (format) => pdfBytes,
-                allowPrinting: true,
-                allowSharing: true,
-                canChangePageFormat: false,
-                canChangeOrientation: false,
-                pdfFileName: '${type}_${formatDate(now)}.pdf',
-              ),
-            ),
-          ),
-        ),
+      // 显示打印选项让用户选择
+      final option = await showPrintOptionsDialog(
+        context,
+        title: '选择打印方式',
       );
 
-      return const PrintResult(success: true);
+      if (option == null) {
+        return const PrintResult(success: false, errorMessage: '用户取消了操作');
+      }
+
+      switch (option) {
+        case PrintOption.print:
+          // 直接打印
+          if (Platform.isLinux) {
+            return await _printWithSystemCommand(pdfBytes, type);
+          } else {
+            return await Printing.layoutPdf(
+              onLayout: (_) async => pdfBytes,
+              name: type,
+            ).then((_) => const PrintResult(success: true))
+              .catchError((e) => PrintResult(success: false, errorMessage: '打印失败: $e'));
+          }
+
+        case PrintOption.savePdf:
+          // 保存 PDF
+          if (Platform.isLinux) {
+            return await _savePdfOnLinux(context, pdfBytes, type, now);
+          } else {
+            return await _savePdfOnOtherPlatform(context, pdfBytes, type, now);
+          }
+
+        case PrintOption.preview:
+          // 打印预览
+          if (Platform.isLinux) {
+            return await _savePdfOnLinux(context, pdfBytes, type, now);
+          } else {
+            return await _showPdfPreview(context, pdfBytes, type, now);
+          }
+      }
     } catch (e) {
+      _log('打印失败: $e');
       if (context.mounted) {
         _showPrintErrorDialog(context, e.toString());
       }
@@ -1101,6 +1373,7 @@ class PrintService {
 
       return await pdf.save();
     } catch (e) {
+      _log('生成PDF失败: $e');
       return null;
     }
   }

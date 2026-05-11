@@ -77,6 +77,10 @@ class _MindMapScreenState extends State<MindMapScreen> {
         _mindMapData = data;
         _isLoading = false;
       });
+      // 如果加载后仍为空，提示用户
+      if (data.nodes.isEmpty && mounted) {
+        debugPrint('思维导图数据为空，请先添加知识点、错题、笔记或必记必背内容');
+      }
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
@@ -544,34 +548,114 @@ class _MindMapScreenState extends State<MindMapScreen> {
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.account_tree_outlined,
-            size: 64,
-            color: AppColors.textHint,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            '暂无数据',
-            style: TextStyle(
-              fontSize: AppFontSize.lg,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            '添加知识点、错题、笔记等内容后\n思维导图将自动生成',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: AppFontSize.sm,
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.account_tree_outlined,
+              size: 80,
               color: AppColors.textHint,
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            Text(
+              '暂无内容',
+              style: TextStyle(
+                fontSize: AppFontSize.xl,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '添加内容后，思维导图将自动生成',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: AppFontSize.md,
+                color: AppColors.textHint,
+              ),
+            ),
+            const SizedBox(height: 32),
+            // 快速添加入口
+            _buildQuickAddButton(
+              icon: Icons.error_outline,
+              label: '添加错题',
+              color: AppColors.error,
+              onTap: () => _navigateToAddWrongQuestion(),
+            ),
+            const SizedBox(height: 12),
+            _buildQuickAddButton(
+              icon: Icons.quiz,
+              label: '添加母题',
+              color: AppColors.primary,
+              onTap: () => _navigateToAddMotherQuestion(),
+            ),
+            const SizedBox(height: 12),
+            _buildQuickAddButton(
+              icon: Icons.lightbulb_outline,
+              label: '添加知识点',
+              color: AppColors.success,
+              onTap: () => _navigateToAddKnowledgePoint(),
+            ),
+            const SizedBox(height: 12),
+            _buildQuickAddButton(
+              icon: Icons.memory,
+              label: '添加必记必背',
+              color: AppColors.secondary,
+              onTap: () => _navigateToAddMustRemember(),
+            ),
+            const SizedBox(height: 24),
+            OutlinedButton.icon(
+              onPressed: _generateMindMap,
+              icon: const Icon(Icons.refresh),
+              label: const Text('刷新思维导图'),
+            ),
+          ],
+        ),
       ),
     );
+  }
+
+  Widget _buildQuickAddButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, color: color),
+        label: Text(label, style: TextStyle(color: color)),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          side: BorderSide(color: color.withOpacity(0.5)),
+        ),
+      ),
+    );
+  }
+
+  // 导航到添加页面
+  void _navigateToAddWrongQuestion() {
+    // TODO: 实现导航到错题添加页面
+    showSnackBar(context, '请前往错题本页面添加错题');
+  }
+
+  void _navigateToAddMotherQuestion() {
+    // TODO: 实现导航到母题添加页面
+    showSnackBar(context, '请前往母题集页面添加母题');
+  }
+
+  void _navigateToAddKnowledgePoint() {
+    // TODO: 实现导航到知识点添加页面
+    showSnackBar(context, '请前往知识点页面添加知识点');
+  }
+
+  void _navigateToAddMustRemember() {
+    // TODO: 实现导航到必记必背添加页面
+    showSnackBar(context, '请前往必记必背页面添加内容');
   }
 
   Widget _buildMindMap() {

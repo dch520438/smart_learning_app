@@ -613,18 +613,22 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
       if (questionSource == 'all' || questionSource == 'wrong') {
         final wrongQuestions = await _db.queryWrongQuestionsBySubject(subject);
         for (final wq in wrongQuestions) {
-          loadedQuestions.add({
-            'id': 'wrong_${wq['id']}',
-            'content': wq['question_content'] as String? ?? '',
-            'type': wq['question_type'] as String? ?? 'singleChoice',
-            'subject': wq['subject'] as String? ?? subject,
-            'options': _safeParseOptions(wq['options']),
-            'correctAnswer': wq['correct_answer'] as String? ?? '',
-            'analysis': wq['analysis'] as String? ?? '暂无解析',
-            'difficulty': wq['difficulty'] as int? ?? 2,
-            'source': 'wrong',
-            'sourceLabel': '错题',
-          });
+          // 安全获取 question_content
+          final questionContent = wq['question_content'] as String?;
+          if (questionContent != null && questionContent.trim().isNotEmpty) {
+            loadedQuestions.add({
+              'id': 'wrong_${wq['id']}',
+              'content': questionContent,
+              'type': wq['question_type'] as String? ?? 'singleChoice',
+              'subject': wq['subject'] as String? ?? subject,
+              'options': _safeParseOptions(wq['options']),
+              'correctAnswer': wq['correct_answer'] as String? ?? '',
+              'analysis': wq['analysis'] as String? ?? '暂无解析',
+              'difficulty': wq['difficulty'] as int? ?? 2,
+              'source': 'wrong',
+              'sourceLabel': '错题',
+            });
+          }
         }
         _wrongQuestionCount = wrongQuestions.length;
       }
@@ -633,23 +637,36 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
       if (questionSource == 'all' || questionSource == 'mother') {
         final motherQuestions = await _db.queryMotherQuestionsBySubject(subject);
         for (final mq in motherQuestions) {
-          loadedQuestions.add({
-            'id': 'mother_${mq['id']}',
-            'content': mq['question_content'] as String? ?? '',
-            'type': mq['question_type'] as String? ?? 'singleChoice',
-            'subject': mq['subject'] as String? ?? subject,
-            'options': _safeParseOptions(mq['options']),
-            'correctAnswer': mq['correct_answer'] as String? ?? '',
-            'analysis': mq['analysis'] as String? ?? '暂无解析',
-            'difficulty': mq['difficulty'] as int? ?? 2,
-            'source': 'mother',
-            'sourceLabel': '母题',
-          });
+          // 安全获取 question_content
+          final questionContent = mq['question_content'] as String?;
+          if (questionContent != null && questionContent.trim().isNotEmpty) {
+            loadedQuestions.add({
+              'id': 'mother_${mq['id']}',
+              'content': questionContent,
+              'type': mq['question_type'] as String? ?? 'singleChoice',
+              'subject': mq['subject'] as String? ?? subject,
+              'options': _safeParseOptions(mq['options']),
+              'correctAnswer': mq['correct_answer'] as String? ?? '',
+              'analysis': mq['analysis'] as String? ?? '暂无解析',
+              'difficulty': mq['difficulty'] as int? ?? 2,
+              'source': 'mother',
+              'sourceLabel': '母题',
+            });
+          }
         }
         _motherQuestionCount = motherQuestions.length;
       }
 
-      // 3. 如果用户录入的题目不够，用系统题库补充
+      // 3. 如果没有用户录入的题目，提示用户
+      if (loadedQuestions.isEmpty) {
+        setState(() {
+          _questions = [];
+          _isLoadingQuestions = false;
+        });
+        return;
+      }
+
+      // 4. 如果用户录入的题目不够，用系统题库补充
       if (loadedQuestions.length < _totalQuestions) {
         final needed = _totalQuestions - loadedQuestions.length;
         for (int i = 0; i < needed; i++) {
@@ -690,9 +707,10 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
         _isLoadingQuestions = false;
       });
     } catch (e) {
-      // 如果加载失败，使用系统生成的题目
-      _generateMockQuestions();
+      debugPrint('加载题目失败: $e');
+      // 如果加载失败，清空题目列表
       setState(() {
+        _questions = [];
         _isLoadingQuestions = false;
       });
     }
@@ -1627,7 +1645,11 @@ class _PracticeTabState extends State<_PracticeTab> {
           final qType = wq['question_type'] as String? ?? 'singleChoice';
           if (_selectedTypeFilter != _QuestionTypeFilter.all &&
               qType != _selectedTypeFilter.name) continue;
-          loadedQuestions.add(_convertWrongQuestion(wq));
+          // 安全获取 question_content
+          final questionContent = wq['question_content'] as String?;
+          if (questionContent != null && questionContent.trim().isNotEmpty) {
+            loadedQuestions.add(_convertWrongQuestion(wq));
+          }
         }
         _wrongSourceCount = wrongQuestions.length;
       }
@@ -1642,7 +1664,11 @@ class _PracticeTabState extends State<_PracticeTab> {
           final qType = mq['question_type'] as String? ?? 'singleChoice';
           if (_selectedTypeFilter != _QuestionTypeFilter.all &&
               qType != _selectedTypeFilter.name) continue;
-          loadedQuestions.add(_convertMotherQuestion(mq));
+          // 安全获取 question_content
+          final questionContent = mq['question_content'] as String?;
+          if (questionContent != null && questionContent.trim().isNotEmpty) {
+            loadedQuestions.add(_convertMotherQuestion(mq));
+          }
         }
         _motherSourceCount = motherQuestions.length;
       }
@@ -1654,22 +1680,33 @@ class _PracticeTabState extends State<_PracticeTab> {
           _selectedChapters.isEmpty ? null : _selectedChapters.toList(),
         );
         for (final mr in mustRemembers) {
-          loadedQuestions.add(_convertMustRememberToQuestion(mr));
+          // 安全获取 title 和 content
+          final title = mr['title'] as String?;
+          final content = mr['content'] as String?;
+          if ((title != null && title.trim().isNotEmpty) ||
+              (content != null && content.trim().isNotEmpty)) {
+            loadedQuestions.add(_convertMustRememberToQuestion(mr));
+          }
         }
         _mustRememberSourceCount = mustRemembers.length;
       }
 
-      // 2. 如果不够，用系统题库补充
-      if (loadedQuestions.length < _questionCount) {
-        final needed = _questionCount - loadedQuestions.length;
-        for (int i = 0; i < needed; i++) {
-          loadedQuestions.add(_generateSystemQuestion(
-            index: loadedQuestions.length,
-            subject: _selectedSubject,
-            random: random,
-          ));
+      // 2. 检查是否有用户录入的题目
+      if (loadedQuestions.isEmpty) {
+        // 如果没有用户录入的题目，提示用户
+        setState(() {
+          _questions = [];
+          _isInExam = false;
+          _isExamSubmitted = false;
+        });
+        if (mounted) {
+          showSnackBar(
+            context,
+            '当前没有可用的练习题目，请先添加错题、母题或必记必背内容',
+            isError: true,
+          );
         }
-        _systemSourceCount = needed;
+        return;
       }
 
       // 3. 打乱题目顺序
@@ -1681,17 +1718,16 @@ class _PracticeTabState extends State<_PracticeTab> {
 
       setState(() {});
     } catch (e) {
-      // 如果加载失败，使用系统生成的题目
-      _questions = List.generate(_questionCount, (index) {
-        return _generateSystemQuestion(
-          index: index,
-          subject: _selectedSubject,
-          random: random,
-        );
+      // 如果加载失败，提示用户
+      debugPrint('加载题目失败: $e');
+      setState(() {
+        _questions = [];
+        _isInExam = false;
+        _isExamSubmitted = false;
       });
-      _systemSourceCount = _questionCount;
-      _scorePerQuestion = _questions.isNotEmpty ? 100.0 / _questions.length : 0;
-      setState(() {});
+      if (mounted) {
+        showSnackBar(context, '加载题目失败，请重试', isError: true);
+      }
     }
   }
 
@@ -1860,7 +1896,8 @@ class _PracticeTabState extends State<_PracticeTab> {
     if (_currentIndex > 0) {
       setState(() {
         _currentIndex--;
-        _showResult = _answers[_currentIndex + 1] != null;
+        // 做题过程中不显示答案和解析
+        _showResult = false;
       });
     }
   }
@@ -2385,16 +2422,15 @@ class _PracticeTabState extends State<_PracticeTab> {
                     subject: currentQuestion['subject'],
                     difficulty: currentQuestion['difficulty'],
                     options: (currentQuestion['options'] as List?)?.cast<String>(),
-                    correctAnswer: currentQuestion['correctAnswer'],
+                    correctAnswer: null, // 做题过程中不显示正确答案
                     userAnswer: _answers[_currentIndex + 1],
-                    analysis: currentQuestion['analysis'],
+                    analysis: null, // 做题过程中不显示解析
                     index: _currentIndex,
-                    showResult: _showResult,
-                    showAnalysis: _showResult,
+                    showResult: false, // 做题过程中不显示结果
+                    showAnalysis: false, // 做题过程中不显示解析
                     onAnswer: (answer) {
-                      if (!_showResult) {
-                        setState(() => _answers[_currentIndex + 1] = answer);
-                      }
+                      // 做题过程中可以修改答案
+                      setState(() => _answers[_currentIndex + 1] = answer);
                     },
                   ),
                   // 简答题自评区域
@@ -2482,19 +2518,15 @@ class _PracticeTabState extends State<_PracticeTab> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  // 提交/下一题
+                  // 下一题/提交全部
                   Expanded(
+                    flex: 2,
                     child: AppButton(
-                      text: _showResult
-                          ? (_currentIndex < _questions.length - 1 ? '下一题' : '提交全部')
-                          : '提交答案',
-                      icon: _showResult
-                          ? (_currentIndex < _questions.length - 1 ? Icons.chevron_right : Icons.send)
-                          : Icons.check,
-                      style: _showResult
-                          ? AppButtonStyle.primary
-                          : AppButtonStyle.secondary,
-                      onPressed: _showResult ? _goToNext : _submitCurrentAnswer,
+                      text: _currentIndex < _questions.length - 1 ? '下一题' : '提交全部',
+                      icon: _currentIndex < _questions.length - 1 ? Icons.chevron_right : Icons.send,
+                      style: AppButtonStyle.primary,
+                      enabled: _answers[_currentIndex + 1] != null, // 必须作答才能下一题
+                      onPressed: _goToNext,
                     ),
                   ),
                 ],
@@ -2547,7 +2579,8 @@ class _PracticeTabState extends State<_PracticeTab> {
                   Navigator.of(context).pop();
                   setState(() {
                     _currentIndex = index;
-                    _showResult = _answers[index + 1] != null;
+                    // 做题过程中不显示答案和解析
+                    _showResult = false;
                   });
                 },
               ),

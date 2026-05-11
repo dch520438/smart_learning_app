@@ -1611,15 +1611,26 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
   final TextEditingController _questionController = TextEditingController();
   final TextEditingController _answerController = TextEditingController();
   final TextEditingController _analysisController = TextEditingController();
-  
+
   String _questionType = 'fillBlank'; // fillBlank, choice, shortAnswer
   String _targetTable = 'mother'; // mother, wrong
   bool _isSaving = false;
 
+  // 选择题选项
+  List<String> _choiceOptions = [];
+  String? _correctOption; // 正确选项（从选项列表中选择）
+
   @override
   void initState() {
     super.initState();
+    _initChoiceOptions();
     _autoGenerateQuestion();
+  }
+
+  /// 初始化选择题选项
+  void _initChoiceOptions() {
+    _choiceOptions = ['A. ', 'B. ', 'C. ', 'D. '];
+    _correctOption = null;
   }
 
   @override
@@ -1630,10 +1641,66 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
     super.dispose();
   }
 
+  /// 切换题目类型时重置选项
+  void _onQuestionTypeChanged(String newType) {
+    setState(() {
+      _questionType = newType;
+      if (newType == 'choice') {
+        _initChoiceOptions();
+        // 用当前内容填充第一个选项作为正确答案
+        if (_choiceOptions.isNotEmpty) {
+          _choiceOptions[0] = 'A. ${_answerController.text.trim()}';
+          _correctOption = 'A';
+        }
+      }
+    });
+  }
+
+  /// 更新选择题选项
+  void _updateChoiceOption(int index, String value) {
+    if (index >= 0 && index < _choiceOptions.length) {
+      final prefix = String.fromCharCode(65 + index); // A, B, C, D
+      setState(() {
+        _choiceOptions[index] = '$prefix. $value';
+      });
+    }
+  }
+
+  /// 随机打乱选项顺序（同时保持正确答案对应）
+  void _shuffleOptions() {
+    setState(() {
+      // 创建带标记的选项
+      final indexedOptions = <MapEntry<int, String>>[];
+      for (int i = 0; i < _choiceOptions.length; i++) {
+        indexedOptions.add(MapEntry(i, _choiceOptions[i]));
+      }
+
+      // 打乱
+      indexedOptions.shuffle();
+
+      // 更新选项
+      _choiceOptions = indexedOptions.map((e) => e.value).toList();
+
+      // 更新正确答案标记
+      final correctIndex = _correctOption != null
+          ? _correctOption!.codeUnitAt(0) - 65
+          : 0;
+      // 找到正确答案在新位置
+      int newCorrectIndex = 0;
+      for (int i = 0; i < indexedOptions.length; i++) {
+        if (indexedOptions[i].key == correctIndex) {
+          newCorrectIndex = i;
+          break;
+        }
+      }
+      _correctOption = String.fromCharCode(65 + newCorrectIndex);
+    });
+  }
+
   /// 自动生成题目
   void _autoGenerateQuestion() {
     final content = widget.item.content;
-    
+
     // 尝试将"xxx是yyy"格式转换为填空题
     final patterns = [
       // 匹配 "A是B" 格式
@@ -1650,16 +1717,30 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
 
     String? questionText;
     String? answerText;
+    String? correctChoice; // 正确答案（选择题用）
 
     for (final pattern in patterns) {
       final match = pattern.firstMatch(content);
       if (match != null) {
         final subject = match.group(1)?.trim() ?? '';
         final object = match.group(2)?.trim() ?? '';
-        
+
         // 生成填空题
         questionText = '$subject是______。';
         answerText = object;
+
+        // 选择题：生成4个选项
+        if (_questionType == 'choice') {
+          // 正确答案是 object
+          _choiceOptions = [
+            'A. $object',
+            'B. ___干扰选项1___',
+            'C. ___干扰选项2___',
+            'D. ___干扰选项3___',
+          ];
+          _correctOption = 'A';
+          correctChoice = 'A';
+        }
         break;
       }
     }
@@ -1675,6 +1756,24 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
         questionText = '请填写以下内容：______';
         answerText = content;
       }
+
+      // 选择题：使用整个内容作为正确答案
+      if (_questionType == 'choice') {
+        _choiceOptions = [
+          'A. $content',
+          'B. ___干扰选项1___',
+          'C. ___干扰选项2___',
+          'D. ___干扰选项3___',
+        ];
+        _correctOption = 'A';
+        correctChoice = 'A';
+      }
+    }
+
+    // 更新题目类型时也要生成选择题选项
+    if (_questionType == 'choice' && _choiceOptions[0].contains('___')) {
+      // 还没生成过选择题选项
+      _generateDistractors(answerText ?? content);
     }
 
     setState(() {
@@ -1684,11 +1783,79 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
     });
   }
 
+  /// 生成干扰选项（选择题用）
+  void _generateDistractors(String correctAnswer) {
+    // 从正确答案生成一些合理的干扰选项
+    // 这里使用简单的策略：在正确答案前后添加"不"、换词等方式生成干扰项
+
+    final distractors = <String>[];
+
+    // 策略1：否定形式（如果适用）
+    if (!correctAnswer.contains('不')) {
+      distractors.add('不$correctAnswer');
+    }
+
+    // 策略2：截取部分内容
+    if (correctAnswer.length > 3) {
+      distractors.add(correctAnswer.substring(0, correctAnswer.length ~/ 2));
+    }
+
+    // 策略3：添加常见错误后缀
+    distractors.add('$correctAnswer的变体');
+    distractors.add('与$correctAnswer无关');
+
+    // 随机选择一些干扰项填入
+    _choiceOptions = [
+      'A. $correctAnswer',
+      'B. ${distractors.isNotEmpty ? distractors[0] : "___干扰选项1___"}',
+      'C. ${distractors.length > 1 ? distractors[1] : "___干扰选项2___"}',
+      'D. ${distractors.length > 2 ? distractors[2] : "___干扰选项3___"}',
+    ];
+    _correctOption = 'A';
+  }
+
+  /// 获取格式化的选项文本（用于保存）
+  String _getFormattedOptions() {
+    return _choiceOptions.join('\n');
+  }
+
+  /// 获取正确选项对应的文本
+  String _getCorrectAnswerText() {
+    if (_correctOption == null) return '';
+    final index = _correctOption!.codeUnitAt(0) - 65;
+    if (index >= 0 && index < _choiceOptions.length) {
+      // 去掉前缀 "A. " 等
+      final option = _choiceOptions[index];
+      if (option.contains('. ')) {
+        return option.substring(option.indexOf('. ') + 2);
+      }
+      return option;
+    }
+    return '';
+  }
+
   Future<void> _saveQuestion() async {
     if (_questionController.text.trim().isEmpty) {
       showSnackBar(context, '请输入题目内容', isError: true);
       return;
     }
+
+    // 选择题需要验证选项
+    if (_questionType == 'choice') {
+      // 检查选项是否都已填写
+      final hasEmptyOption = _choiceOptions.any((opt) {
+        final value = opt.contains('. ')
+            ? opt.substring(opt.indexOf('. ') + 2)
+            : opt;
+        return value.trim().isEmpty || value.contains('___');
+      });
+
+      if (hasEmptyOption) {
+        showSnackBar(context, '请填写完整的选项内容', isError: true);
+        return;
+      }
+    }
+
     if (_answerController.text.trim().isEmpty) {
       showSnackBar(context, '请输入答案', isError: true);
       return;
@@ -1698,15 +1865,33 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
 
     try {
       final now = DateTime.now().toIso8601String();
-      
+
+      // 确定保存的答案内容
+      String savedAnswer;
+      String? savedOptions;
+
+      if (_questionType == 'choice') {
+        // 选择题：保存选项和正确答案
+        savedOptions = _getFormattedOptions();
+        savedAnswer = _correctOption != null
+            ? _getCorrectAnswerText()
+            : _answerController.text.trim();
+      } else {
+        // 填空题和简答题
+        savedAnswer = _answerController.text.trim();
+      }
+
       if (_targetTable == 'mother') {
         // 保存到母题表
         final data = {
           'uuid': DateTime.now().millisecondsSinceEpoch.toString(),
           'title': widget.item.title,
           'question_content': _questionController.text.trim(),
-          'question_type': _questionType == 'choice' ? 'singleChoice' : 'shortAnswer',
-          'correct_answer': _answerController.text.trim(),
+          'question_type': _questionType == 'choice'
+              ? 'singleChoice'
+              : (_questionType == 'fillBlank' ? 'fillBlank' : 'shortAnswer'),
+          'correct_answer': savedAnswer,
+          if (savedOptions != null) 'options': savedOptions,
           'analysis': _analysisController.text.trim(),
           'subject': widget.item.subject,
           'category': widget.item.category,
@@ -1726,7 +1911,8 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
           'uuid': DateTime.now().millisecondsSinceEpoch.toString(),
           'title': widget.item.title,
           'question_content': _questionController.text.trim(),
-          'correct_answer': _answerController.text.trim(),
+          'correct_answer': savedAnswer,
+          if (savedOptions != null) 'options': savedOptions,
           'analysis': _analysisController.text.trim(),
           'subject': widget.item.subject,
           'error_type': '知识盲区',
@@ -1875,15 +2061,81 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
             ),
             const SizedBox(height: 16),
 
-            // 答案
-            AppInput(
-              label: '答案',
-              hintText: '输入答案...',
-              controller: _answerController,
-              multiline: true,
-              maxLines: 2,
-            ),
-            const SizedBox(height: 16),
+            // 选择题选项区域
+            if (_questionType == 'choice') ...[
+              Row(
+                children: [
+                  Text(
+                    '选项设置',
+                    style: TextStyle(
+                      fontSize: AppFontSize.md,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const Spacer(),
+                  TextButton.icon(
+                    onPressed: _shuffleOptions,
+                    icon: const Icon(Icons.shuffle, size: 18),
+                    label: const Text('打乱选项'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              // 正确选项选择
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  border: Border.all(color: Colors.green.withOpacity(0.3)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '请选择正确答案',
+                      style: TextStyle(
+                        fontSize: AppFontSize.sm,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.green,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        _buildCorrectOptionChip('A', 0),
+                        _buildCorrectOptionChip('B', 1),
+                        _buildCorrectOptionChip('C', 2),
+                        _buildCorrectOptionChip('D', 3),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // 选项输入
+              ..._buildChoiceOptionInputs(),
+              const SizedBox(height: 16),
+            ],
+
+            // 填空题和简答题的答案输入
+            if (_questionType != 'choice') ...[
+              AppInput(
+                label: _questionType == 'fillBlank' ? '答案' : '参考答案',
+                hintText: _questionType == 'fillBlank'
+                    ? '输入答案...'
+                    : '输入参考答案...',
+                controller: _answerController,
+                multiline: true,
+                maxLines: 2,
+              ),
+              const SizedBox(height: 16),
+            ],
 
             // 解析
             AppInput(
@@ -1942,7 +2194,7 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
   Widget _buildTargetChip(String label, String value) {
     final theme = Theme.of(context);
     final selected = _targetTable == value;
-    
+
     return GestureDetector(
       onTap: () => setState(() => _targetTable = value),
       child: Container(
@@ -1964,6 +2216,136 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
         ),
       ),
     );
+  }
+
+  /// 构建正确选项选择按钮
+  Widget _buildCorrectOptionChip(String label, int index) {
+    final isSelected = _correctOption == label;
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _correctOption = label;
+          // 同时更新答案文本框
+          _answerController.text = _getCorrectAnswerText();
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        decoration: BoxDecoration(
+          color: isSelected ? Colors.green : Colors.green.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          border: Border.all(
+            color: Colors.green,
+            width: isSelected ? 2 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              isSelected ? Icons.check_circle : Icons.circle_outlined,
+              size: 18,
+              color: isSelected ? Colors.white : Colors.green,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: AppFontSize.md,
+                fontWeight: FontWeight.w600,
+                color: isSelected ? Colors.white : Colors.green,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 构建选择题选项输入框列表
+  List<Widget> _buildChoiceOptionInputs() {
+    return List.generate(_choiceOptions.length, (index) {
+      final prefix = String.fromCharCode(65 + index); // A, B, C, D
+      final optionText = _choiceOptions[index];
+      final value = optionText.contains('. ')
+          ? optionText.substring(optionText.indexOf('. ') + 2)
+          : optionText;
+
+      // 为每个选项创建控制器
+      final controller = TextEditingController(text: value);
+      controller.addListener(() {
+        _updateChoiceOption(index, controller.text);
+        // 如果是正确答案，同时更新答案文本
+        if (_correctOption == prefix) {
+          _answerController.text = controller.text;
+        }
+      });
+
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: _correctOption == prefix
+                    ? Colors.green
+                    : Colors.grey.withOpacity(0.2),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                prefix,
+                style: TextStyle(
+                  fontSize: AppFontSize.sm,
+                  fontWeight: FontWeight.bold,
+                  color: _correctOption == prefix
+                      ? Colors.white
+                      : Colors.grey[700],
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                decoration: InputDecoration(
+                  hintText: '输入选项$prefix...',
+                  hintStyle: TextStyle(
+                    color: Colors.grey[400],
+                    fontSize: AppFontSize.sm,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                    borderSide: BorderSide(color: theme.colorScheme.primary),
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[50],
+                ),
+                style: TextStyle(
+                  fontSize: AppFontSize.sm,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
   }
 }
 

@@ -17,6 +17,7 @@ import '../must_remember/must_remember_screen.dart';
 import '../wrong_questions/wrong_questions_screen.dart';
 import '../mother_questions/mother_questions_screen.dart';
 import '../history/history_screen.dart';
+import '../print/print_combination_screen.dart';
 
 /// 首页 - 学习仪表盘
 class HomeScreen extends StatefulWidget {
@@ -784,6 +785,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     label: '习惯打卡',
                     color: Colors.deepOrange,
                     onTap: () => Navigator.of(context).pushNamed('/habits'),
+                  ),
+                  _QuickEntry(
+                    icon: Icons.post_add,
+                    label: '组合打印',
+                    color: Colors.amber,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PrintCombinationScreen()),
+                    ),
                   ),
                   _QuickEntry(
                     icon: Icons.apps,

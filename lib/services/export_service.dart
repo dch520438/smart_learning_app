@@ -96,29 +96,35 @@ class ExportService {
       }
 
       // 其他平台：保存到导出目录
-      final filePath = await _storageService.getExportPath(fileName: finalFileName);
-      await _storageService.saveFileFromString(
-        jsonString,
-        finalFileName,
-      );
-      _log('文件保存成功: $filePath');
+      try {
+        final filePath = await _storageService.getExportPath(fileName: finalFileName);
+        await _storageService.saveFileFromString(
+          jsonString,
+          finalFileName,
+        );
+        _log('文件保存成功: $filePath');
 
-      // 计算导出统计
-      final stats = <String, int>{};
-      for (final module in allModules) {
-        if (data.containsKey(module)) {
-          final list = data[module] as List;
-          stats[module] = list.length;
+        // 计算导出统计
+        final stats = <String, int>{};
+        for (final module in allModules) {
+          if (data.containsKey(module)) {
+            final list = data[module] as List;
+            stats[module] = list.length;
+          }
         }
-      }
 
-      return ExportResult(
-        success: true,
-        filePath: filePath,
-        fileName: finalFileName,
-        stats: stats,
-        totalRecords: stats.values.fold(0, (sum, count) => sum + count),
-      );
+        return ExportResult(
+          success: true,
+          filePath: filePath,
+          fileName: finalFileName,
+          stats: stats,
+          totalRecords: stats.values.fold(0, (sum, count) => sum + count),
+        );
+      } catch (e) {
+        _log('存储服务保存失败，尝试备用方案: $e');
+        // 如果存储服务失败，尝试使用文件选择器保存
+        return await _exportWithFilePicker(jsonString, finalFileName, allModules);
+      }
     } catch (e, stackTrace) {
       _log('导出失败: $e');
       _log('堆栈: $stackTrace');
@@ -155,8 +161,8 @@ class ExportService {
 
       // 生成文件名
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-      final moduleSuffix = validModules.length <= 3 
-          ? validModules.join('_') 
+      final moduleSuffix = validModules.length <= 3
+          ? validModules.join('_')
           : '${validModules.length}_modules';
       final finalFileName =
           fileName ?? 'smart_learning_${moduleSuffix}_$timestamp.json';
@@ -171,31 +177,36 @@ class ExportService {
         return await _exportOnLinux(jsonString, finalFileName, validModules);
       }
 
-      // 其他平台：保存到导出目录
-      final filePath = await _storageService.getExportPath(fileName: finalFileName);
-      await _storageService.saveFileFromString(
-        jsonString,
-        finalFileName,
-      );
-      _log('文件保存成功: $filePath');
+      // 其他平台：尝试保存到导出目录，失败则使用文件选择器
+      try {
+        final filePath = await _storageService.getExportPath(fileName: finalFileName);
+        await _storageService.saveFileFromString(
+          jsonString,
+          finalFileName,
+        );
+        _log('文件保存成功: $filePath');
 
-      // 计算导出统计
-      final stats = <String, int>{};
-      for (final module in validModules) {
-        if (data.containsKey(module)) {
-          final list = data[module] as List;
-          stats[module] = list.length;
+        // 计算导出统计
+        final stats = <String, int>{};
+        for (final module in validModules) {
+          if (data.containsKey(module)) {
+            final list = data[module] as List;
+            stats[module] = list.length;
+          }
         }
-      }
 
-      return ExportResult(
-        success: true,
-        filePath: filePath,
-        fileName: finalFileName,
-        stats: stats,
-        totalRecords: stats.values.fold(0, (sum, count) => sum + count),
-        exportedModules: validModules,
-      );
+        return ExportResult(
+          success: true,
+          filePath: filePath,
+          fileName: finalFileName,
+          stats: stats,
+          totalRecords: stats.values.fold(0, (sum, count) => sum + count),
+          exportedModules: validModules,
+        );
+      } catch (e) {
+        _log('存储服务保存失败，尝试使用文件选择器: $e');
+        return await _exportWithFilePicker(jsonString, finalFileName, validModules);
+      }
     } catch (e, stackTrace) {
       _log('导出失败: $e');
       _log('堆栈: $stackTrace');
@@ -219,16 +230,14 @@ class ExportService {
       String? defaultDirectory;
       try {
         // 尝试获取下载目录
-        if (Platform.isLinux) {
-          final home = Platform.environment['HOME'];
-          if (home != null) {
-            defaultDirectory = '$home/Downloads';
-            // 检查下载目录是否存在
-            final downloadDir = Directory(defaultDirectory);
-            if (!await downloadDir.exists()) {
-              _log('下载目录不存在，使用HOME目录');
-              defaultDirectory = home;
-            }
+        final home = Platform.environment['HOME'];
+        if (home != null) {
+          defaultDirectory = '$home/Downloads';
+          // 检查下载目录是否存在
+          final downloadDir = Directory(defaultDirectory);
+          if (!await downloadDir.exists()) {
+            _log('下载目录不存在，使用HOME目录');
+            defaultDirectory = home;
           }
         }
       } catch (e) {
@@ -237,7 +246,6 @@ class ExportService {
       }
 
       _log('默认目录: $defaultDirectory');
-      _log('打开文件选择器...');
 
       // 使用文件选择器让用户选择保存位置
       String? outputPath = await FilePicker.platform.getDirectoryPath(
@@ -258,27 +266,12 @@ class ExportService {
       // 构建完整文件路径
       final filePath = '$outputPath/$defaultFileName';
       _log('完整文件路径: $filePath');
-      
-      final file = File(filePath);
-
-      // 确保目录存在
-      final dir = file.parent;
-      if (!await dir.exists()) {
-        _log('创建目录: ${dir.path}');
-        await dir.create(recursive: true);
-      }
 
       // 写入文件
-      _log('开始写入文件...');
-      await file.writeAsString(jsonString);
-      _log('文件写入成功');
+      final result = await _writeFileWithRetry(filePath, jsonString);
 
-      // 验证文件是否写入成功
-      if (await file.exists()) {
-        final fileSize = await file.length();
-        _log('文件验证成功，大小: $fileSize 字节');
-      } else {
-        _log('警告: 文件写入后不存在');
+      if (!result.success) {
+        return result;
       }
 
       // 计算导出统计
@@ -304,9 +297,138 @@ class ExportService {
       _log('堆栈: $stackTrace');
       return ExportResult(
         success: false,
-        errorMessage: 'Linux 导出失败: $e',
+        errorMessage: '导出失败: $e',
       );
     }
+  }
+
+  /// 使用文件选择器保存文件（跨平台备用方案）
+  Future<ExportResult> _exportWithFilePicker(
+    String jsonString,
+    String defaultFileName,
+    List<String> modules,
+  ) async {
+    _log('使用文件选择器保存，文件名: $defaultFileName');
+    try {
+      // 使用文件选择器保存
+      String? result = await FilePicker.platform.saveFile(
+        dialogTitle: '保存导出文件',
+        fileName: defaultFileName,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result == null) {
+        _log('用户取消了保存操作');
+        return ExportResult(
+          success: false,
+          errorMessage: '用户取消了导出操作',
+        );
+      }
+
+      // 确保文件扩展名
+      if (!result.endsWith('.json')) {
+        result = '$result.json';
+      }
+
+      _log('用户选择路径: $result');
+
+      // 写入文件
+      final writeResult = await _writeFileWithRetry(result, jsonString);
+
+      if (!writeResult.success) {
+        return writeResult;
+      }
+
+      // 计算导出统计
+      final data = jsonDecode(jsonString) as Map<String, dynamic>;
+      final stats = <String, int>{};
+      for (final module in modules) {
+        if (data.containsKey(module)) {
+          final list = data[module] as List;
+          stats[module] = list.length;
+        }
+      }
+
+      return ExportResult(
+        success: true,
+        filePath: result,
+        fileName: defaultFileName,
+        stats: stats,
+        totalRecords: stats.values.fold(0, (sum, count) => sum + count),
+        exportedModules: modules,
+      );
+    } catch (e, stackTrace) {
+      _log('文件选择器保存失败: $e');
+      _log('堆栈: $stackTrace');
+      return ExportResult(
+        success: false,
+        errorMessage: '保存失败: $e',
+      );
+    }
+  }
+
+  /// 带重试的文件写入方法
+  Future<ExportResult> _writeFileWithRetry(
+    String filePath,
+    String content, {
+    int maxRetries = 3,
+  }) async {
+    File? file;
+    int retries = 0;
+
+    while (retries < maxRetries) {
+      try {
+        file = File(filePath);
+
+        // 确保目录存在
+        final dir = file.parent;
+        if (!await dir.exists()) {
+          _log('创建目录: ${dir.path}');
+          await dir.create(recursive: true);
+        }
+
+        // 写入文件
+        _log('开始写入文件...');
+        await file.writeAsString(content);
+        _log('文件写入完成');
+
+        // 验证文件是否写入成功
+        if (await file.exists()) {
+          final fileSize = await file.length();
+          _log('文件验证成功，大小: $fileSize 字节');
+          return ExportResult(
+            success: true,
+            filePath: filePath,
+            fileName: file.uri.pathSegments.last,
+          );
+        } else {
+          _log('警告: 文件写入后不存在');
+          retries++;
+          if (retries < maxRetries) {
+            _log('重试写入... ($retries/$maxRetries)');
+            await Future.delayed(Duration(milliseconds: 100 * retries));
+          }
+        }
+      } catch (e) {
+        _log('写入文件失败: $e');
+        retries++;
+        if (retries < maxRetries) {
+          _log('重试写入... ($retries/$maxRetries)');
+          await Future.delayed(Duration(milliseconds: 100 * retries));
+        } else {
+          return ExportResult(
+            success: false,
+            errorMessage: '写入文件失败: $e',
+          );
+        }
+      }
+    }
+
+    return ExportResult(
+      success: false,
+      errorMessage: '文件写入失败，已重试 $maxRetries 次',
+    );
   }
 
   /// 导出数据为JSON字符串（不保存文件）

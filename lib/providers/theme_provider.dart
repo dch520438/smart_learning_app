@@ -178,10 +178,12 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   // 获取字体族名称
-  // 注意：在 Linux 上使用系统字体名称，确保中文字体正确显示
+  // 注意：在 Linux 上使用系统默认字体，确保中文字体正确显示
+  // 如果需要使用自定义字体，请在 pubspec.yaml 中配置并确保字体文件存在
   String? get fontFamilyName {
-    // 使用项目内置的中文字体，确保中文正确显示
-    return 'WQYMicroHei';
+    // 使用系统默认字体，让系统选择支持中文的字体
+    // 这样可以避免字体文件加载失败导致的方块字符问题
+    return null; // null 表示使用系统默认字体
   }
 
   // 获取圆角值

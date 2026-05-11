@@ -22,6 +22,7 @@ import '../mind_map/mind_map_screen.dart';
 import '../habits/habits_screen.dart';
 import '../exam_papers/exam_papers_screen.dart';
 import '../settings/settings_screen.dart';
+import '../print/print_combination_screen.dart';
 
 /// 个人中心页面
 class ProfileScreen extends StatefulWidget {
@@ -653,6 +654,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       case '/settings':
         targetPage = const SettingsScreen();
         break;
+      case '/print_combination':
+        targetPage = const PrintCombinationScreen();
+        break;
       case '/exam':
         // 考试模块暂时显示提示
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1088,6 +1092,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: '试卷收集',
         subtitle: '整理试卷、OCR识别',
         route: '/exam_papers',
+      ),
+      _FeatureItem(
+        icon: Icons.post_add,
+        iconColor: Colors.amber,
+        title: '组合打印',
+        subtitle: '选择多个内容合并打印',
+        route: '/print_combination',
       ),
     ];
 
