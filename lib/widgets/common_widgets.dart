@@ -654,9 +654,7 @@ class AppDialog extends StatelessWidget {
 }
 
 /// AppInput: AppInputField 的别名，保持向后兼容
-typedef AppInput = AppInputField;
-
-// ============================================================
+typedef AppInput = AppInputField;// ============================================================
 // AppEmptyState - 空状态组件
 // ============================================================
 
@@ -798,10 +796,11 @@ class SubjectIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = getSubjectColor(subjectName);
-    final icon = getSubjectIcon(subjectName);
+    final iconName = getSubjectIcon(subjectName);
+    final iconData = _getIconDataFromName(iconName);
 
     Widget iconWidget = Icon(
-      icon,
+      iconData,
       size: size * 0.5,
       color: showBackground ? Colors.white : color,
     );
@@ -836,6 +835,23 @@ class SubjectIcon extends StatelessWidget {
     }
 
     return iconWidget;
+  }
+
+  /// 将图标名称字符串转换为 IconData
+  IconData _getIconDataFromName(String name) {
+    final iconMap = <String, IconData>{
+      'book': Icons.book,
+      'calculate': Icons.calculate,
+      'translate': Icons.translate,
+      'science': Icons.science,
+      'biotech': Icons.biotech,
+      'eco': Icons.eco,
+      'history_edu': Icons.history_edu,
+      'public': Icons.public,
+      'gavel': Icons.gavel,
+      'category': Icons.category,
+    };
+    return iconMap[name] ?? Icons.category;
   }
 }
 
@@ -1005,7 +1021,32 @@ class ConfirmDeleteDialog extends StatelessWidget {
       ),
     );
   }
+
+  /// 显示确认删除对话框
+  static Future<bool> show({
+    required BuildContext context,
+    required String title,
+    String? message,
+    String confirmText = '删除',
+    String cancelText = '取消',
+    VoidCallback? onConfirm,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => ConfirmDeleteDialog(
+        title: title,
+        message: message,
+        confirmText: confirmText,
+        cancelText: cancelText,
+        onConfirm: onConfirm,
+      ),
+    );
+    return result ?? false;
+  }
 }
+
+/// AppInput: AppInputField 的别名，保持向后兼容
+typedef AppInput = AppInputField;
 
 // ============================================================
 // BatchOperationBar - 批量操作工具栏
