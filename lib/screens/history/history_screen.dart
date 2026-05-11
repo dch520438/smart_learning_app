@@ -177,7 +177,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   Future<void> _deleteExamResult(int resultId) async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       title: '删除考试记录',
       message: '确定要删除这条考试记录吗？此操作不可撤销。',

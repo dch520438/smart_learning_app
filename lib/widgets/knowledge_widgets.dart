@@ -620,7 +620,7 @@ class KnowledgeDetailPage extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.delete_outline),
             onPressed: () async {
-              final confirmed = await ConfirmDeleteDialog.show(
+              final confirmed = await AppDialog.showConfirmDelete(
                 context: context,
                 message: '确定要删除知识点"$title"吗？',
               );

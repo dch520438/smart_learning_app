@@ -276,7 +276,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
 
   Future<void> _batchDelete() async {
     if (_selectedIds.isEmpty) return;
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       title: '批量删除',
       message: '确定要删除选中的 ${_selectedIds.length} 个知识点吗？此操作不可撤销。',
@@ -401,7 +401,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
   // ==================== CRUD 操作 ====================
 
   Future<void> _deleteKnowledgePoint(int dbId, String title) async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       message: '确定要删除知识点"$title"吗？',
     );

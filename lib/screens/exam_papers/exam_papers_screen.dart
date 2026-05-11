@@ -113,7 +113,7 @@ class _ExamPapersScreenState extends State<ExamPapersScreen> {
   }
 
   Future<void> _deletePaper(int id) async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       message: '确定要删除这张试卷吗？此操作不可撤销。',
     );

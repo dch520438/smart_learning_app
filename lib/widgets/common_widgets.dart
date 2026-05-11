@@ -631,7 +631,7 @@ class AppDialog extends StatelessWidget {
   }
 
   /// 显示确认删除对话框，返回用户选择（true=确认，false=取消）
-  static Future<bool> show({
+  static Future<bool> showConfirmDelete({
     required BuildContext context,
     required String title,
     String? message,

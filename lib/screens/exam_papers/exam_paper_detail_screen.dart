@@ -276,7 +276,7 @@ class _ExamPaperDetailScreenState extends State<ExamPaperDetailScreen> with Sing
   }
 
   Future<void> _deleteImage(int index) async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       title: '删除图片',
       message: '确定要删除这张图片吗？',
@@ -416,7 +416,7 @@ class _ExamPaperDetailScreenState extends State<ExamPaperDetailScreen> with Sing
   }
 
   Future<void> _deleteQuestion(int index) async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       title: '删除题目',
       message: '确定要删除这道题目吗？',

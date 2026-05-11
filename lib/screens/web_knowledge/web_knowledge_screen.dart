@@ -671,7 +671,7 @@ class _WebKnowledgeScreenState extends State<WebKnowledgeScreen>
 
   /// 删除已保存的网络知识
   Future<void> _deleteSavedItem(int id) async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       title: '删除记录',
       message: '确定要删除这条网络知识记录吗？',

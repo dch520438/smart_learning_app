@@ -170,7 +170,7 @@ class _HabitsScreenState extends State<HabitsScreen>
   }
 
   Future<void> _deleteHabit(Habit habit) async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       title: '删除习惯',
       message: '确定要删除"${habit.name}"吗？此操作不可撤销，所有打卡记录也将被删除。',

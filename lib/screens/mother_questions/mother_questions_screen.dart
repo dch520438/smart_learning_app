@@ -345,7 +345,7 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
               onSelectAll: (_) => _selectAll(),
               onDelete: _selectedIds.isNotEmpty
                   ? () {
-                      ConfirmDeleteDialog.show(
+                      AppDialog.showConfirmDelete(
                         context: context,
                         title: '批量删除',
                         message:
@@ -559,7 +559,7 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
                       PopupMenuButton<String>(
                         onSelected: (value) {
                           if (value == 'delete') {
-                            ConfirmDeleteDialog.show(
+                            AppDialog.showConfirmDelete(
                               context: context,
                               onConfirm: () =>
                                   _deleteQuestions([questionId]),
@@ -841,7 +841,7 @@ class MotherQuestionDetailScreenState
   }
 
   Future<void> _deleteQuestion() async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       title: '删除母题',
       message: '确定要删除这道母题吗？关联的变式题也将被删除。',

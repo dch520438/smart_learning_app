@@ -201,7 +201,7 @@ class _NotesScreenState extends State<NotesScreen> {
 
   Future<void> _batchDelete() async {
     if (_selectedIds.isEmpty) return;
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       title: '批量删除',
       message: '确定要删除选中的 ${_selectedIds.length} 篇笔记吗？此操作不可撤销。',
@@ -282,7 +282,7 @@ class _NotesScreenState extends State<NotesScreen> {
   // ==================== CRUD 操作 ====================
 
   Future<void> _deleteNote(int dbId, String title) async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       message: '确定要删除笔记"$title"吗？',
     );

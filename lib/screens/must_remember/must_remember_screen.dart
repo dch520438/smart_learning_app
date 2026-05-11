@@ -206,7 +206,7 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
   }
 
   Future<void> _batchDelete() async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       title: '批量删除',
       message: '确定要删除选中的 ${_selectedIds.length} 条内容吗？此操作不可撤销。',
@@ -1155,7 +1155,7 @@ class _MustRememberDetailScreenState extends State<MustRememberDetailScreen> {
   }
 
   Future<void> _deleteItem() async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       message: '确定要删除这条内容吗？此操作不可撤销。',
     );

@@ -99,7 +99,7 @@ class _MockExamTabState extends State<_MockExamTab> {
   }
 
   Future<void> _deleteExam(int id) async {
-    final confirmed = await ConfirmDeleteDialog.show(
+    final confirmed = await AppDialog.showConfirmDelete(
       context: context,
       title: '删除测试',
       message: '确定要删除这个测试吗？相关成绩记录也将被删除。',
