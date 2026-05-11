@@ -127,25 +127,35 @@ class PrintService {
     if (_chineseFont != null) return _chineseFont!;
 
     try {
-      // 尝试加载文泉驿微米黑字体（Linux 系统常用）
+      // 尝试加载文泉驿微米黑字体（TTF格式，支持中文）
       final fontData = await rootBundle.load('fonts/WenQuanYiMicroHei.ttf');
       _chineseFont = pw.Font.ttf(fontData);
       _log('成功加载中文字体: WenQuanYiMicroHei.ttf');
       return _chineseFont!;
     } catch (e) {
       _log('加载 WenQuanYiMicroHei.ttf 失败: $e');
-      try {
-        // 尝试加载 NotoSansCJK 字体
-        final fontData = await rootBundle.load('fonts/NotoSansCJK-Regular.ttc');
-        _chineseFont = pw.Font.ttf(fontData);
-        _log('成功加载中文字体: NotoSansCJK-Regular.ttc');
-        return _chineseFont!;
-      } catch (e2) {
-        _log('加载 NotoSansCJK-Regular.ttc 失败: $e2');
-        // 如果都失败，使用默认字体（可能不支持中文）
-        _chineseFont = pw.Font.helvetica();
-        return _chineseFont!;
-      }
+      // 如果加载失败，使用 pdf 包内置的 Courier 字体（不支持中文，但不会报错）
+      _log('使用 pdf 包内置字体作为后备');
+      _chineseFont = pw.Font.courier();
+      return _chineseFont!;
+    }
+  }
+
+  /// 加载中文字体（粗体）
+  static Future<pw.Font> _loadChineseFontBold() async {
+    if (_chineseFontBold != null) return _chineseFontBold!;
+
+    try {
+      // 文泉驿微米黑没有单独的粗体文件，使用常规体代替
+      final fontData = await rootBundle.load('fonts/WenQuanYiMicroHei.ttf');
+      _chineseFontBold = pw.Font.ttf(fontData);
+      _log('成功加载中文字体（粗体）: WenQuanYiMicroHei.ttf');
+      return _chineseFontBold!;
+    } catch (e) {
+      _log('加载 WenQuanYiMicroHei.ttf 失败: $e');
+      // 使用 pdf 包内置字体作为后备
+      _chineseFontBold = pw.Font.courierBold();
+      return _chineseFontBold!;
     }
   }
 

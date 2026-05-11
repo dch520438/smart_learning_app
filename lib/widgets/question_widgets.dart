@@ -208,6 +208,25 @@ class _QuestionCardState extends State<QuestionCard> {
 
   static const List<String> _optionLabels = ['A', 'B', 'C', 'D', 'E', 'F'];
 
+  /// 清理题目内容，移除提示部分
+  String _cleanQuestionContent(String content) {
+    // 移除 "（提示：...）" 或 "(提示：...)" 格式的提示
+    final hintPattern = RegExp(r'[（(]提示：[^）)]+[）)]');
+    return content.replaceAll(hintPattern, '').trim();
+  }
+
+  /// 解析选项文本，处理 {label: A, content: ...} 格式
+  String _parseOptionText(String optionText) {
+    // 尝试匹配 {label: A, content: xxx} 格式
+    final pattern = RegExp(r'\{label:\s*([^,]+),\s*content:\s*(.+)\}', caseSensitive: false);
+    final match = pattern.firstMatch(optionText);
+    if (match != null && match.groupCount >= 2) {
+      return match.group(2)?.trim() ?? optionText;
+    }
+    // 如果不是特殊格式，直接返回原文本
+    return optionText;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -302,9 +321,9 @@ class _QuestionCardState extends State<QuestionCard> {
           ),
           const SizedBox(height: 12),
 
-          // 题目内容
+          // 题目内容（移除提示部分）
           Text(
-            widget.content,
+            _cleanQuestionContent(widget.content),
             style: theme.textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.w500,
               color: AppColors.textPrimary,
@@ -318,7 +337,7 @@ class _QuestionCardState extends State<QuestionCard> {
             const SizedBox(height: 12),
             ...widget.options!.asMap().entries.map((entry) {
               final idx = entry.key;
-              final optionText = entry.value;
+              final optionText = _parseOptionText(entry.value);
               final optionLabel = _optionLabels[idx];
               final isSelected = _selectedAnswer == optionLabel;
               final isCorrect = widget.correctAnswer == optionLabel;
@@ -432,7 +451,7 @@ class _QuestionCardState extends State<QuestionCard> {
             const SizedBox(height: 12),
             ...widget.options!.asMap().entries.map((entry) {
               final idx = entry.key;
-              final optionText = entry.value;
+              final optionText = _parseOptionText(entry.value);
               final optionLabel = _optionLabels[idx];
               final selectedAnswers = _selectedAnswer?.split(',').toSet() ?? <String>{};
               final isSelected = selectedAnswers.contains(optionLabel);
@@ -463,8 +482,14 @@ class _QuestionCardState extends State<QuestionCard> {
             }),
           ],
 
-          // 简答题输入框
-          if (widget.type == QuestionType.shortAnswer && !widget.showResult) ...[
+          // 简答题输入框（也用于证明题等其他需要文字作答的题型）
+          if ((widget.type == QuestionType.shortAnswer ||
+               widget.options == null &&
+               widget.type != QuestionType.singleChoice &&
+               widget.type != QuestionType.multipleChoice &&
+               widget.type != QuestionType.trueFalse &&
+               widget.type != QuestionType.fillBlank) &&
+              !widget.showResult) ...[
             const SizedBox(height: 12),
             TextField(
               maxLines: 5,
@@ -894,6 +919,209 @@ class AnswerSheet extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ============================================================
+// SpecialSymbolInput - 特殊符号输入面板
+// ============================================================
+
+/// SpecialSymbolInput: 特殊符号输入面板
+/// 支持数学符号、化学符号和上下标
+class SpecialSymbolInput extends StatefulWidget {
+  final TextEditingController? controller;
+  final ValueChanged<String>? onSymbolTap;
+  final bool showSuperscriptSubscript;
+
+  const SpecialSymbolInput({
+    super.key,
+    this.controller,
+    this.onSymbolTap,
+    this.showSuperscriptSubscript = true,
+  });
+
+  @override
+  State<SpecialSymbolInput> createState() => _SpecialSymbolInputState();
+}
+
+class _SpecialSymbolInputState extends State<SpecialSymbolInput>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  // 数学符号
+  final List<String> _mathSymbols = [
+    '±', '×', '÷', '√', '∞', '∫', '∑', '∏', '∂', '∆',
+    'π', 'α', 'β', 'γ', 'θ', 'λ', 'μ', 'σ', 'φ', 'ω',
+    '≤', '≥', '≠', '≈', '∼', '∈', '∉', '∩', '∪', '⊂',
+    '⊃', '⊆', '⊇', '∅', '∀', '∃', '∴', '∵', '°', '′',
+    '″', '∠', '⊥', '∥', '→', '←', '↑', '↓', '↔', '⇌',
+  ];
+
+  // 化学符号
+  final List<String> _chemSymbols = [
+    '°', '→', '⇌', '↑', '↓', '(s)', '(l)', '(g)', '(aq)',
+    'Δ', '±', 'mol', 'g', 'L', 'mL', 'cm³', 'dm³', 'nm', 'pm',
+    '℃', '℉', 'K', 'Pa', 'kPa', 'MPa', 'atm', 'mmHg',
+    'H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne',
+    'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Ar', 'K', 'Ca',
+  ];
+
+  // 上标符号
+  final List<String> _superscripts = [
+    '⁰', '¹', '²', '³', '⁴', '⁵', '⁶', '⁷', '⁸', '⁹',
+    '⁺', '⁻', '⁼', '⁽', '⁾', 'ⁿ', 'ⁱ', 'ˣ', 'ʸ', 'ᶻ',
+    'ᵃ', 'ᵇ', 'ᶜ', 'ᵈ', 'ᵉ', 'ᶠ', 'ᵍ', 'ʰ', 'ⁱ', 'ʲ',
+    'ᵏ', 'ˡ', 'ᵐ', 'ⁿ', 'ᵒ', 'ᵖ', 'ʳ', 'ˢ', 'ᵗ', 'ᵘ',
+    'ᵛ', 'ʷ', 'ˣ', 'ʸ', 'ᶻ', 'ᴬ', 'ᴮ', 'ᴰ', 'ᴱ', 'ᴳ',
+  ];
+
+  // 下标符号
+  final List<String> _subscripts = [
+    '₀', '₁', '₂', '₃', '₄', '₅', '₆', '₇', '₈', '₉',
+    '₊', '₋', '₌', '₍', '₎', 'ₐ', 'ₑ', 'ₕ', 'ᵢ', 'ⱼ',
+    'ₖ', 'ₗ', 'ₘ', 'ₙ', 'ₒ', 'ₚ', 'ᵣ', 'ₛ', 'ₜ', 'ᵤ',
+    'ᵥ', 'ₓ', 'ᵧ', 'ᵦ', 'ᵧ', 'ᵨ', 'ᵩ', 'ᵪ', 'ᵧ', 'ᵨ',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    final tabCount = widget.showSuperscriptSubscript ? 4 : 2;
+    _tabController = TabController(length: tabCount, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  void _insertSymbol(String symbol) {
+    if (widget.onSymbolTap != null) {
+      widget.onSymbolTap!(symbol);
+    } else if (widget.controller != null) {
+      final controller = widget.controller!;
+      final text = controller.text;
+      final selection = controller.selection;
+      final newText = text.replaceRange(
+        selection.start,
+        selection.end,
+        symbol,
+      );
+      controller.text = newText;
+      controller.selection = TextSelection.collapsed(
+        offset: selection.start + symbol.length,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        border: Border(
+          top: BorderSide(color: AppColors.divider),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Tab 栏
+          TabBar(
+            controller: _tabController,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            labelColor: theme.colorScheme.primary,
+            unselectedLabelColor: AppColors.textSecondary,
+            indicatorColor: theme.colorScheme.primary,
+            tabs: [
+              const Tab(text: '数学'),
+              const Tab(text: '化学'),
+              if (widget.showSuperscriptSubscript) ...[
+                const Tab(text: '上标'),
+                const Tab(text: '下标'),
+              ],
+            ],
+          ),
+          // 符号网格
+          SizedBox(
+            height: 160,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildSymbolGrid(_mathSymbols),
+                _buildSymbolGrid(_chemSymbols),
+                if (widget.showSuperscriptSubscript) ...[
+                  _buildSymbolGrid(_superscripts),
+                  _buildSymbolGrid(_subscripts),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSymbolGrid(List<String> symbols) {
+    return GridView.builder(
+      padding: const EdgeInsets.all(8),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 10,
+        childAspectRatio: 1.2,
+        crossAxisSpacing: 4,
+        mainAxisSpacing: 4,
+      ),
+      itemCount: symbols.length,
+      itemBuilder: (context, index) {
+        final symbol = symbols[index];
+        return Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => _insertSymbol(symbol),
+            borderRadius: BorderRadius.circular(4),
+            child: Container(
+              decoration: BoxDecoration(
+                color: AppColors.background,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: AppColors.divider),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                symbol,
+                style: TextStyle(
+                  fontSize: 18,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// 显示特殊符号输入面板（底部弹出）
+  static Future<void> showBottomSheet({
+    required BuildContext context,
+    TextEditingController? controller,
+    ValueChanged<String>? onSymbolTap,
+    bool showSuperscriptSubscript = true,
+  }) {
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SpecialSymbolInput(
+        controller: controller,
+        onSymbolTap: onSymbolTap,
+        showSuperscriptSubscript: showSuperscriptSubscript,
+      ),
     );
   }
 }

@@ -1642,19 +1642,16 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
     super.dispose();
   }
 
-  /// 切换题目类型时重置选项
+  /// 切换题目类型时重置选项并重新生成题目
   void _onQuestionTypeChanged(String newType) {
     setState(() {
       _questionType = newType;
       if (newType == 'choice') {
         _initChoiceOptions();
-        // 用当前内容填充第一个选项作为正确答案
-        if (_choiceOptions.isNotEmpty) {
-          _choiceOptions[0] = 'A. ${_answerController.text.trim()}';
-          _correctOption = 'A';
-        }
       }
     });
+    // 重新生成题目内容以适应新的题型
+    _autoGenerateQuestion();
   }
 
   /// 更新选择题选项
@@ -1726,8 +1723,14 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
         final subject = match.group(1)?.trim() ?? '';
         final object = match.group(2)?.trim() ?? '';
 
-        // 生成填空题
-        questionText = '$subject是______。';
+        // 根据题目类型生成不同格式
+        if (_questionType == 'shortAnswer') {
+          // 简答题：直接提问，不下划线
+          questionText = '$subject是什么？';
+        } else {
+          // 填空题：使用下划线
+          questionText = '$subject是______。';
+        }
         answerText = object;
 
         // 选择题：生成4个选项
@@ -1751,10 +1754,22 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
       // 尝试提取关键词
       if (content.length > 20) {
         // 内容较长，取前20个字符作为问题提示
-        questionText = '${content.substring(0, 20)}...（请填写完整内容）';
+        if (_questionType == 'shortAnswer') {
+          // 简答题格式
+          questionText = '请简述以下内容：${content.substring(0, 20)}...';
+        } else {
+          // 填空题格式
+          questionText = '${content.substring(0, 20)}...（请填写完整内容）';
+        }
         answerText = content;
       } else {
-        questionText = '请填写以下内容：______';
+        if (_questionType == 'shortAnswer') {
+          // 简答题格式
+          questionText = '请简述：$content';
+        } else {
+          // 填空题格式
+          questionText = '请填写以下内容：______';
+        }
         answerText = content;
       }
 
@@ -2168,9 +2183,9 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
   Widget _buildTypeChip(String label, String value) {
     final theme = Theme.of(context);
     final selected = _questionType == value;
-    
+
     return GestureDetector(
-      onTap: () => setState(() => _questionType = value),
+      onTap: () => _onQuestionTypeChanged(value),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(

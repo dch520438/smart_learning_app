@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/wrong_question.dart';
 import '../../models/must_remember.dart';
 import '../../services/database_service.dart';
+import '../../services/print_service.dart';
 import '../../utils/app_routes.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
@@ -67,6 +68,10 @@ class _SearchScreenState extends State<SearchScreen>
   List<SearchResult> _allResults = [];
   String? _errorMessage;
 
+  // 批量选择相关
+  bool _isBatchMode = false;
+  final Set<String> _selectedIds = <String>{};
+
   // Tab控制器
   late TabController _tabController;
   final List<String> _tabs = ['全部', '知识点', '笔记', '错题', '母题', '必记必背'];
@@ -130,6 +135,91 @@ class _SearchScreenState extends State<SearchScreen>
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
+  }
+
+  // 切换批量选择模式
+  void _toggleBatchMode() {
+    setState(() {
+      _isBatchMode = !_isBatchMode;
+      if (!_isBatchMode) {
+        _selectedIds.clear();
+      }
+    });
+  }
+
+  // 切换选择状态
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  // 全选/取消全选
+  void _selectAll(bool select) {
+    setState(() {
+      if (select) {
+        final currentResults = _getCurrentResults();
+        _selectedIds.addAll(currentResults.map((r) => r.id));
+      } else {
+        _selectedIds.clear();
+      }
+    });
+  }
+
+  // 执行组合打印
+  Future<void> _batchPrint() async {
+    if (_selectedIds.isEmpty) {
+      showSnackBar(context, '请先选择要打印的内容', isError: true);
+      return;
+    }
+
+    final selectedResults = _allResults.where((r) => _selectedIds.contains(r.id)).toList();
+    
+    // 转换为 PrintContentItem
+    final printItems = selectedResults.map((result) {
+      return PrintContentItem(
+        type: _mapSearchTypeToPrintType(result.type),
+        title: result.title,
+        content: result.summary,
+        subject: result.subject,
+        createdAt: result.updatedAt?.toString(),
+      );
+    }).toList();
+
+    // 调用打印服务
+    final printResult = await PrintService.printBatch(
+      context: context,
+      items: printItems,
+      customTitle: '搜索结果打印',
+    );
+
+    if (printResult.success && mounted) {
+      // 打印成功后退出批量模式
+      setState(() {
+        _isBatchMode = false;
+        _selectedIds.clear();
+      });
+    }
+  }
+
+  // 映射搜索类型到打印类型
+  PrintContentType _mapSearchTypeToPrintType(SearchResultType type) {
+    switch (type) {
+      case SearchResultType.knowledge:
+        return PrintContentType.knowledgePoint;
+      case SearchResultType.note:
+        return PrintContentType.note;
+      case SearchResultType.wrongQuestion:
+        return PrintContentType.wrongQuestion;
+      case SearchResultType.motherQuestion:
+        return PrintContentType.motherQuestion;
+      case SearchResultType.mustRemember:
+        return PrintContentType.mustRemember;
+    }
   }
 
   // 执行全局搜索
@@ -755,9 +845,20 @@ class _SearchScreenState extends State<SearchScreen>
               Expanded(
                 child: _buildResultContent(currentResults),
               ),
+
+              // 批量操作栏
+              if (_isBatchMode && _searchQuery.isNotEmpty)
+                _buildBatchOperationBar(currentResults),
             ],
           ),
         ),
+        floatingActionButton: _searchQuery.isNotEmpty && !_isBatchMode
+            ? FloatingActionButton.extended(
+                onPressed: _toggleBatchMode,
+                icon: const Icon(Icons.check_box_outlined),
+                label: const Text('多选'),
+              )
+            : null,
       );
     } catch (e, stack) {
       debugPrint('SearchScreen build error: $e\n$stack');
@@ -976,18 +1077,26 @@ class _SearchScreenState extends State<SearchScreen>
 
   Widget _buildResultCard(SearchResult result) {
     final theme = Theme.of(context);
+    final isSelected = _selectedIds.contains(result.id);
 
     return GestureDetector(
-      onTap: () => _navigateToDetail(result),
+      onTap: _isBatchMode
+          ? () => _toggleSelection(result.id)
+          : () => _navigateToDetail(result),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
           color: theme.colorScheme.surface,
           borderRadius: BorderRadius.circular(AppRadius.lg),
-          border: Border.all(color: AppColors.divider),
+          border: Border.all(
+            color: isSelected ? theme.colorScheme.primary : AppColors.divider,
+            width: isSelected ? 2 : 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.shadow,
+              color: isSelected
+                  ? theme.colorScheme.primary.withOpacity(0.2)
+                  : AppColors.shadow,
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -998,9 +1107,24 @@ class _SearchScreenState extends State<SearchScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 第一行：类型标签 + 学科标签
+              // 第一行：选择框（批量模式）+ 类型标签 + 学科标签
               Row(
                 children: [
+                  // 批量选择复选框
+                  if (_isBatchMode) ...[
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: isSelected,
+                        onChanged: (_) => _toggleSelection(result.id),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
                   // 类型标签
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -1065,6 +1189,68 @@ class _SearchScreenState extends State<SearchScreen>
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // 构建批量操作栏
+  Widget _buildBatchOperationBar(List<SearchResult> currentResults) {
+    final theme = Theme.of(context);
+    final isAllSelected = _selectedIds.length == currentResults.length && currentResults.isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.shadow,
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // 全选复选框
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                value: isAllSelected,
+                onChanged: (value) => _selectAll(value ?? false),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // 已选数量
+            Text(
+              '已选 ${_selectedIds.length}/${currentResults.length}',
+              style: TextStyle(
+                fontSize: AppFontSize.md,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const Spacer(),
+            // 取消按钮
+            TextButton(
+              onPressed: _toggleBatchMode,
+              child: const Text('取消'),
+            ),
+            const SizedBox(width: 8),
+            // 组合打印按钮
+            FilledButton.icon(
+              onPressed: _selectedIds.isEmpty ? null : _batchPrint,
+              icon: const Icon(Icons.print, size: 18),
+              label: const Text('组合打印'),
+            ),
+          ],
         ),
       ),
     );

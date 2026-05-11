@@ -1267,7 +1267,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     required this.title,
     this.actions,
-    this.showHomeButton = false,
+    this.showHomeButton = true,
     this.showBackButton = true,
     this.leading,
     this.bottom,
