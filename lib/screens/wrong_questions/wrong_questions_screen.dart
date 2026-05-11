@@ -2038,10 +2038,313 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
     _contentController.dispose();
     _analysisController.dispose();
     _chapterController.dispose();
+    _examPointController.dispose();
+    _fillCorrectAnswerController.dispose();
+    _fillUserAnswerController.dispose();
+    _shortCorrectAnswerController.dispose();
+    _shortUserAnswerController.dispose();
     for (final c in _optionControllers) {
       c.dispose();
     }
     super.dispose();
+  }
+
+  Widget _buildQuestionTypeChip(String label, String type, IconData icon) {
+    final selected = _questionType == type;
+    final color = selected ? AppColors.primary : AppColors.textSecondary;
+    return GestureDetector(
+      onTap: () => setState(() => _questionType = type),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary.withOpacity(0.1) : null,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.divider,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: AppFontSize.sm,
+                color: color,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildQuestionTypeForm() {
+    final theme = Theme.of(context);
+    switch (_questionType) {
+      case 'single_choice':
+        return _buildChoiceQuestionForm(theme, isMulti: false);
+      case 'multi_choice':
+        return _buildChoiceQuestionForm(theme, isMulti: true);
+      case 'fill_blank':
+        return _buildFillBlankForm(theme);
+      case 'short_answer':
+        return _buildShortAnswerForm(theme);
+      case 'true_false':
+        return _buildTrueFalseForm(theme);
+      default:
+        return [];
+    }
+  }
+
+  List<Widget> _buildChoiceQuestionForm(ThemeData theme, {required bool isMulti}) {
+    final widgets = <Widget>[];
+    const labels = ['A', 'B', 'C', 'D'];
+
+    // 选项输入
+    widgets.add(_buildSectionTitle('选项'));
+    widgets.add(const SizedBox(height: 8));
+    for (int index = 0; index < 4; index++) {
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                labels[index],
+                style: TextStyle(
+                  fontSize: AppFontSize.sm,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: AppInput(
+                hintText: '选项${labels[index]}内容...',
+                controller: _optionControllers[index],
+              ),
+            ),
+          ],
+        ),
+      ));
+    }
+    widgets.add(const SizedBox(height: 16));
+
+    // 正确答案
+    widgets.add(_buildSectionTitle('正确答案'));
+    widgets.add(const SizedBox(height: 8));
+    if (isMulti) {
+      // 多选正确答案
+      widgets.add(Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: labels.map((label) {
+          final selected = _multiCorrectAnswers.contains(label);
+          return FilterChip(
+            label: Text(label),
+            selected: selected,
+            onSelected: (selected) {
+              setState(() {
+                if (selected) {
+                  if (!_multiCorrectAnswers.contains(label)) {
+                    _multiCorrectAnswers.add(label);
+                    _multiCorrectAnswers.sort();
+                  }
+                } else {
+                  _multiCorrectAnswers.remove(label);
+                }
+              });
+            },
+            selectedColor: AppColors.success.withOpacity(0.2),
+            checkmarkColor: AppColors.success,
+            labelStyle: TextStyle(
+              color: selected ? AppColors.success : null,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+            ),
+          );
+        }).toList(),
+      ));
+    } else {
+      // 单选正确答案
+      widgets.add(Row(
+        children: labels.map((label) {
+          final selected = _correctAnswer == label;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(label),
+              selected: selected,
+              onSelected: (_) => setState(() => _correctAnswer = label),
+              selectedColor: AppColors.success.withOpacity(0.2),
+              labelStyle: TextStyle(
+                color: selected ? AppColors.success : null,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+              ),
+            ),
+          );
+        }).toList(),
+      ));
+    }
+    widgets.add(const SizedBox(height: 16));
+
+    // 我的答案
+    widgets.add(_buildSectionTitle('我的答案'));
+    widgets.add(const SizedBox(height: 8));
+    if (isMulti) {
+      widgets.add(Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: labels.map((label) {
+          final selected = _multiUserAnswers.contains(label);
+          return FilterChip(
+            label: Text(label),
+            selected: selected,
+            onSelected: (selected) {
+              setState(() {
+                if (selected) {
+                  if (!_multiUserAnswers.contains(label)) {
+                    _multiUserAnswers.add(label);
+                    _multiUserAnswers.sort();
+                  }
+                } else {
+                  _multiUserAnswers.remove(label);
+                }
+              });
+            },
+            selectedColor: AppColors.error.withOpacity(0.2),
+            checkmarkColor: AppColors.error,
+            labelStyle: TextStyle(
+              color: selected ? AppColors.error : null,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+            ),
+          );
+        }).toList(),
+      ));
+    } else {
+      widgets.add(Row(
+        children: labels.map((label) {
+          final selected = _userAnswer == label;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(label),
+              selected: selected,
+              onSelected: (_) => setState(() => _userAnswer = label),
+              selectedColor: AppColors.error.withOpacity(0.2),
+              labelStyle: TextStyle(
+                color: selected ? AppColors.error : null,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+              ),
+            ),
+          );
+        }).toList(),
+      ));
+    }
+    widgets.add(const SizedBox(height: 16));
+
+    return widgets;
+  }
+
+  List<Widget> _buildFillBlankForm(ThemeData theme) {
+    return [
+      _buildSectionTitle('正确答案'),
+      const SizedBox(height: 8),
+      AppInput(
+        hintText: '请输入正确答案...',
+        controller: _fillCorrectAnswerController,
+      ),
+      const SizedBox(height: 16),
+      _buildSectionTitle('我的答案'),
+      const SizedBox(height: 8),
+      AppInput(
+        hintText: '请输入我的答案...',
+        controller: _fillUserAnswerController,
+      ),
+      const SizedBox(height: 16),
+    ];
+  }
+
+  List<Widget> _buildShortAnswerForm(ThemeData theme) {
+    return [
+      _buildSectionTitle('正确答案'),
+      const SizedBox(height: 8),
+      AppInput(
+        hintText: '请输入正确答案要点...',
+        controller: _shortCorrectAnswerController,
+        multiline: true,
+        maxLines: 4,
+      ),
+      const SizedBox(height: 16),
+      _buildSectionTitle('我的答案'),
+      const SizedBox(height: 8),
+      AppInput(
+        hintText: '请输入我的答案...',
+        controller: _shortUserAnswerController,
+        multiline: true,
+        maxLines: 4,
+      ),
+      const SizedBox(height: 16),
+    ];
+  }
+
+  List<Widget> _buildTrueFalseForm(ThemeData theme) {
+    return [
+      _buildSectionTitle('正确答案'),
+      const SizedBox(height: 8),
+      Row(
+        children: ['对', '错'].map((label) {
+          final selected = _trueFalseCorrectAnswer == label;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(label),
+              selected: selected,
+              onSelected: (_) => setState(() => _trueFalseCorrectAnswer = label),
+              selectedColor: AppColors.success.withOpacity(0.2),
+              labelStyle: TextStyle(
+                color: selected ? AppColors.success : null,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+      const SizedBox(height: 16),
+      _buildSectionTitle('我的答案'),
+      const SizedBox(height: 8),
+      Row(
+        children: ['对', '错'].map((label) {
+          final selected = _trueFalseUserAnswer == label;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(label),
+              selected: selected,
+              onSelected: (_) => setState(() => _trueFalseUserAnswer = label),
+              selectedColor: AppColors.error.withOpacity(0.2),
+              labelStyle: TextStyle(
+                color: selected ? AppColors.error : null,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+      const SizedBox(height: 16),
+    ];
   }
 
   Future<void> _pickImageFromGallery() async {
