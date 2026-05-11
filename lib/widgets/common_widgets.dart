@@ -629,7 +629,32 @@ class AppDialog extends StatelessWidget {
       ),
     );
   }
+
+  /// 显示确认删除对话框，返回用户选择（true=确认，false=取消）
+  static Future<bool> show({
+    required BuildContext context,
+    required String title,
+    String? message,
+    String confirmText = '删除',
+    String cancelText = '取消',
+    VoidCallback? onConfirm,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => ConfirmDeleteDialog(
+        title: title,
+        message: message,
+        confirmText: confirmText,
+        cancelText: cancelText,
+        onConfirm: onConfirm,
+      ),
+    );
+    return result ?? false;
+  }
 }
+
+/// AppInput: AppInputField 的别名，保持向后兼容
+typedef AppInput = AppInputField;
 
 // ============================================================
 // AppEmptyState - 空状态组件
