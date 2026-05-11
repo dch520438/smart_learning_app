@@ -18,6 +18,12 @@ class ExportService {
   final DatabaseService _dbService = DatabaseService();
   final StorageService _storageService = StorageService();
 
+  // 日志输出
+  void _log(String message) {
+    // ignore: avoid_print
+    print('[ExportService] $message');
+  }
+
   // 模块名称常量
   static const String moduleKnowledgePoints = 'knowledge_points';
   static const String moduleNotes = 'notes';
@@ -69,9 +75,11 @@ class ExportService {
   /// [fileName] 自定义文件名（可选）
   /// 返回导出文件的路径
   Future<ExportResult> exportAllToJson({String? fileName}) async {
+    _log('开始导出所有数据...');
     try {
       // 获取所有数据
       final data = await _dbService.exportAllToJson();
+      _log('成功获取数据，共 ${data.length} 个模块');
 
       // 生成文件名
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
@@ -79,9 +87,11 @@ class ExportService {
 
       // 生成JSON字符串
       final jsonString = const JsonEncoder.withIndent('  ').convert(data);
+      _log('JSON数据生成完成，大小: ${jsonString.length} 字符');
 
       // 在 Linux 平台上使用文件选择器
       if (Platform.isLinux) {
+        _log('Linux平台，使用文件选择器导出');
         return await _exportOnLinux(jsonString, finalFileName, allModules);
       }
 
@@ -91,6 +101,7 @@ class ExportService {
         jsonString,
         finalFileName,
       );
+      _log('文件保存成功: $filePath');
 
       // 计算导出统计
       final stats = <String, int>{};
@@ -108,7 +119,9 @@ class ExportService {
         stats: stats,
         totalRecords: stats.values.fold(0, (sum, count) => sum + count),
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log('导出失败: $e');
+      _log('堆栈: $stackTrace');
       return ExportResult(
         success: false,
         errorMessage: '导出失败: $e',
@@ -124,10 +137,12 @@ class ExportService {
     List<String> modules, {
     String? fileName,
   }) async {
+    _log('开始选择性导出，模块: $modules');
     try {
       // 验证模块名称
       final validModules = modules.where((m) => allModules.contains(m)).toList();
       if (validModules.isEmpty) {
+        _log('错误: 没有有效的模块可供导出');
         return ExportResult(
           success: false,
           errorMessage: '没有有效的模块可供导出',
@@ -136,6 +151,7 @@ class ExportService {
 
       // 获取指定模块数据
       final data = await _dbService.exportModulesToJson(validModules);
+      _log('成功获取数据，共 ${data.length} 个模块');
 
       // 生成文件名
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
@@ -147,9 +163,11 @@ class ExportService {
 
       // 生成JSON字符串
       final jsonString = const JsonEncoder.withIndent('  ').convert(data);
+      _log('JSON数据生成完成，大小: ${jsonString.length} 字符');
 
       // 在 Linux 平台上使用文件选择器
       if (Platform.isLinux) {
+        _log('Linux平台，使用文件选择器导出');
         return await _exportOnLinux(jsonString, finalFileName, validModules);
       }
 
@@ -159,6 +177,7 @@ class ExportService {
         jsonString,
         finalFileName,
       );
+      _log('文件保存成功: $filePath');
 
       // 计算导出统计
       final stats = <String, int>{};
@@ -177,7 +196,9 @@ class ExportService {
         totalRecords: stats.values.fold(0, (sum, count) => sum + count),
         exportedModules: validModules,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log('导出失败: $e');
+      _log('堆栈: $stackTrace');
       return ExportResult(
         success: false,
         errorMessage: '导出失败: $e',
@@ -192,6 +213,7 @@ class ExportService {
     String defaultFileName,
     List<String> modules,
   ) async {
+    _log('Linux导出开始，文件名: $defaultFileName');
     try {
       // 获取默认下载目录
       String? defaultDirectory;
@@ -204,13 +226,18 @@ class ExportService {
             // 检查下载目录是否存在
             final downloadDir = Directory(defaultDirectory);
             if (!await downloadDir.exists()) {
+              _log('下载目录不存在，使用HOME目录');
               defaultDirectory = home;
             }
           }
         }
-      } catch (_) {
+      } catch (e) {
+        _log('获取默认目录失败: $e');
         // 忽略错误，使用默认行为
       }
+
+      _log('默认目录: $defaultDirectory');
+      _log('打开文件选择器...');
 
       // 使用文件选择器让用户选择保存位置
       String? outputPath = await FilePicker.platform.getDirectoryPath(
@@ -219,24 +246,40 @@ class ExportService {
       );
 
       if (outputPath == null) {
+        _log('用户取消了导出操作');
         return ExportResult(
           success: false,
           errorMessage: '用户取消了导出操作',
         );
       }
 
+      _log('用户选择目录: $outputPath');
+
       // 构建完整文件路径
       final filePath = '$outputPath/$defaultFileName';
+      _log('完整文件路径: $filePath');
+      
       final file = File(filePath);
 
       // 确保目录存在
       final dir = file.parent;
       if (!await dir.exists()) {
+        _log('创建目录: ${dir.path}');
         await dir.create(recursive: true);
       }
 
       // 写入文件
+      _log('开始写入文件...');
       await file.writeAsString(jsonString);
+      _log('文件写入成功');
+
+      // 验证文件是否写入成功
+      if (await file.exists()) {
+        final fileSize = await file.length();
+        _log('文件验证成功，大小: $fileSize 字节');
+      } else {
+        _log('警告: 文件写入后不存在');
+      }
 
       // 计算导出统计
       final data = jsonDecode(jsonString) as Map<String, dynamic>;
@@ -256,7 +299,9 @@ class ExportService {
         totalRecords: stats.values.fold(0, (sum, count) => sum + count),
         exportedModules: modules,
       );
-    } catch (e) {
+    } catch (e, stackTrace) {
+      _log('Linux 导出失败: $e');
+      _log('堆栈: $stackTrace');
       return ExportResult(
         success: false,
         errorMessage: 'Linux 导出失败: $e',

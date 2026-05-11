@@ -906,6 +906,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
   late TextEditingController _tagController;
+  late TextEditingController _chapterController;
 
   // 数据
   String? _selectedSubject;
@@ -927,12 +928,14 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     _titleController = TextEditingController();
     _contentController = TextEditingController();
     _tagController = TextEditingController();
+    _chapterController = TextEditingController();
 
     if (widget.existingNote != null) {
       _isEditing = true;
       final note = widget.existingNote!;
       _titleController.text = note['title'] as String? ?? '';
       _contentController.text = note['content'] as String? ?? '';
+      _chapterController.text = note['chapter'] as String? ?? '';
       _selectedSubject = note['subject'] as String?;
       _selectedColor = _parseNoteColor(note['color']);
       _parseExistingTags(note['tags']);
@@ -1046,6 +1049,7 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
     _titleController.dispose();
     _contentController.dispose();
     _tagController.dispose();
+    _chapterController.dispose();
     super.dispose();
   }
 
@@ -1117,6 +1121,9 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
         'title': _titleController.text.trim(),
         'content': _contentController.text.trim(),
         'subject': _selectedSubject ?? '其他',
+        'chapter': _chapterController.text.trim().isEmpty 
+            ? null 
+            : _chapterController.text.trim(),
         'tags': jsonEncode(_tags),
         'color': colorToHex(_selectedColor),
         'note_type': 'text',
@@ -1311,6 +1318,55 @@ class _NoteEditorPageState extends State<NoteEditorPage> {
                     AppTag(
                       label: _selectedSubject!,
                       color: getSubjectColor(_selectedSubject!),
+                    ),
+
+                  // 章节输入
+                  if (!_isPreviewMode) ...[
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _chapterController,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: AppColors.textPrimary,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: '输入章节（如：第三章 函数）',
+                        hintStyle: TextStyle(
+                          color: AppColors.textHint,
+                        ),
+                        prefixIcon: const Icon(
+                          Icons.book_outlined,
+                          size: 20,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(AppRadius.md),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        isDense: true,
+                      ),
+                    ),
+                  ] else if (_chapterController.text.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.book_outlined,
+                            size: 16,
+                            color: AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _chapterController.text,
+                            style: TextStyle(
+                              fontSize: AppFontSize.sm,
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
 
                   const SizedBox(height: 16),

@@ -426,6 +426,115 @@ class _QuestionCardState extends State<QuestionCard> {
             ),
           ],
 
+          // 多选题选项
+          if (widget.type == QuestionType.multipleChoice &&
+              widget.options != null) ...[
+            const SizedBox(height: 12),
+            ...widget.options!.asMap().entries.map((entry) {
+              final idx = entry.key;
+              final optionText = entry.value;
+              final optionLabel = _optionLabels[idx];
+              final selectedAnswers = _selectedAnswer?.split(',').toSet() ?? <String>{};
+              final isSelected = selectedAnswers.contains(optionLabel);
+              final correctAnswers = widget.correctAnswer?.split(',').toSet() ?? <String>{};
+              final isCorrect = correctAnswers.contains(optionLabel);
+
+              return QuestionOption(
+                label: optionLabel,
+                text: optionText,
+                isSelected: isSelected,
+                isCorrect: isCorrect,
+                showResult: widget.showResult,
+                enabled: !widget.showResult,
+                onTap: (_) {
+                  setState(() {
+                    final currentSelected = _selectedAnswer?.split(',').where((s) => s.isNotEmpty).toSet() ?? <String>{};
+                    if (currentSelected.contains(optionLabel)) {
+                      currentSelected.remove(optionLabel);
+                    } else {
+                      currentSelected.add(optionLabel);
+                    }
+                    _selectedAnswer = currentSelected.toList()..sort();
+                    _selectedAnswer = _selectedAnswer!.join(',');
+                  });
+                  widget.onAnswer?.call(_selectedAnswer ?? '');
+                },
+              );
+            }),
+          ],
+
+          // 简答题输入框
+          if (widget.type == QuestionType.shortAnswer && !widget.showResult) ...[
+            const SizedBox(height: 12),
+            TextField(
+              maxLines: 5,
+              maxLength: 1000,
+              decoration: InputDecoration(
+                hintText: '请输入您的答案...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(AppRadius.md),
+                ),
+                filled: true,
+                fillColor: AppColors.background,
+              ),
+              style: TextStyle(
+                fontSize: AppFontSize.md,
+                color: AppColors.textPrimary,
+              ),
+              onChanged: (value) {
+                setState(() {
+                  _selectedAnswer = value;
+                });
+                widget.onAnswer?.call(value);
+              },
+            ),
+          ],
+
+          // 简答题答案显示
+          if (widget.type == QuestionType.shortAnswer &&
+              widget.showResult &&
+              widget.correctAnswer != null) ...[
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.info.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(color: AppColors.info),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.lightbulb_outline,
+                          color: AppColors.info, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        '参考答案',
+                        style: TextStyle(
+                          fontSize: AppFontSize.md,
+                          color: AppColors.info,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.correctAnswer!,
+                    style: TextStyle(
+                      fontSize: AppFontSize.md,
+                      color: AppColors.textPrimary,
+                      height: 1.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           // 查看解析按钮
           if (widget.analysis != null && widget.analysis!.isNotEmpty) ...[
             const SizedBox(height: 12),

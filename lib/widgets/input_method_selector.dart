@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
 import '../services/ocr_service.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
@@ -329,7 +330,11 @@ class InputMethodHandler {
 
       return text;
     } catch (e) {
+      // 确保关闭加载对话框
       if (context.mounted) {
+        try {
+          Navigator.of(context).pop();
+        } catch (_) {}
         showSnackBar(context, '拍照识别失败: $e', isError: true);
       }
       return null;
@@ -339,6 +344,11 @@ class InputMethodHandler {
   /// 处理相册选择
   Future<String?> _handleGalleryInput() async {
     try {
+      // Linux平台使用 file_picker 替代 image_picker
+      if (Platform.isLinux) {
+        return await _handleGalleryInputOnLinux();
+      }
+      
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(
         source: ImageSource.gallery,
@@ -368,8 +378,63 @@ class InputMethodHandler {
 
       return text;
     } catch (e) {
+      // 确保关闭加载对话框
       if (context.mounted) {
+        try {
+          Navigator.of(context).pop();
+        } catch (_) {}
         showSnackBar(context, '图片识别失败: $e', isError: true);
+      }
+      return null;
+    }
+  }
+
+  /// Linux平台使用 file_picker 处理相册选择
+  Future<String?> _handleGalleryInputOnLinux() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        dialogTitle: '选择图片',
+      );
+
+      if (result == null || result.files.isEmpty) {
+        return null;
+      }
+
+      final filePath = result.files.first.path;
+      if (filePath == null) {
+        if (context.mounted) {
+          showSnackBar(context, '无法获取文件路径', isError: true);
+        }
+        return null;
+      }
+
+      // 显示加载对话框
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+
+      // OCR 识别
+      final text = await _ocrService.recognizeText(filePath);
+
+      // 关闭加载对话框
+      if (context.mounted) {
+        Navigator.of(context).pop();
+      }
+
+      return text;
+    } catch (e) {
+      // 确保关闭加载对话框
+      if (context.mounted) {
+        try {
+          Navigator.of(context).pop();
+        } catch (_) {}
+        showSnackBar(context, '图片选择失败: $e', isError: true);
       }
       return null;
     }

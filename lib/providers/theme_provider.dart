@@ -180,16 +180,8 @@ class ThemeProvider extends ChangeNotifier {
   // 获取字体族名称
   // 注意：在 Linux 上使用系统字体名称，确保中文字体正确显示
   String? get fontFamilyName {
-    switch (_fontFamily) {
-      case AppFontFamily.system:
-        return 'WQYMicroHei'; // 使用项目内置的中文字体
-      case AppFontFamily.songti:
-        return 'WQYMicroHei'; // 回退到内置字体，确保中文显示
-      case AppFontFamily.heiti:
-        return 'WQYMicroHei'; // 回退到内置字体，确保中文显示
-      case AppFontFamily.kaiti:
-        return 'WQYMicroHei'; // 回退到内置字体，确保中文显示
-    }
+    // 使用项目内置的中文字体，确保中文正确显示
+    return 'WQYMicroHei';
   }
 
   // 获取圆角值

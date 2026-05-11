@@ -115,43 +115,36 @@ class MindMapService {
     return rows.map((r) => _rowToMustRemember(r)).toList();
   }
 
+  /// 安全解析 JSON 字符串为 List<String>
+  List<String> _safeParseJsonList(dynamic value) {
+    if (value == null) return [];
+    
+    try {
+      if (value is String) {
+        // 检查是否为空字符串
+        if (value.trim().isEmpty) return [];
+        
+        final decoded = jsonDecode(value);
+        if (decoded is List) {
+          return decoded.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toList();
+        }
+        return [];
+      } else if (value is List) {
+        return value.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toList();
+      }
+    } catch (e) {
+      debugPrint('JSON 解析失败: $e, 原始值: $value');
+    }
+    return [];
+  }
+
   /// 将数据库行转换为 KnowledgePoint
   KnowledgePoint _rowToKnowledgePoint(Map<String, dynamic> r) {
-    List<String> tags = [];
-    if (r['tags'] != null) {
-      if (r['tags'] is String) {
-        final decoded = jsonDecode(r['tags'] as String);
-        if (decoded is List) {
-          tags = decoded.map((e) => e.toString()).toList();
-        }
-      } else if (r['tags'] is List) {
-        tags = (r['tags'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    List<String> tags = _safeParseJsonList(r['tags']);
 
-    List<String> examMethods = [];
-    if (r['exam_methods'] != null) {
-      if (r['exam_methods'] is String) {
-        final decoded = jsonDecode(r['exam_methods'] as String);
-        if (decoded is List) {
-          examMethods = decoded.map((e) => e.toString()).toList();
-        }
-      } else if (r['exam_methods'] is List) {
-        examMethods = (r['exam_methods'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    List<String> examMethods = _safeParseJsonList(r['exam_methods']);
 
-    List<String> keyPoints = [];
-    if (r['key_points'] != null) {
-      if (r['key_points'] is String) {
-        final decoded = jsonDecode(r['key_points'] as String);
-        if (decoded is List) {
-          keyPoints = decoded.map((e) => e.toString()).toList();
-        }
-      } else if (r['key_points'] is List) {
-        keyPoints = (r['key_points'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    List<String> keyPoints = _safeParseJsonList(r['key_points']);
 
     int createdAt = DateTime.now().millisecondsSinceEpoch;
     if (r['created_at'] != null) {
@@ -195,53 +188,40 @@ class MindMapService {
 
   /// 将数据库行转换为 WrongQuestion
   WrongQuestion _rowToWrongQuestion(Map<String, dynamic> r) {
+    // 安全解析 options 字段
     List<Map<String, dynamic>> options = [];
     if (r['options'] != null) {
-      if (r['options'] is String) {
-        final decoded = jsonDecode(r['options'] as String);
-        if (decoded is List) {
-          options = decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      try {
+        if (r['options'] is String) {
+          if ((r['options'] as String).trim().isNotEmpty) {
+            final decoded = jsonDecode(r['options'] as String);
+            if (decoded is List) {
+              options = decoded.map((e) {
+                if (e is Map) {
+                  return Map<String, dynamic>.from(e);
+                }
+                return <String, dynamic>{};
+              }).toList();
+            }
+          }
+        } else if (r['options'] is List) {
+          options = (r['options'] as List).map((e) {
+            if (e is Map) {
+              return Map<String, dynamic>.from(e);
+            }
+            return <String, dynamic>{};
+          }).toList();
         }
-      } else if (r['options'] is List) {
-        options = (r['options'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      } catch (e) {
+        debugPrint('解析 options 失败: $e');
       }
     }
 
-    List<String> examMethods = [];
-    if (r['exam_methods'] != null) {
-      if (r['exam_methods'] is String) {
-        final decoded = jsonDecode(r['exam_methods'] as String);
-        if (decoded is List) {
-          examMethods = decoded.map((e) => e.toString()).toList();
-        }
-      } else if (r['exam_methods'] is List) {
-        examMethods = (r['exam_methods'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    List<String> examMethods = _safeParseJsonList(r['exam_methods']);
 
-    List<String> keyPoints = [];
-    if (r['key_points'] != null) {
-      if (r['key_points'] is String) {
-        final decoded = jsonDecode(r['key_points'] as String);
-        if (decoded is List) {
-          keyPoints = decoded.map((e) => e.toString()).toList();
-        }
-      } else if (r['key_points'] is List) {
-        keyPoints = (r['key_points'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    List<String> keyPoints = _safeParseJsonList(r['key_points']);
 
-    List<String> tags = [];
-    if (r['tags'] != null) {
-      if (r['tags'] is String) {
-        final decoded = jsonDecode(r['tags'] as String);
-        if (decoded is List) {
-          tags = decoded.map((e) => e.toString()).toList();
-        }
-      } else if (r['tags'] is List) {
-        tags = (r['tags'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    List<String> tags = _safeParseJsonList(r['tags']);
 
     int createdAt = DateTime.now().millisecondsSinceEpoch;
     if (r['created_at'] != null) {
@@ -287,41 +267,11 @@ class MindMapService {
 
   /// 将数据库行转换为 Note
   Note _rowToNote(Map<String, dynamic> r) {
-    List<String> tags = [];
-    if (r['tags'] != null) {
-      if (r['tags'] is String) {
-        final decoded = jsonDecode(r['tags'] as String);
-        if (decoded is List) {
-          tags = decoded.map((e) => e.toString()).toList();
-        }
-      } else if (r['tags'] is List) {
-        tags = (r['tags'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    List<String> tags = _safeParseJsonList(r['tags']);
 
-    List<String> examMethods = [];
-    if (r['exam_methods'] != null) {
-      if (r['exam_methods'] is String) {
-        final decoded = jsonDecode(r['exam_methods'] as String);
-        if (decoded is List) {
-          examMethods = decoded.map((e) => e.toString()).toList();
-        }
-      } else if (r['exam_methods'] is List) {
-        examMethods = (r['exam_methods'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    List<String> examMethods = _safeParseJsonList(r['exam_methods']);
 
-    List<String> keyPoints = [];
-    if (r['key_points'] != null) {
-      if (r['key_points'] is String) {
-        final decoded = jsonDecode(r['key_points'] as String);
-        if (decoded is List) {
-          keyPoints = decoded.map((e) => e.toString()).toList();
-        }
-      } else if (r['key_points'] is List) {
-        keyPoints = (r['key_points'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    List<String> keyPoints = _safeParseJsonList(r['key_points']);
 
     int createdAt = DateTime.now().millisecondsSinceEpoch;
     if (r['created_at'] != null) {
@@ -362,29 +312,9 @@ class MindMapService {
 
   /// 将数据库行转换为 MustRemember
   MustRemember _rowToMustRemember(Map<String, dynamic> r) {
-    List<String> examMethods = [];
-    if (r['exam_methods'] != null) {
-      if (r['exam_methods'] is String) {
-        final decoded = jsonDecode(r['exam_methods'] as String);
-        if (decoded is List) {
-          examMethods = decoded.map((e) => e.toString()).toList();
-        }
-      } else if (r['exam_methods'] is List) {
-        examMethods = (r['exam_methods'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    List<String> examMethods = _safeParseJsonList(r['exam_methods']);
 
-    List<String> keyPoints = [];
-    if (r['key_points'] != null) {
-      if (r['key_points'] is String) {
-        final decoded = jsonDecode(r['key_points'] as String);
-        if (decoded is List) {
-          keyPoints = decoded.map((e) => e.toString()).toList();
-        }
-      } else if (r['key_points'] is List) {
-        keyPoints = (r['key_points'] as List).map((e) => e.toString()).toList();
-      }
-    }
+    List<String> keyPoints = _safeParseJsonList(r['key_points']);
 
     int createdAt = DateTime.now().millisecondsSinceEpoch;
     if (r['created_at'] != null) {

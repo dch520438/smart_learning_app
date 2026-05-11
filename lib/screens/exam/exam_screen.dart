@@ -572,6 +572,26 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
     _loadQuestions();
   }
 
+  /// 安全解析 options 字段
+  List<String>? _safeParseOptions(dynamic options) {
+    if (options == null) return null;
+    
+    try {
+      if (options is String) {
+        if (options.trim().isEmpty) return null;
+        final decoded = jsonDecode(options);
+        if (decoded is List) {
+          return decoded.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toList();
+        }
+      } else if (options is List) {
+        return options.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toList();
+      }
+    } catch (e) {
+      debugPrint('解析 options 失败: $e');
+    }
+    return null;
+  }
+
   /// 从数据库加载题目（母题、错题、系统题库）
   Future<void> _loadQuestions() async {
     final subject = widget.examData['subject'] as String? ?? '数学';
@@ -598,9 +618,7 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
             'content': wq['question_content'] as String? ?? '',
             'type': wq['question_type'] as String? ?? 'singleChoice',
             'subject': wq['subject'] as String? ?? subject,
-            'options': wq['options'] != null
-                ? (jsonDecode(wq['options'] as String) as List).cast<String>()
-                : null,
+            'options': _safeParseOptions(wq['options']),
             'correctAnswer': wq['correct_answer'] as String? ?? '',
             'analysis': wq['analysis'] as String? ?? '暂无解析',
             'difficulty': wq['difficulty'] as int? ?? 2,
@@ -620,9 +638,7 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
             'content': mq['question_content'] as String? ?? '',
             'type': mq['question_type'] as String? ?? 'singleChoice',
             'subject': mq['subject'] as String? ?? subject,
-            'options': mq['options'] != null
-                ? (jsonDecode(mq['options'] as String) as List).cast<String>()
-                : null,
+            'options': _safeParseOptions(mq['options']),
             'correctAnswer': mq['correct_answer'] as String? ?? '',
             'analysis': mq['analysis'] as String? ?? '暂无解析',
             'difficulty': mq['difficulty'] as int? ?? 2,
@@ -1679,15 +1695,33 @@ class _PracticeTabState extends State<_PracticeTab> {
     }
   }
 
+  /// 安全解析 options 字段
+  List<String>? _safeParseOptions(dynamic options) {
+    if (options == null) return null;
+    
+    try {
+      if (options is String) {
+        if (options.trim().isEmpty) return null;
+        final decoded = jsonDecode(options);
+        if (decoded is List) {
+          return decoded.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toList();
+        }
+      } else if (options is List) {
+        return options.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toList();
+      }
+    } catch (e) {
+      debugPrint('解析 options 失败: $e');
+    }
+    return null;
+  }
+
   Map<String, dynamic> _convertWrongQuestion(Map<String, dynamic> wq) {
     return {
       'id': 'wrong_${wq['id']}',
       'content': wq['question_content'] as String? ?? '',
       'type': wq['question_type'] as String? ?? 'singleChoice',
       'subject': wq['subject'] as String? ?? _selectedSubject,
-      'options': wq['options'] != null
-          ? (jsonDecode(wq['options'] as String) as List).cast<String>()
-          : null,
+      'options': _safeParseOptions(wq['options']),
       'correctAnswer': wq['correct_answer'] as String? ?? '',
       'analysis': wq['analysis'] as String? ?? '暂无解析',
       'difficulty': wq['difficulty'] as int? ?? 2,
@@ -1703,9 +1737,7 @@ class _PracticeTabState extends State<_PracticeTab> {
       'content': mq['question_content'] as String? ?? '',
       'type': mq['question_type'] as String? ?? 'singleChoice',
       'subject': mq['subject'] as String? ?? _selectedSubject,
-      'options': mq['options'] != null
-          ? (jsonDecode(mq['options'] as String) as List).cast<String>()
-          : null,
+      'options': _safeParseOptions(mq['options']),
       'correctAnswer': mq['correct_answer'] as String? ?? '',
       'analysis': mq['analysis'] as String? ?? '暂无解析',
       'difficulty': mq['difficulty'] as int? ?? 2,

@@ -7,6 +7,7 @@ class Note {
   final String title;
   final String content; // markdown格式
   final String subject;
+  final String? chapter; // 章节
   final List<String> tags;
   final String color; // 笔记颜色
   final bool isPinned; // 是否置顶
@@ -22,6 +23,7 @@ class Note {
     required this.title,
     required this.content,
     required this.subject,
+    this.chapter,
     List<String>? tags,
     this.color = '#FFFFFF',
     this.isPinned = false,
@@ -46,6 +48,7 @@ class Note {
       title: json['title'] as String,
       content: json['content'] as String,
       subject: json['subject'] as String,
+      chapter: json['chapter'] as String?,
       tags: (json['tags'] as List<dynamic>).cast<String>(),
       color: json['color'] as String? ?? '#FFFFFF',
       isPinned: json['isPinned'] as bool? ?? false,
@@ -74,6 +77,7 @@ class Note {
       'title': title,
       'content': content,
       'subject': subject,
+      'chapter': chapter,
       'tags': tags,
       'color': color,
       'isPinned': isPinned,
@@ -92,6 +96,7 @@ class Note {
     String? title,
     String? content,
     String? subject,
+    String? chapter,
     List<String>? tags,
     String? color,
     bool? isPinned,
@@ -107,6 +112,7 @@ class Note {
       title: title ?? this.title,
       content: content ?? this.content,
       subject: subject ?? this.subject,
+      chapter: chapter ?? this.chapter,
       tags: tags ?? this.tags,
       color: color ?? this.color,
       isPinned: isPinned ?? this.isPinned,
@@ -121,7 +127,7 @@ class Note {
 
   @override
   String toString() {
-    return 'Note(id: $id, title: $title, subject: $subject, '
+    return 'Note(id: $id, title: $title, subject: $subject, chapter: $chapter, '
         'color: $color, isPinned: $isPinned, isFavorite: $isFavorite, '
         'tags: $tags, examMethods: $examMethods, keyPoints: $keyPoints)';
   }

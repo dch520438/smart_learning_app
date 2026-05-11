@@ -14,7 +14,7 @@ class DatabaseService {
 
   // 数据库名称和版本
   static const String _databaseName = 'smart_learning.db';
-  static const int _databaseVersion = 5;
+  static const int _databaseVersion = 6;
 
   // 表名常量
   static const String tableKnowledgePoints = 'knowledge_points';
@@ -87,6 +87,7 @@ class DatabaseService {
         title TEXT NOT NULL,
         content TEXT,
         subject TEXT,
+        chapter TEXT,
         tags TEXT,
         exam_methods TEXT,
         key_points TEXT,
@@ -359,6 +360,290 @@ class DatabaseService {
 
     // 创建索引
     await _createIndexes(db);
+    
+    // 插入测试数据
+    await _insertTestData(db);
+  }
+
+  /// 插入测试数据
+  Future<void> _insertTestData(Database db) async {
+    final now = DateTime.now();
+    final nowStr = now.toIso8601String();
+    
+    // 测试知识点数据
+    final testKnowledgePoints = [
+      {
+        'uuid': 'kp_test_1',
+        'title': '一元二次方程的解法',
+        'content': '一元二次方程的一般形式为 ax² + bx + c = 0 (a≠0)。解法包括：1. 因式分解法；2. 配方法；3. 公式法：x = (-b ± √(b²-4ac)) / 2a；4. 图像法。当判别式 Δ = b²-4ac > 0 时有两个不等实根，Δ = 0 时有两个相等实根，Δ < 0 时无实根。',
+        'subject': '数学',
+        'chapter': '方程与不等式',
+        'difficulty': 2,
+        'mastery_level': 75,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'kp_test_2',
+        'title': '牛顿第二定律',
+        'content': '牛顿第二定律：F = ma。物体的加速度与作用力成正比，与质量成反比。加速度的方向与作用力的方向相同。适用条件：1. 惯性参考系；2. 宏观低速物体；3. 质点模型。',
+        'subject': '物理',
+        'chapter': '力学',
+        'difficulty': 2,
+        'mastery_level': 60,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'kp_test_3',
+        'title': '氧化还原反应',
+        'content': '氧化还原反应的本质是电子的转移。氧化剂得到电子被还原，还原剂失去电子被氧化。氧化还原反应的特征是元素化合价发生变化。常用口诀：升失氧，降得还。',
+        'subject': '化学',
+        'chapter': '化学反应原理',
+        'difficulty': 2,
+        'mastery_level': 50,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'kp_test_4',
+        'title': '古诗词鉴赏方法',
+        'content': '古诗词鉴赏步骤：1. 知人论世，了解作者和时代背景；2. 分析意象，把握诗歌意境；3. 品味语言，体会修辞手法；4. 理解情感，把握主旨。常见意象：月亮（思乡）、柳树（离别）、菊花（隐逸）、梅花（高洁）。',
+        'subject': '语文',
+        'chapter': '古诗词',
+        'difficulty': 2,
+        'mastery_level': 80,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'kp_test_5',
+        'title': '英语定语从句',
+        'content': '定语从句是由关系词引导的修饰名词或代词的从句。关系代词：who（人，主格）、whom（人，宾格）、whose（人/物，所有格）、which（物）、that（人/物）。关系副词：when（时间）、where（地点）、why（原因）。',
+        'subject': '英语',
+        'chapter': '语法',
+        'difficulty': 2,
+        'mastery_level': 65,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+    ];
+    
+    for (final kp in testKnowledgePoints) {
+      await db.insert(tableKnowledgePoints, kp);
+    }
+    
+    // 测试错题数据
+    final testWrongQuestions = [
+      {
+        'uuid': 'wq_test_1',
+        'title': '一元二次方程求解错误',
+        'question_content': '解方程 x² - 5x + 6 = 0',
+        'question_type': 'singleChoice',
+        'options': '[{"label":"A","content":"x=2或x=3"},{"label":"B","content":"x=1或x=6"},{"label":"C","content":"x=-2或x=-3"},{"label":"D","content":"x=2或x=-3"}]',
+        'correct_answer': 'A',
+        'my_answer': 'B',
+        'analysis': '使用因式分解法：x² - 5x + 6 = (x-2)(x-3) = 0，所以 x=2 或 x=3。答案选A。',
+        'subject': '数学',
+        'chapter': '方程与不等式',
+        'error_type': '方法错误',
+        'error_count': 2,
+        'is_mastered': 0,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'wq_test_2',
+        'title': '牛顿运动定律应用',
+        'question_content': '一个质量为2kg的物体，受到10N的水平推力作用，在光滑水平面上运动，求物体的加速度。',
+        'question_type': 'shortAnswer',
+        'correct_answer': 'a = F/m = 10/2 = 5 m/s²',
+        'my_answer': 'a = F/m = 10/2 = 10 m/s²',
+        'analysis': '根据牛顿第二定律 F = ma，所以 a = F/m = 10/2 = 5 m/s²。计算时注意单位。',
+        'subject': '物理',
+        'chapter': '力学',
+        'error_type': '计算错误',
+        'error_count': 1,
+        'is_mastered': 0,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'wq_test_3',
+        'title': '氧化还原反应判断',
+        'question_content': '下列反应中，属于氧化还原反应的是？',
+        'question_type': 'singleChoice',
+        'options': '[{"label":"A","content":"CaCO3 = CaO + CO2"},{"label":"B","content":"2Na + Cl2 = 2NaCl"},{"label":"C","content":"CaO + H2O = Ca(OH)2"},{"label":"D","content":"Na2CO3 + 2HCl = 2NaCl + H2O + CO2"}]',
+        'correct_answer': 'B',
+        'my_answer': 'D',
+        'analysis': '氧化还原反应的特征是元素化合价发生变化。B选项中Na从0价变为+1价，Cl从0价变为-1价，发生了电子转移，是氧化还原反应。',
+        'subject': '化学',
+        'chapter': '化学反应原理',
+        'error_type': '概念错误',
+        'error_count': 1,
+        'is_mastered': 0,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+    ];
+    
+    for (final wq in testWrongQuestions) {
+      await db.insert(tableWrongQuestions, wq);
+    }
+    
+    // 测试母题数据
+    final testMotherQuestions = [
+      {
+        'uuid': 'mq_test_1',
+        'title': '一元二次方程根与系数的关系',
+        'question_content': '已知一元二次方程 ax² + bx + c = 0 (a≠0) 的两根为 x₁, x₂，求证：x₁ + x₂ = -b/a，x₁ · x₂ = c/a',
+        'question_type': 'proof',
+        'correct_answer': '证明：设方程两根为 x₁, x₂，则 ax² + bx + c = a(x - x₁)(x - x₂) = ax² - a(x₁+x₂)x + ax₁x₂，比较系数得 x₁ + x₂ = -b/a，x₁ · x₂ = c/a',
+        'analysis': '这是韦达定理的证明，关键是将一元二次方程写成两根式，然后比较系数。韦达定理是解决一元二次方程问题的重要工具。',
+        'subject': '数学',
+        'chapter': '方程与不等式',
+        'difficulty': 2,
+        'variant_count': 3,
+        'mastery_level': 70,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'mq_test_2',
+        'title': '牛顿第二定律的应用',
+        'question_content': '质量为m的物体在倾角为θ的光滑斜面上由静止开始下滑，求物体下滑的加速度和滑到底端的时间。',
+        'question_type': 'calculation',
+        'correct_answer': '加速度 a = g·sinθ，时间 t = √(2L/(g·sinθ))，其中L为斜面长度',
+        'analysis': '对物体进行受力分析：重力mg竖直向下，支持力N垂直斜面向上。将重力分解为沿斜面方向和垂直斜面方向的分力，沿斜面方向：mg·sinθ = ma，所以 a = g·sinθ。',
+        'subject': '物理',
+        'chapter': '力学',
+        'difficulty': 2,
+        'variant_count': 2,
+        'mastery_level': 60,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+    ];
+    
+    for (final mq in testMotherQuestions) {
+      await db.insert(tableMotherQuestions, mq);
+    }
+    
+    // 测试必记必背数据
+    final testMustRemembers = [
+      {
+        'uuid': 'mr_test_1',
+        'title': '勾股定理',
+        'content': '直角三角形两直角边的平方和等于斜边的平方。即：a² + b² = c²（a、b为直角边，c为斜边）。常用勾股数：3-4-5、5-12-13、8-15-17、7-24-25。',
+        'subject': '数学',
+        'chapter': '几何',
+        'category': '定理',
+        'importance': 3,
+        'memory_level': 80,
+        'review_count': 3,
+        'is_mastered': 0,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'mr_test_2',
+        'title': '牛顿三定律',
+        'content': '第一定律（惯性定律）：物体保持静止或匀速直线运动状态，直到有外力迫使它改变这种状态。第二定律：F = ma。第三定律：作用力与反作用力大小相等、方向相反、作用在同一直线上。',
+        'subject': '物理',
+        'chapter': '力学',
+        'category': '定律',
+        'importance': 3,
+        'memory_level': 70,
+        'review_count': 2,
+        'is_mastered': 0,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'mr_test_3',
+        'title': '元素周期表前20号元素',
+        'content': 'H氢、He氦、Li锂、Be铍、B硼、C碳、N氮、O氧、F氟、Ne氖、Na钠、Mg镁、Al铝、Si硅、P磷、S硫、Cl氯、Ar氩、K钾、Ca钙。口诀：氢氦锂铍硼，碳氮氧氟氖，钠镁铝硅磷，硫氯氩钾钙。',
+        'subject': '化学',
+        'chapter': '原子结构',
+        'category': '基础知识',
+        'importance': 3,
+        'memory_level': 90,
+        'review_count': 5,
+        'is_mastered': 1,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'mr_test_4',
+        'title': '《静夜思》- 李白',
+        'content': '床前明月光，疑是地上霜。举头望明月，低头思故乡。',
+        'subject': '语文',
+        'chapter': '古诗词',
+        'category': '古诗词',
+        'importance': 2,
+        'memory_level': 100,
+        'review_count': 10,
+        'is_mastered': 1,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'mr_test_5',
+        'title': '常用英语不规则动词表',
+        'content': 'go - went - gone（去）；do - did - done（做）；see - saw - seen（看见）；take - took - taken（拿）；give - gave - given（给）；write - wrote - written（写）；speak - spoke - spoken（说）',
+        'subject': '英语',
+        'chapter': '语法',
+        'category': '词汇',
+        'importance': 3,
+        'memory_level': 60,
+        'review_count': 2,
+        'is_mastered': 0,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+    ];
+    
+    for (final mr in testMustRemembers) {
+      await db.insert(tableMustRemembers, mr);
+    }
+    
+    // 测试笔记数据
+    final testNotes = [
+      {
+        'uuid': 'note_test_1',
+        'title': '数学错题总结',
+        'content': '本周数学错题主要集中在：1. 一元二次方程求根公式的应用；2. 函数图像的识别；3. 几何证明题的辅助线添加。需要重点复习这些内容。',
+        'subject': '数学',
+        'note_type': 'text',
+        'is_favorite': 1,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'note_test_2',
+        'title': '物理实验笔记',
+        'content': '牛顿第二定律实验注意事项：1. 平衡摩擦力是关键步骤；2. 砂桶质量要远小于小车质量；3. 使用光电门计时更精确；4. 多次测量取平均值减小误差。',
+        'subject': '物理',
+        'note_type': 'text',
+        'is_favorite': 0,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+      {
+        'uuid': 'note_test_3',
+        'title': '英语语法笔记 - 虚拟语气',
+        'content': '虚拟语气用法总结：\n1. 与现在事实相反：if + 过去式，would/could/should/might + 动词原形\n2. 与过去事实相反：if + had done，would/could/should/might + have done\n3. 与将来事实相反：if + were to/should + 动词原形，would + 动词原形',
+        'subject': '英语',
+        'note_type': 'text',
+        'is_favorite': 1,
+        'created_at': nowStr,
+        'updated_at': nowStr,
+      },
+    ];
+    
+    for (final note in testNotes) {
+      await db.insert(tableNotes, note);
+    }
   }
 
   /// 创建索引以提高查询性能
@@ -472,6 +757,12 @@ class DatabaseService {
       await _addColumnSafe(db, tableMustRemembers, 'chapter', 'TEXT');
       await _addColumnSafe(db, tableWrongQuestions, 'chapter', 'TEXT');
       await _addColumnSafe(db, tableMotherQuestions, 'chapter', 'TEXT');
+      await _addColumnSafe(db, tableNotes, 'chapter', 'TEXT');
+    }
+    
+    // 版本5 -> 版本6：插入测试数据
+    if (oldVersion < 6) {
+      await _insertTestData(db);
     }
   }
 
