@@ -63,3 +63,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  fonts:
+    - family: WQYMicroHei
+      fonts:
+        - asset: fonts/WenQuanYiMicroHei.ttf

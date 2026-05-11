@@ -182,7 +182,7 @@ class ThemeProvider extends ChangeNotifier {
   String? get fontFamilyName {
     switch (_fontFamily) {
       case AppFontFamily.system:
-        return null; // 使用 Flutter/系统默认字体
+        return 'WQYMicroHei'; // 使用项目内置的中文字体
       case AppFontFamily.songti:
         return 'Noto Serif CJK SC';  // Linux 系统常见宋体
       case AppFontFamily.heiti:
