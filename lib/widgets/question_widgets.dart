@@ -454,8 +454,8 @@ class _QuestionCardState extends State<QuestionCard> {
                     } else {
                       currentSelected.add(optionLabel);
                     }
-                    _selectedAnswer = currentSelected.toList()..sort();
-                    _selectedAnswer = _selectedAnswer!.join(',');
+                    final sorted = currentSelected.toList()..sort();
+                    _selectedAnswer = sorted.join(',');
                   });
                   widget.onAnswer?.call(_selectedAnswer ?? '');
                 },
