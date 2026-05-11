@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -178,11 +179,13 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   // 获取字体族名称
-  // 使用打包的 NotoSansCJK 字体，确保中文正确显示
-  // 该字体文件已包含在 fonts/ 目录下，支持完整的中日韩字符集
+  // 使用系统字体或打包的 NotoSansCJK 字体，确保中文正确显示
   String? get fontFamilyName {
-    // 使用打包的 Noto Sans CJK 字体
-    // 这是 Google 提供的开源字体，支持完整的中日韩字符
+    if (Platform.isLinux) {
+      // Linux 使用系统已安装的字体
+      return 'Noto Sans CJK SC';
+    }
+    // 其他平台使用打包的 Noto Sans CJK 字体
     return 'NotoSansCJK';
   }
 

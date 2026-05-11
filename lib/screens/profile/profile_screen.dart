@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../providers/theme_provider.dart';
 import '../../services/database_service.dart';
@@ -256,16 +257,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
           : await exportService.exportModulesToJson(modules);
 
       if (result.success && result.filePath != null) {
-        // 分享文件
-        await Share.shareXFiles([XFile(result.filePath!)],
-            text: '智慧学习 - 数据导出');
+        // Linux 平台不支持 share_plus，直接显示成功消息
+        if (!Platform.isLinux) {
+          // 分享文件
+          await Share.shareXFiles([XFile(result.filePath!)],
+              text: '智慧学习 - 数据导出');
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
-                  '导出成功！共 ${result.totalRecords} 条记录\n${result.formattedStats}'),
+                  '导出成功！共 ${result.totalRecords} 条记录\n文件保存至: ${result.filePath}'),
               backgroundColor: Colors.green,
+              duration: const Duration(seconds: 4),
             ),
           );
         }

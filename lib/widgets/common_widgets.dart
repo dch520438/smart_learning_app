@@ -106,183 +106,147 @@ class _AppButtonState extends State<AppButton> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final screenSize = MediaQuery.of(context).size.width;
-    final isSmallScreen = screenSize < 360;
 
-    final effectiveWidth = widget.width ?? (isSmallScreen ? double.infinity : null);
-    final effectiveHeight = widget.height ?? 48.0;
-    final effectivePadding = widget.padding ??
-        EdgeInsets.symmetric(
-          horizontal: isSmallScreen ? 16 : 24,
-          vertical: 0,
-        );
-
-    final bool isDisabled = widget.isLoading || !widget.enabled;
-
-    Widget buildChild() {
-      if (widget.isLoading) {
-        return SizedBox(
-          height: 20,
-          width: 20,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: _getTextColor(theme),
+    Widget buttonChild;
+    if (widget.isLoading) {
+      buttonChild = SizedBox(
+        width: 20,
+        height: 20,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          valueColor: AlwaysStoppedAnimation<Color>(
+            widget.style == AppButtonStyle.primary
+                ? theme.colorScheme.onPrimary
+                : theme.colorScheme.primary,
           ),
-        );
-      }
-
-      if (widget.icon != null) {
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(widget.icon, size: 20, color: _getTextColor(theme)),
+        ),
+      );
+    } else {
+      buttonChild = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (widget.icon != null) ...[
+            Icon(widget.icon, size: 18),
             const SizedBox(width: 8),
-            Flexible(child: Text(widget.text, style: _getTextStyle(theme))),
           ],
-        );
-      }
-
-      return Text(widget.text, style: _getTextStyle(theme));
+          Text(widget.text),
+        ],
+      );
     }
 
-    Widget button;
+    final effectivePadding = widget.padding ??
+        const EdgeInsets.symmetric(horizontal: 24, vertical: 12);
+
     switch (widget.style) {
       case AppButtonStyle.primary:
-        button = ElevatedButton(
-          onPressed: isDisabled ? null : widget.onPressed,
-          style: ElevatedButton.styleFrom(
-            minimumSize: Size(effectiveWidth ?? double.infinity, effectiveHeight),
-            padding: effectivePadding,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
+        return SizedBox(
+          width: widget.width,
+          height: widget.height,
+          child: FilledButton(
+            onPressed: widget.enabled && !widget.isLoading ? widget.onPressed : null,
+            style: FilledButton.styleFrom(
+              padding: effectivePadding,
             ),
+            child: buttonChild,
           ),
-          child: buildChild(),
         );
-        break;
       case AppButtonStyle.secondary:
-        button = FilledButton(
-          onPressed: isDisabled ? null : widget.onPressed,
-          style: FilledButton.styleFrom(
-            minimumSize: Size(effectiveWidth ?? double.infinity, effectiveHeight),
-            padding: effectivePadding,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
+        return SizedBox(
+          width: widget.width,
+          height: widget.height,
+          child: FilledButton.tonal(
+            onPressed: widget.enabled && !widget.isLoading ? widget.onPressed : null,
+            style: FilledButton.styleFrom(
+              padding: effectivePadding,
             ),
+            child: buttonChild,
           ),
-          child: buildChild(),
         );
-        break;
-      case AppButtonStyle.text:
-        button = TextButton(
-          onPressed: isDisabled ? null : widget.onPressed,
-          style: TextButton.styleFrom(
-            minimumSize: Size(effectiveWidth ?? double.infinity, effectiveHeight),
-            padding: effectivePadding,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
-            ),
-          ),
-          child: buildChild(),
-        );
-        break;
       case AppButtonStyle.outlined:
-        button = OutlinedButton(
-          onPressed: isDisabled ? null : widget.onPressed,
-          style: OutlinedButton.styleFrom(
-            minimumSize: Size(effectiveWidth ?? double.infinity, effectiveHeight),
-            padding: effectivePadding,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(AppRadius.md),
+        return SizedBox(
+          width: widget.width,
+          height: widget.height,
+          child: OutlinedButton(
+            onPressed: widget.enabled && !widget.isLoading ? widget.onPressed : null,
+            style: OutlinedButton.styleFrom(
+              padding: effectivePadding,
             ),
+            child: buttonChild,
           ),
-          child: buildChild(),
         );
-        break;
-    }
-
-    return button;
-  }
-
-  Color _getTextColor(ThemeData theme) {
-    switch (widget.style) {
-      case AppButtonStyle.primary:
-      case AppButtonStyle.secondary:
-        return theme.colorScheme.onPrimary;
       case AppButtonStyle.text:
-      case AppButtonStyle.outlined:
-        return theme.colorScheme.primary;
+        return SizedBox(
+          width: widget.width,
+          height: widget.height,
+          child: TextButton(
+            onPressed: widget.enabled && !widget.isLoading ? widget.onPressed : null,
+            style: TextButton.styleFrom(
+              padding: effectivePadding,
+            ),
+            child: buttonChild,
+          ),
+        );
     }
-  }
-
-  TextStyle _getTextStyle(ThemeData theme) {
-    return TextStyle(
-      fontSize: AppFontSize.md,
-      fontWeight: FontWeight.w600,
-      color: _getTextColor(theme),
-    );
   }
 }
 
 // ============================================================
-// AppInput - 输入框组件
+// AppInputField - 统一输入框组件
 // ============================================================
 
-/// AppInput: 输入框组件，支持多行、标签、验证
-class AppInput extends StatefulWidget {
+/// AppInputField: 统一输入框组件，支持多行、密码、验证
+class AppInputField extends StatefulWidget {
   final String? label;
   final String? hintText;
   final TextEditingController? controller;
-  final String? Function(String?)? validator;
-  final bool obscureText;
   final bool multiline;
-  final int maxLines;
-  final TextInputType? keyboardType;
-  final IconData? prefixIcon;
-  final Widget? suffixIcon;
+  final bool obscureText;
+  final String? Function(String?)? validator;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
   final bool enabled;
   final bool readOnly;
   final VoidCallback? onTap;
-  final String? initialValue;
+  final Widget? suffixIcon;
+  final IconData? prefixIcon;
   final FocusNode? focusNode;
-  final TextInputAction? textInputAction;
+  final int? maxLines;
 
-  const AppInput({
+  const AppInputField({
     super.key,
     this.label,
     this.hintText,
     this.controller,
-    this.validator,
-    this.obscureText = false,
     this.multiline = false,
-    this.maxLines = 1,
-    this.keyboardType,
-    this.prefixIcon,
-    this.suffixIcon,
+    this.obscureText = false,
+    this.validator,
     this.onChanged,
     this.onSubmitted,
+    this.keyboardType,
+    this.textInputAction,
     this.enabled = true,
     this.readOnly = false,
     this.onTap,
-    this.initialValue,
+    this.suffixIcon,
+    this.prefixIcon,
     this.focusNode,
-    this.textInputAction,
+    this.maxLines = 1,
   });
 
   @override
-  State<AppInput> createState() => _AppInputState();
+  State<AppInputField> createState() => _AppInputFieldState();
 }
 
-class _AppInputState extends State<AppInput> {
+class _AppInputFieldState extends State<AppInputField> {
   late TextEditingController _controller;
   bool _obscureText = false;
 
   @override
   void initState() {
     super.initState();
-    _controller = widget.controller ?? TextEditingController(text: widget.initialValue ?? '');
+    _controller = widget.controller ?? TextEditingController();
     _obscureText = widget.obscureText;
   }
 
@@ -647,15 +611,16 @@ class AppDialog extends StatelessWidget {
       icon: icon != null ? Icon(icon, size: 32) : null,
       title: title != null ? Text(title!) : null,
       content: content ??
-          (message != null ? Text(message!, style: theme.textTheme.bodyMedium) : null),
+          (message != null
+              ? Text(
+                  message!,
+                  style: theme.textTheme.bodyMedium,
+                )
+              : null),
       actions: actions ??
           [
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
               child: const Text('确定'),
             ),
           ],
@@ -667,20 +632,20 @@ class AppDialog extends StatelessWidget {
 }
 
 // ============================================================
-// AppEmptyState - 空状态占位组件
+// AppEmptyState - 空状态组件
 // ============================================================
 
-/// AppEmptyState: 空状态占位组件
+/// AppEmptyState: 空状态组件
 class AppEmptyState extends StatelessWidget {
-  final String message;
   final IconData icon;
+  final String message;
   final String? actionText;
   final VoidCallback? onAction;
 
   const AppEmptyState({
     super.key,
-    this.message = '暂无数据',
-    this.icon = Icons.inbox_outlined,
+    required this.icon,
+    required this.message,
     this.actionText,
     this.onAction,
   });
@@ -694,10 +659,9 @@ class AppEmptyState extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.symmetric(
           horizontal: screenWidth > 600 ? 64 : 32,
-          vertical: 48,
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
               icon,
@@ -809,73 +773,44 @@ class SubjectIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = getSubjectColor(subjectName);
-    final iconName = getSubjectIcon(subjectName);
-    final iconSize = size * 0.5;
-
-    IconData _getIconData(String iconName) {
-      switch (iconName) {
-        case 'book':
-          return Icons.menu_book_rounded;
-        case 'calculate':
-          return Icons.calculate_rounded;
-        case 'translate':
-          return Icons.translate_rounded;
-        case 'science':
-          return Icons.science_rounded;
-        case 'biotech':
-          return Icons.biotech_rounded;
-        case 'eco':
-          return Icons.eco_rounded;
-        case 'history_edu':
-          return Icons.history_edu_rounded;
-        case 'public':
-          return Icons.public_rounded;
-        case 'gavel':
-          return Icons.gavel_rounded;
-        default:
-          return Icons.category_rounded;
-      }
-    }
+    final icon = getSubjectIcon(subjectName);
 
     Widget iconWidget = Icon(
-      _getIconData(iconName),
-      size: iconSize,
-      color: showBackground ? color : null,
+      icon,
+      size: size * 0.5,
+      color: showBackground ? Colors.white : color,
     );
 
-    if (!showBackground) {
-      return iconWidget;
+    if (showBackground) {
+      iconWidget = Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(size * 0.25),
+        ),
+        child: iconWidget,
+      );
     }
-
-    Widget container = Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(size * 0.25),
-      ),
-      child: Center(child: iconWidget),
-    );
 
     if (showLabel) {
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          container,
+          iconWidget,
           const SizedBox(height: 4),
           Text(
             subjectName,
             style: TextStyle(
-              fontSize: AppFontSize.xs,
-              color: color,
-              fontWeight: FontWeight.w500,
+              fontSize: 12,
+              color: AppColors.textSecondary,
             ),
           ),
         ],
       );
     }
 
-    return container;
+    return iconWidget;
   }
 }
 
@@ -933,30 +868,20 @@ class MasteryProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final clampedMastery = mastery.clamp(0, 100);
     final color = getMasteryColor(clampedMastery);
-    final label = getMasteryLabel(clampedMastery);
+    final effectiveWidth = width ?? MediaQuery.of(context).size.width * 0.6;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final effectiveWidth = width ?? constraints.maxWidth;
-
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             if (showLabel) ...[
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: AppFontSize.sm,
-                      color: color,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
                   Text(
                     '$clampedMastery%',
                     style: TextStyle(
@@ -1016,34 +941,12 @@ class ConfirmDeleteDialog extends StatelessWidget {
 
   const ConfirmDeleteDialog({
     super.key,
-    this.title = '确认删除',
-    this.message = '此操作不可撤销，确定要删除吗？',
+    required this.title,
+    this.message,
     this.confirmText = '删除',
     this.cancelText = '取消',
     this.onConfirm,
   });
-
-  /// 显示删除确认对话框
-  static Future<bool?> show({
-    required BuildContext context,
-    String title = '确认删除',
-    String? message,
-    String confirmText = '删除',
-    String cancelText = '取消',
-    VoidCallback? onConfirm,
-  }) {
-    return showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => ConfirmDeleteDialog(
-        title: title,
-        message: message,
-        confirmText: confirmText,
-        cancelText: cancelText,
-        onConfirm: onConfirm,
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -1148,19 +1051,17 @@ class BatchOperationBar extends StatelessWidget {
               '已选 $selectedCount/$totalCount',
               style: TextStyle(
                 fontSize: AppFontSize.md,
-                color: AppColors.textSecondary,
+                color: AppColors.textPrimary,
               ),
             ),
             const Spacer(),
             // 取消
             if (onCancel != null) ...[
-              IconButton(
-                icon: const Icon(Icons.close),
+              TextButton(
                 onPressed: onCancel,
-                tooltip: '取消',
-                iconSize: 22,
+                child: const Text('取消'),
               ),
-              const SizedBox(width: 4),
+              const SizedBox(width: 8),
             ],
             // 导出
             if (onExport != null) ...[
@@ -1205,4 +1106,143 @@ class BatchOperationBar extends StatelessWidget {
       ),
     );
   }
+}
+
+// ============================================================
+// HomeBackButton - 返回首页按钮
+// ============================================================
+
+/// HomeBackButton: 返回首页按钮组件
+/// 用于子页面，点击后返回应用首页
+class HomeBackButton extends StatelessWidget {
+  final Color? color;
+  final double iconSize;
+
+  const HomeBackButton({
+    super.key,
+    this.color,
+    this.iconSize = 24,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(
+        Icons.home_outlined,
+        size: iconSize,
+      ),
+      color: color,
+      tooltip: '返回首页',
+      onPressed: () {
+        // 返回到首页（根路由）
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      },
+    );
+  }
+}
+
+// ============================================================
+// AppBackButton - 智能返回按钮
+// ============================================================
+
+/// AppBackButton: 智能返回按钮
+/// 根据当前路由栈决定是否显示返回按钮或首页按钮
+class AppBackButton extends StatelessWidget {
+  final Color? color;
+  final double iconSize;
+
+  const AppBackButton({
+    super.key,
+    this.color,
+    this.iconSize = 24,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ModalRoute<dynamic>? parentRoute = ModalRoute.of(context);
+    final bool canPop = parentRoute?.canPop ?? false;
+
+    if (canPop) {
+      // 如果可以返回，显示返回按钮
+      return IconButton(
+        icon: Icon(
+          Icons.arrow_back,
+          size: iconSize,
+        ),
+        color: color,
+        tooltip: '返回',
+        onPressed: () {
+          Navigator.of(context).pop();
+        },
+      );
+    } else {
+      // 如果不能返回（已经在首页），不显示任何按钮
+      return const SizedBox.shrink();
+    }
+  }
+}
+
+// ============================================================
+// AppAppBar - 统一应用栏组件
+// ============================================================
+
+/// AppAppBar: 统一应用栏组件，支持返回首页功能
+class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final String title;
+  final List<Widget>? actions;
+  final bool showHomeButton;
+  final bool showBackButton;
+  final Widget? leading;
+  final PreferredSizeWidget? bottom;
+  final double elevation;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
+
+  const AppAppBar({
+    super.key,
+    required this.title,
+    this.actions,
+    this.showHomeButton = false,
+    this.showBackButton = true,
+    this.leading,
+    this.bottom,
+    this.elevation = 0,
+    this.backgroundColor,
+    this.foregroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final ModalRoute<dynamic>? parentRoute = ModalRoute.of(context);
+    final bool canPop = parentRoute?.canPop ?? false;
+
+    Widget? effectiveLeading = leading;
+    
+    if (effectiveLeading == null) {
+      if (showHomeButton && canPop) {
+        // 显示返回首页按钮
+        effectiveLeading = const HomeBackButton();
+      } else if (showBackButton && canPop) {
+        // 显示返回按钮
+        effectiveLeading = const AppBackButton();
+      }
+    }
+
+    return AppBar(
+      title: Text(title),
+      leading: effectiveLeading,
+      actions: actions,
+      bottom: bottom,
+      elevation: elevation,
+      backgroundColor: backgroundColor,
+      foregroundColor: foregroundColor,
+      centerTitle: true,
+    );
+  }
+
+  @override
+  Size get preferredSize => Size.fromHeight(
+    kToolbarHeight + (bottom?.preferredSize.height ?? 0),
+  );
 }

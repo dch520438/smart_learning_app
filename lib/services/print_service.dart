@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -115,6 +116,54 @@ class PrintService {
   static void _log(String message) {
     // ignore: avoid_print
     print('[PrintService] $message');
+  }
+
+  // 缓存中文字体
+  static pw.Font? _chineseFont;
+  static pw.Font? _chineseFontBold;
+
+  /// 加载中文字体
+  static Future<pw.Font> _loadChineseFont() async {
+    if (_chineseFont != null) return _chineseFont!;
+
+    try {
+      // 尝试加载文泉驿微米黑字体（Linux 系统常用）
+      final fontData = await rootBundle.load('fonts/WenQuanYiMicroHei.ttf');
+      _chineseFont = pw.Font.ttf(fontData);
+      _log('成功加载中文字体: WenQuanYiMicroHei.ttf');
+      return _chineseFont!;
+    } catch (e) {
+      _log('加载 WenQuanYiMicroHei.ttf 失败: $e');
+      try {
+        // 尝试加载 NotoSansCJK 字体
+        final fontData = await rootBundle.load('fonts/NotoSansCJK-Regular.ttc');
+        _chineseFont = pw.Font.ttf(fontData);
+        _log('成功加载中文字体: NotoSansCJK-Regular.ttc');
+        return _chineseFont!;
+      } catch (e2) {
+        _log('加载 NotoSansCJK-Regular.ttc 失败: $e2');
+        // 如果都失败，使用默认字体（可能不支持中文）
+        _chineseFont = pw.Font.helvetica();
+        return _chineseFont!;
+      }
+    }
+  }
+
+  /// 获取支持中文的文本样式
+  static Future<pw.TextStyle> _getChineseTextStyle({
+    double fontSize = 12,
+    pw.FontWeight fontWeight = pw.FontWeight.normal,
+    PdfColor? color,
+    double lineSpacing = 1.5,
+  }) async {
+    final font = await _loadChineseFont();
+    return pw.TextStyle(
+      font: font,
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      lineSpacing: lineSpacing,
+    );
   }
 
   /// 检查打印功能是否可用
@@ -507,9 +556,58 @@ class PrintService {
     }
 
     try {
+      // 先加载中文字体
+      final chineseFont = await _loadChineseFont();
+      _log('中文字体加载完成，开始生成PDF...');
+
       final pdf = pw.Document();
       final now = DateTime.now();
       final printTime = formatDateTime(now);
+
+      // 创建支持中文的文本样式
+      final titleStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 28,
+        fontWeight: pw.FontWeight.bold,
+        color: PdfColors.blue800,
+      );
+      final subtitleStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 16,
+        color: PdfColors.grey600,
+      );
+      final timeStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 12,
+        color: PdfColors.grey500,
+      );
+      final contentStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 12,
+        lineSpacing: 1.5,
+      );
+      final headerStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 20,
+        fontWeight: pw.FontWeight.bold,
+        color: PdfColors.blue900,
+      );
+      final labelStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 10,
+        color: PdfColors.white,
+        fontWeight: pw.FontWeight.bold,
+      );
+      final pageNumStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 10,
+        color: PdfColors.grey500,
+      );
+      final footerStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 10,
+        color: PdfColors.grey500,
+      );
 
       // 封面页
       pdf.addPage(
@@ -528,31 +626,21 @@ class PrintService {
                   pw.SizedBox(height: 24),
                   pw.Text(
                     customTitle ?? '学习资料打印',
-                    style: pw.TextStyle(
-                      fontSize: 28,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.blue800,
-                    ),
+                    style: titleStyle,
                   ),
                   pw.SizedBox(height: 16),
                   pw.Text(
                     '共 ${items.length} 项内容',
-                    style: pw.TextStyle(
-                      fontSize: 16,
-                      color: PdfColors.grey600,
-                    ),
+                    style: subtitleStyle,
                   ),
                   pw.SizedBox(height: 8),
                   pw.Text(
                     '打印时间: $printTime',
-                    style: pw.TextStyle(
-                      fontSize: 12,
-                      color: PdfColors.grey500,
-                    ),
+                    style: timeStyle,
                   ),
                   pw.SizedBox(height: 32),
                   // 内容类型统计
-                  _buildTypeStatistics(items),
+                  _buildTypeStatistics(items, chineseFont),
                 ],
               ),
             );
@@ -572,6 +660,7 @@ class PrintService {
                   pw.Text(
                     '目录',
                     style: pw.TextStyle(
+                      font: chineseFont,
                       fontSize: 24,
                       fontWeight: pw.FontWeight.bold,
                       color: PdfColors.blue800,
@@ -598,17 +687,14 @@ class PrintService {
                             ),
                             child: pw.Text(
                               item.typeLabel,
-                              style: pw.TextStyle(
-                                fontSize: 10,
-                                color: PdfColors.white,
-                              ),
+                              style: labelStyle,
                             ),
                           ),
                           pw.SizedBox(width: 12),
                           pw.Expanded(
                             child: pw.Text(
                               '$index. ${item.title}',
-                              style: const pw.TextStyle(fontSize: 12),
+                              style: pw.TextStyle(font: chineseFont, fontSize: 12),
                             ),
                           ),
                         ],
@@ -646,20 +732,13 @@ class PrintService {
                         ),
                         child: pw.Text(
                           item.typeLabel,
-                          style: pw.TextStyle(
-                            fontSize: 10,
-                            color: PdfColors.white,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
+                          style: labelStyle,
                         ),
                       ),
                       pw.Spacer(),
                       pw.Text(
                         '${i + 1} / ${items.length}',
-                        style: pw.TextStyle(
-                          fontSize: 10,
-                          color: PdfColors.grey500,
-                        ),
+                        style: pageNumStyle,
                       ),
                     ],
                   ),
@@ -668,16 +747,12 @@ class PrintService {
                   // 标题
                   pw.Text(
                     item.title,
-                    style: pw.TextStyle(
-                      fontSize: 20,
-                      fontWeight: pw.FontWeight.bold,
-                      color: PdfColors.blue900,
-                    ),
+                    style: headerStyle,
                   ),
                   pw.SizedBox(height: 12),
 
                   // 元数据
-                  _buildItemMetadata(item),
+                  _buildItemMetadataWithFont(item, chineseFont),
                   pw.SizedBox(height: 16),
 
                   // 分隔线
@@ -687,10 +762,7 @@ class PrintService {
                   // 内容
                   pw.Text(
                     item.content,
-                    style: const pw.TextStyle(
-                      fontSize: 12,
-                      lineSpacing: 1.5,
-                    ),
+                    style: contentStyle,
                   ),
 
                   pw.Spacer(),
@@ -703,17 +775,11 @@ class PrintService {
                     children: [
                       pw.Text(
                         '智慧学习 App',
-                        style: pw.TextStyle(
-                          fontSize: 10,
-                          color: PdfColors.grey500,
-                        ),
+                        style: footerStyle,
                       ),
                       pw.Text(
                         '打印时间: $printTime',
-                        style: pw.TextStyle(
-                          fontSize: 10,
-                          color: PdfColors.grey500,
-                        ),
+                        style: footerStyle,
                       ),
                     ],
                   ),
@@ -967,7 +1033,7 @@ class PrintService {
   }
 
   /// 构建类型统计
-  static pw.Widget _buildTypeStatistics(List<PrintContentItem> items) {
+  static pw.Widget _buildTypeStatistics(List<PrintContentItem> items, pw.Font chineseFont) {
     final typeCounts = <PrintContentType, int>{};
     for (final item in items) {
       typeCounts[item.type] = (typeCounts[item.type] ?? 0) + 1;
@@ -1002,6 +1068,7 @@ class PrintService {
               pw.Text(
                 '${entry.key.typeLabel}: ${entry.value}',
                 style: pw.TextStyle(
+                  font: chineseFont,
                   fontSize: 11,
                   color: PdfColors.grey700,
                 ),
@@ -1036,7 +1103,50 @@ class PrintService {
     return PdfColor(color.red, color.green, color.blue, opacity);
   }
 
-  /// 构建项目元数据
+  /// 构建项目元数据（支持中文字体）
+  static pw.Widget _buildItemMetadataWithFont(PrintContentItem item, pw.Font chineseFont) {
+    final metadata = <pw.Widget>[];
+
+    if (item.subject != null) {
+      metadata.add(_buildMetadataChipWithFont('学科', item.subject!, chineseFont));
+    }
+    if (item.category != null) {
+      metadata.add(_buildMetadataChipWithFont('分类', item.category!, chineseFont));
+    }
+    if (item.difficulty != null) {
+      metadata.add(_buildMetadataChipWithFont('难度', _getDifficultyLabel(item.difficulty!), chineseFont));
+    }
+    if (item.masteryLevel != null) {
+      metadata.add(_buildMetadataChipWithFont('掌握度', '${item.masteryLevel}%', chineseFont));
+    }
+    if (item.examMethod != null && item.examMethod!.isNotEmpty) {
+      metadata.add(_buildMetadataChipWithFont('考法', item.examMethod!, chineseFont));
+    }
+    if (item.keyPoint != null && item.keyPoint!.isNotEmpty) {
+      metadata.add(_buildMetadataChipWithFont('考点', item.keyPoint!, chineseFont));
+    }
+    if (item.tags != null && item.tags!.isNotEmpty) {
+      metadata.add(_buildMetadataChipWithFont('标签', item.tags!, chineseFont));
+    }
+    if (item.createdAt != null) {
+      metadata.add(_buildMetadataChipWithFont('创建时间', item.createdAt!, chineseFont));
+    }
+
+    // 添加额外元数据
+    item.additionalMetadata.forEach((key, value) {
+      metadata.add(_buildMetadataChipWithFont(key, value, chineseFont));
+    });
+
+    if (metadata.isEmpty) return pw.SizedBox.shrink();
+
+    return pw.Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: metadata,
+    );
+  }
+
+  /// 构建项目元数据（旧版本，用于向后兼容）
   static pw.Widget _buildItemMetadata(PrintContentItem item) {
     final metadata = <pw.Widget>[];
 
@@ -1076,6 +1186,39 @@ class PrintService {
       spacing: 8,
       runSpacing: 8,
       children: metadata,
+    );
+  }
+
+  /// 构建元数据标签（支持中文字体）
+  static pw.Widget _buildMetadataChipWithFont(String label, String value, pw.Font chineseFont) {
+    return pw.Container(
+      padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: pw.BoxDecoration(
+        color: PdfColors.grey100,
+        borderRadius: pw.BorderRadius.circular(4),
+      ),
+      child: pw.Row(
+        mainAxisSize: pw.MainAxisSize.min,
+        children: [
+          pw.Text(
+            '$label: ',
+            style: pw.TextStyle(
+              font: chineseFont,
+              fontSize: 9,
+              color: PdfColors.grey600,
+            ),
+          ),
+          pw.Text(
+            value,
+            style: pw.TextStyle(
+              font: chineseFont,
+              fontSize: 9,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.grey800,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1119,9 +1262,45 @@ class PrintService {
     Map<String, String> metadata = const {},
   }) async {
     try {
+      // 先加载中文字体
+      final chineseFont = await _loadChineseFont();
+      _log('通用打印: 中文字体加载完成');
+
       final pdf = pw.Document();
       final now = DateTime.now();
       final printTime = formatDateTime(now);
+
+      // 创建支持中文的文本样式
+      final titleStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 24,
+        fontWeight: pw.FontWeight.bold,
+      );
+      final typeStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 12,
+        color: PdfColors.blue800,
+      );
+      final labelStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 10,
+        color: PdfColors.grey700,
+      );
+      final valueStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 10,
+        fontWeight: pw.FontWeight.bold,
+      );
+      final contentStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 12,
+      );
+      final footerStyle = pw.TextStyle(
+        font: chineseFont,
+        fontSize: 10,
+        color: PdfColors.grey600,
+        fontStyle: pw.FontStyle.italic,
+      );
 
       pdf.addPage(
         pw.Page(
@@ -1133,10 +1312,7 @@ class PrintService {
                 // 标题
                 pw.Text(
                   title,
-                  style: pw.TextStyle(
-                    fontSize: 24,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
+                  style: titleStyle,
                 ),
                 pw.SizedBox(height: 8),
                 // 类型标签
@@ -1148,10 +1324,7 @@ class PrintService {
                   ),
                   child: pw.Text(
                     type,
-                    style: pw.TextStyle(
-                      fontSize: 12,
-                      color: PdfColors.blue800,
-                    ),
+                    style: typeStyle,
                   ),
                 ),
                 pw.SizedBox(height: 16),
@@ -1172,17 +1345,11 @@ class PrintService {
                           children: [
                             pw.Text(
                               '${entry.key}: ',
-                              style: pw.TextStyle(
-                                fontSize: 10,
-                                color: PdfColors.grey700,
-                              ),
+                              style: labelStyle,
                             ),
                             pw.Text(
                               entry.value,
-                              style: pw.TextStyle(
-                                fontSize: 10,
-                                fontWeight: pw.FontWeight.bold,
-                              ),
+                              style: valueStyle,
                             ),
                           ],
                         );
@@ -1197,7 +1364,7 @@ class PrintService {
                 // 内容
                 pw.Text(
                   content,
-                  style: const pw.TextStyle(fontSize: 12),
+                  style: contentStyle,
                 ),
                 pw.SizedBox(height: 32),
                 // 分隔线
@@ -1209,11 +1376,7 @@ class PrintService {
                   children: [
                     pw.Text(
                       '打印时间: $printTime',
-                      style: pw.TextStyle(
-                        fontSize: 10,
-                        color: PdfColors.grey600,
-                        fontStyle: pw.FontStyle.italic,
-                      ),
+                      style: footerStyle,
                     ),
                   ],
                 ),

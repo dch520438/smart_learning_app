@@ -112,14 +112,29 @@ class _MindMapScreenState extends State<MindMapScreen> {
       final file = File('${tempDir.path}/mind_map_${DateTime.now().millisecondsSinceEpoch}.png');
       await file.writeAsBytes(bytes);
 
-      // 分享图片
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: '思维导图: ${_mindMapData?.title ?? '学习知识图谱'}',
-      );
+      // Linux 平台不支持 share_plus，使用文件选择器保存
+      if (Platform.isLinux) {
+        // 在 Linux 上，文件已经保存到临时目录，复制到用户选择的位置
+        String? outputPath = await FilePicker.platform.getDirectoryPath(
+          dialogTitle: '选择图片保存位置',
+        );
 
-      if (mounted) {
-        showSnackBar(context, '图片已导出');
+        if (outputPath != null) {
+          final targetFile = File('$outputPath/${file.uri.pathSegments.last}');
+          await file.copy(targetFile.path);
+          if (mounted) {
+            showSnackBar(context, '图片已保存至: ${targetFile.path}');
+          }
+        }
+      } else {
+        // 其他平台使用分享
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: '思维导图: ${_mindMapData?.title ?? '学习知识图谱'}',
+        );
+        if (mounted) {
+          showSnackBar(context, '图片已导出');
+        }
       }
     } catch (e) {
       if (mounted) {

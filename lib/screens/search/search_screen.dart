@@ -13,6 +13,7 @@ import '../wrong_questions/wrong_questions_screen.dart';
 import '../knowledge/knowledge_screen.dart';
 import '../mother_questions/mother_questions_screen.dart';
 import '../must_remember/must_remember_screen.dart';
+import '../../app.dart';
 
 // ============================================================
 // SearchScreen - 全局搜索页面
@@ -89,27 +90,37 @@ class _SearchScreenState extends State<SearchScreen>
 
   Future<void> _initializeSearch() async {
     try {
+      debugPrint('SearchScreen: 开始初始化...');
       // 先初始化数据库连接
       _db = DatabaseService();
       // 确保数据库已打开
-      await _db!.database;
+      final dbInstance = await _db!.database;
+      debugPrint('SearchScreen: 数据库实例获取成功');
+      if (dbInstance == null) {
+        throw Exception('数据库实例为空');
+      }
       _dbInitialized = true;
-      setState(() {
-        _isInitialized = true;
-        _errorMessage = null;
-      });
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+          _errorMessage = null;
+        });
+      }
       // 延迟聚焦，确保页面已完全渲染
-      Future.delayed(const Duration(milliseconds: 100), () {
-        if (mounted) {
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && _searchFocusNode.canRequestFocus) {
           _searchFocusNode.requestFocus();
         }
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('SearchScreen 初始化失败: $e');
-      setState(() {
-        _errorMessage = '初始化失败: $e';
-        _isInitialized = true;
-      });
+      debugPrint('堆栈: $stackTrace');
+      if (mounted) {
+        setState(() {
+          _errorMessage = '初始化失败: $e';
+          _isInitialized = true;
+        });
+      }
     }
   }
 
