@@ -574,6 +574,14 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
               Navigator.pop(context);
             }
           },
+          onPractice: () {
+            // 跳转到练习页面，使用该知识点相关的题目
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => const ExamScreen(),
+              ),
+            );
+          },
         ),
       ),
     );

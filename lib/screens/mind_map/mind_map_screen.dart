@@ -576,7 +576,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
             ),
             const SizedBox(height: 24),
             Text(
-              '暂无内容',
+              '暂无思维导图数据',
               style: TextStyle(
                 fontSize: AppFontSize.xl,
                 fontWeight: FontWeight.w600,
@@ -585,11 +585,47 @@ class _MindMapScreenState extends State<MindMapScreen> {
             ),
             const SizedBox(height: 12),
             Text(
-              '添加内容后，思维导图将自动生成',
+              '您还没有添加任何学习内容。\n添加知识点、错题、笔记或必记必背后，思维导图将自动生成。',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: AppFontSize.md,
                 color: AppColors.textHint,
+              ),
+            ),
+            const SizedBox(height: 32),
+            // 引导提示
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.info.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppRadius.lg),
+                border: Border.all(color: AppColors.info.withOpacity(0.3)),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, color: AppColors.info, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        '快速开始',
+                        style: TextStyle(
+                          fontSize: AppFontSize.md,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.info,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '思维导图会根据您添加的学习内容自动生成知识图谱，帮助您建立知识体系。',
+                    style: TextStyle(
+                      fontSize: AppFontSize.sm,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 32),
@@ -622,15 +658,186 @@ class _MindMapScreenState extends State<MindMapScreen> {
               onTap: () => _navigateToAddMustRemember(),
             ),
             const SizedBox(height: 24),
-            OutlinedButton.icon(
-              onPressed: _generateMindMap,
-              icon: const Icon(Icons.refresh),
-              label: const Text('刷新思维导图'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _generateMindMap,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('刷新'),
+                ),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  onPressed: () => _showCreateDemoMindMapDialog(),
+                  icon: const Icon(Icons.auto_fix_high),
+                  label: const Text('创建示例'),
+                ),
+              ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  /// 显示创建示例思维导图对话框
+  void _showCreateDemoMindMapDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('创建示例思维导图'),
+        content: const Text(
+          '这将创建一个示例思维导图，帮助您了解功能。\n\n您之后可以添加自己的学习内容来替换它。',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _createDemoMindMap();
+            },
+            child: const Text('创建'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 创建示例思维导图
+  Future<void> _createDemoMindMap() async {
+    setState(() => _isLoading = true);
+    try {
+      // 创建示例数据
+      final demoData = MindMapData(
+        nodes: [
+          // 根节点
+          MindMapNode(
+            id: 'root',
+            label: '学习知识图谱',
+            type: NodeType.root,
+            x: 0,
+            y: 0,
+          ),
+          // 数学分支
+          MindMapNode(
+            id: 'subject_math',
+            label: '数学',
+            type: NodeType.subject,
+            x: -150,
+            y: -150,
+            parentId: 'root',
+          ),
+          MindMapNode(
+            id: 'math_kp1',
+            label: '函数概念',
+            type: NodeType.knowledgePoint,
+            x: -250,
+            y: -220,
+            parentId: 'subject_math',
+          ),
+          MindMapNode(
+            id: 'math_wq1',
+            label: '函数定义域',
+            type: NodeType.wrongQuestion,
+            x: -250,
+            y: -80,
+            parentId: 'subject_math',
+          ),
+          // 物理分支
+          MindMapNode(
+            id: 'subject_physics',
+            label: '物理',
+            type: NodeType.subject,
+            x: 150,
+            y: -150,
+            parentId: 'root',
+          ),
+          MindMapNode(
+            id: 'physics_kp1',
+            label: '牛顿定律',
+            type: NodeType.knowledgePoint,
+            x: 250,
+            y: -220,
+            parentId: 'subject_physics',
+          ),
+          MindMapNode(
+            id: 'physics_mr1',
+            label: 'F=ma',
+            type: NodeType.mustRemember,
+            x: 250,
+            y: -80,
+            parentId: 'subject_physics',
+          ),
+          // 化学分支
+          MindMapNode(
+            id: 'subject_chemistry',
+            label: '化学',
+            type: NodeType.subject,
+            x: -150,
+            y: 150,
+            parentId: 'root',
+          ),
+          MindMapNode(
+            id: 'chemistry_note1',
+            label: '元素周期表',
+            type: NodeType.note,
+            x: -250,
+            y: 220,
+            parentId: 'subject_chemistry',
+          ),
+          // 英语分支
+          MindMapNode(
+            id: 'subject_english',
+            label: '英语',
+            type: NodeType.subject,
+            x: 150,
+            y: 150,
+            parentId: 'root',
+          ),
+          MindMapNode(
+            id: 'english_mr1',
+            label: '时态规则',
+            type: NodeType.mustRemember,
+            x: 250,
+            y: 220,
+            parentId: 'subject_english',
+          ),
+        ],
+        connections: [
+          MindMapConnection(
+            sourceId: 'math_kp1',
+            targetId: 'physics_kp1',
+            relation: '数学应用',
+            strength: 0.8,
+          ),
+          MindMapConnection(
+            sourceId: 'subject_math',
+            targetId: 'subject_physics',
+            relation: '学科关联',
+            strength: 0.6,
+          ),
+        ],
+        title: '示例：学习知识图谱',
+        createdAt: DateTime.now().millisecondsSinceEpoch,
+      );
+
+      setState(() {
+        _mindMapData = demoData;
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        showSnackBar(context, '示例思维导图已创建，您可以开始添加自己的学习内容了');
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        showSnackBar(context, '创建示例失败: $e', isError: true);
+      }
+    }
   }
 
   Widget _buildQuickAddButton({

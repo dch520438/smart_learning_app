@@ -1927,6 +1927,9 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
           'uuid': DateTime.now().millisecondsSinceEpoch.toString(),
           'title': widget.item.title,
           'question_content': _questionController.text.trim(),
+          'question_type': _questionType == 'choice'
+              ? 'singleChoice'
+              : (_questionType == 'fillBlank' ? 'fillBlank' : 'shortAnswer'),
           'correct_answer': savedAnswer,
           if (savedOptions != null) 'options': savedOptions,
           'analysis': _analysisController.text.trim(),

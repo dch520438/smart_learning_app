@@ -209,7 +209,9 @@ enum QuestionType {
   multipleChoice('多选题'),
   fillBlank('填空题'),
   shortAnswer('简答题'),
-  trueFalse('判断题');
+  trueFalse('判断题'),
+  proof('证明题'),
+  essay('论述题');
 
   const QuestionType(this.label);
   final String label;

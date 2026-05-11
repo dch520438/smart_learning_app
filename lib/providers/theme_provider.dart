@@ -183,7 +183,8 @@ class ThemeProvider extends ChangeNotifier {
   String? get fontFamilyName {
     if (Platform.isLinux) {
       // Linux 使用系统已安装的字体
-      return 'Noto Sans CJK SC';
+      // 优先使用文泉驿微米黑，这是Linux系统常见的中文字体
+      return 'WenQuanYi Micro Hei';
     }
     // 其他平台使用打包的 Noto Sans CJK 字体
     return 'NotoSansCJK';

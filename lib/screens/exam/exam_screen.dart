@@ -1494,6 +1494,10 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
         return QuestionType.multipleChoice;
       case 'shortAnswer':
         return QuestionType.shortAnswer;
+      case 'proof':
+        return QuestionType.proof;
+      case 'essay':
+        return QuestionType.essay;
       default:
         return QuestionType.singleChoice;
     }
@@ -1504,9 +1508,8 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
 // Tab2: 做题模式（优化版）
 // ============================================================
 
-/// 题目来源选项
+/// 题目来源选项（支持多选）
 enum _QuestionSource {
-  all('全部', Icons.folder_open_outlined),
   wrong('错题本', Icons.error_outline),
   mother('母题集', Icons.auto_awesome_outlined),
   mustRemember('必记必背', Icons.menu_book_outlined),
@@ -1517,14 +1520,15 @@ enum _QuestionSource {
   final IconData icon;
 }
 
-/// 题目类型筛选
+/// 题目类型筛选（支持多选）
 enum _QuestionTypeFilter {
-  all('全部'),
   singleChoice('单选'),
   multipleChoice('多选'),
   fillBlank('填空'),
   shortAnswer('简答'),
-  trueFalse('判断');
+  trueFalse('判断'),
+  proof('证明'),
+  essay('论述');
 
   const _QuestionTypeFilter(this.label);
   final String label;
@@ -1547,8 +1551,8 @@ class _PracticeTabState extends State<_PracticeTab> {
   int _questionCount = 10;
   bool _isCustomCount = false;
   final TextEditingController _customCountController = TextEditingController();
-  _QuestionTypeFilter _selectedTypeFilter = _QuestionTypeFilter.all;
-  _QuestionSource _selectedSource = _QuestionSource.all;
+  Set<_QuestionTypeFilter> _selectedTypeFilters = {}; // 多选题目类型
+  Set<_QuestionSource> _selectedSources = {}; // 多选题目来源
   bool _isLoadingChapters = false;
 
   // ==================== 做题状态 ====================
@@ -1634,17 +1638,20 @@ class _PracticeTabState extends State<_PracticeTab> {
     _systemSourceCount = 0;
 
     try {
-      // 1. 根据来源加载题目
-      if (_selectedSource == _QuestionSource.all ||
-          _selectedSource == _QuestionSource.wrong) {
+      // 1. 根据来源加载题目（支持多选）
+      // 如果没有选择任何来源，默认使用所有来源
+      final useAllSources = _selectedSources.isEmpty;
+
+      if (useAllSources || _selectedSources.contains(_QuestionSource.wrong)) {
         final wrongQuestions = await _db.queryWrongQuestionsBySubjectAndTags(
           _selectedSubject,
           _selectedChapters.isEmpty ? null : _selectedChapters.toList(),
         );
         for (final wq in wrongQuestions) {
           final qType = wq['question_type'] as String? ?? 'singleChoice';
-          if (_selectedTypeFilter != _QuestionTypeFilter.all &&
-              qType != _selectedTypeFilter.name) continue;
+          // 支持多选题目类型
+          if (_selectedTypeFilters.isNotEmpty &&
+              !_selectedTypeFilters.any((filter) => filter.name == qType)) continue;
           // 安全获取 question_content
           final questionContent = wq['question_content'] as String?;
           if (questionContent != null && questionContent.trim().isNotEmpty) {
@@ -1654,16 +1661,16 @@ class _PracticeTabState extends State<_PracticeTab> {
         _wrongSourceCount = wrongQuestions.length;
       }
 
-      if (_selectedSource == _QuestionSource.all ||
-          _selectedSource == _QuestionSource.mother) {
+      if (useAllSources || _selectedSources.contains(_QuestionSource.mother)) {
         final motherQuestions = await _db.queryMotherQuestionsBySubjectAndTags(
           _selectedSubject,
           _selectedChapters.isEmpty ? null : _selectedChapters.toList(),
         );
         for (final mq in motherQuestions) {
           final qType = mq['question_type'] as String? ?? 'singleChoice';
-          if (_selectedTypeFilter != _QuestionTypeFilter.all &&
-              qType != _selectedTypeFilter.name) continue;
+          // 支持多选题目类型
+          if (_selectedTypeFilters.isNotEmpty &&
+              !_selectedTypeFilters.any((filter) => filter.name == qType)) continue;
           // 安全获取 question_content
           final questionContent = mq['question_content'] as String?;
           if (questionContent != null && questionContent.trim().isNotEmpty) {
@@ -1673,8 +1680,7 @@ class _PracticeTabState extends State<_PracticeTab> {
         _motherSourceCount = motherQuestions.length;
       }
 
-      if (_selectedSource == _QuestionSource.all ||
-          _selectedSource == _QuestionSource.mustRemember) {
+      if (useAllSources || _selectedSources.contains(_QuestionSource.mustRemember)) {
         final mustRemembers = await _db.queryMustRemembersBySubjectAndTags(
           _selectedSubject,
           _selectedChapters.isEmpty ? null : _selectedChapters.toList(),
@@ -2254,36 +2260,54 @@ class _PracticeTabState extends State<_PracticeTab> {
             ),
             const SizedBox(height: 24),
 
-            // 4. 题目类型
-            _buildSectionTitle('题目类型'),
+            // 4. 题目类型（多选）
+            _buildSectionTitle('题目类型（可选，不选则全部）'),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: _QuestionTypeFilter.values.map((filter) {
+                final isSelected = _selectedTypeFilters.contains(filter);
                 return AppTag(
                   label: filter.label,
                   color: AppColors.warning,
-                  selected: _selectedTypeFilter == filter,
-                  onTap: () => setState(() => _selectedTypeFilter = filter),
+                  selected: isSelected,
+                  onTap: () {
+                    setState(() {
+                      if (isSelected) {
+                        _selectedTypeFilters.remove(filter);
+                      } else {
+                        _selectedTypeFilters.add(filter);
+                      }
+                    });
+                  },
                 );
               }).toList(),
             ),
             const SizedBox(height: 24),
 
-            // 5. 题目来源
-            _buildSectionTitle('题目来源'),
+            // 5. 题目来源（多选）
+            _buildSectionTitle('题目来源（可选，不选则全部）'),
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: _QuestionSource.values.map((source) {
+                final isSelected = _selectedSources.contains(source);
                 return AppTag(
                   label: source.label,
                   color: AppColors.primary,
                   icon: source.icon,
-                  selected: _selectedSource == source,
-                  onTap: () => setState(() => _selectedSource = source),
+                  selected: isSelected,
+                  onTap: () {
+                    setState(() {
+                      if (isSelected) {
+                        _selectedSources.remove(source);
+                      } else {
+                        _selectedSources.add(source);
+                      }
+                    });
+                  },
                 );
               }).toList(),
             ),

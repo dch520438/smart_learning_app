@@ -218,10 +218,17 @@ class _QuestionCardState extends State<QuestionCard> {
   /// 解析选项文本，处理 {label: A, content: ...} 格式
   String _parseOptionText(String optionText) {
     // 尝试匹配 {label: A, content: xxx} 格式
-    final pattern = RegExp(r'\{label:\s*([^,]+),\s*content:\s*(.+)\}', caseSensitive: false);
-    final match = pattern.firstMatch(optionText);
+    // 使用非贪婪匹配来正确处理 content 中的内容
+    final pattern = RegExp(r'\{label:\s*([^,]+?),\s*content:\s*(.+?)\s*\}$', caseSensitive: false);
+    final match = pattern.firstMatch(optionText.trim());
     if (match != null && match.groupCount >= 2) {
-      return match.group(2)?.trim() ?? optionText;
+      final content = match.group(2)?.trim() ?? '';
+      // 移除 content 值两端可能存在的引号
+      if ((content.startsWith('"') && content.endsWith('"')) ||
+          (content.startsWith("'") && content.endsWith("'"))) {
+        return content.substring(1, content.length - 1);
+      }
+      return content;
     }
     // 如果不是特殊格式，直接返回原文本
     return optionText;
@@ -362,7 +369,7 @@ class _QuestionCardState extends State<QuestionCard> {
           // 填空题输入框
           if (widget.type == QuestionType.fillBlank && !widget.showResult) ...[
             const SizedBox(height: 12),
-            AppInput(
+            _buildSymbolInputField(
               hintText: '请输入答案...',
               onChanged: (value) {
                 setState(() {
@@ -482,30 +489,25 @@ class _QuestionCardState extends State<QuestionCard> {
             }),
           ],
 
-          // 简答题输入框（也用于证明题等其他需要文字作答的题型）
+          // 简答题/证明题/论述题输入框（用于需要文字作答的题型）
           if ((widget.type == QuestionType.shortAnswer ||
-               widget.options == null &&
-               widget.type != QuestionType.singleChoice &&
-               widget.type != QuestionType.multipleChoice &&
-               widget.type != QuestionType.trueFalse &&
-               widget.type != QuestionType.fillBlank) &&
+               widget.type == QuestionType.proof ||
+               widget.type == QuestionType.essay ||
+               (widget.options == null &&
+                widget.type != QuestionType.singleChoice &&
+                widget.type != QuestionType.multipleChoice &&
+                widget.type != QuestionType.trueFalse &&
+                widget.type != QuestionType.fillBlank)) &&
               !widget.showResult) ...[
             const SizedBox(height: 12),
-            TextField(
-              maxLines: 5,
-              maxLength: 1000,
-              decoration: InputDecoration(
-                hintText: '请输入您的答案...',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                filled: true,
-                fillColor: AppColors.background,
-              ),
-              style: TextStyle(
-                fontSize: AppFontSize.md,
-                color: AppColors.textPrimary,
-              ),
+            _buildSymbolTextField(
+              hintText: widget.type == QuestionType.proof
+                  ? '请输入证明过程...'
+                  : widget.type == QuestionType.essay
+                      ? '请输入论述内容...'
+                      : '请输入您的答案...',
+              maxLines: widget.type == QuestionType.proof || widget.type == QuestionType.essay ? 8 : 5,
+              maxLength: widget.type == QuestionType.proof || widget.type == QuestionType.essay ? 2000 : 1000,
               onChanged: (value) {
                 setState(() {
                   _selectedAnswer = value;
@@ -515,8 +517,10 @@ class _QuestionCardState extends State<QuestionCard> {
             ),
           ],
 
-          // 简答题答案显示
-          if (widget.type == QuestionType.shortAnswer &&
+          // 简答题/证明题/论述题答案显示
+          if ((widget.type == QuestionType.shortAnswer ||
+               widget.type == QuestionType.proof ||
+               widget.type == QuestionType.essay) &&
               widget.showResult &&
               widget.correctAnswer != null) ...[
             const SizedBox(height: 12),
@@ -587,6 +591,96 @@ class _QuestionCardState extends State<QuestionCard> {
               ),
           ],
         ],
+      ),
+    );
+  }
+
+  /// 构建带符号按钮的输入框（用于填空题）
+  Widget _buildSymbolInputField({
+    required String hintText,
+    required ValueChanged<String> onChanged,
+  }) {
+    final controller = TextEditingController();
+    return Row(
+      children: [
+        Expanded(
+          child: AppInput(
+            hintText: hintText,
+            controller: controller,
+            onChanged: onChanged,
+          ),
+        ),
+        const SizedBox(width: 8),
+        _buildSymbolButton(controller, onChanged),
+      ],
+    );
+  }
+
+  /// 构建带符号按钮的多行文本框（用于简答题）
+  Widget _buildSymbolTextField({
+    required String hintText,
+    required int maxLines,
+    required int? maxLength,
+    required ValueChanged<String> onChanged,
+  }) {
+    final controller = TextEditingController();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: controller,
+          maxLines: maxLines,
+          maxLength: maxLength,
+          decoration: InputDecoration(
+            hintText: hintText,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            filled: true,
+            fillColor: AppColors.background,
+            suffixIcon: _buildSymbolButton(controller, onChanged, isCompact: true),
+          ),
+          style: TextStyle(
+            fontSize: AppFontSize.md,
+            color: AppColors.textPrimary,
+          ),
+          onChanged: onChanged,
+        ),
+      ],
+    );
+  }
+
+  /// 构建符号按钮
+  Widget _buildSymbolButton(
+    TextEditingController controller,
+    ValueChanged<String> onChanged, {
+    bool isCompact = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          SpecialSymbolInput.showBottomSheet(
+            context: context,
+            controller: controller,
+            onSymbolTap: (symbol) {
+              onChanged(controller.text);
+            },
+          );
+        },
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+        child: Container(
+          padding: EdgeInsets.all(isCompact ? 8 : 12),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          child: Icon(
+            Icons.functions,
+            size: isCompact ? 20 : 24,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
       ),
     );
   }
