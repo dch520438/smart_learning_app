@@ -64,6 +64,7 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   fonts:
+    # 文泉驿微米黑 - 备用中文字体
     - family: WQYMicroHei
       fonts:
         - asset: fonts/WenQuanYiMicroHei.ttf
@@ -71,3 +72,12 @@ flutter:
         - asset: fonts/WenQuanYiMicroHei.ttf
           weight: 600
           style: normal
+    # Noto Sans CJK - 主要中文字体
+    - family: NotoSansCJK
+      fonts:
+        - asset: fonts/NotoSansCJK-Regular.ttc
+          weight: 400
+        - asset: fonts/NotoSansCJK-Regular.ttc
+          weight: 500
+        - asset: fonts/NotoSansCJK-Regular.ttc
+          weight: 600

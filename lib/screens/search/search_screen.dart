@@ -56,6 +56,7 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen>
     with SingleTickerProviderStateMixin {
   DatabaseService? _db;
+  bool _dbInitialized = false;
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _searchFocusNode = FocusNode();
 
@@ -88,12 +89,23 @@ class _SearchScreenState extends State<SearchScreen>
 
   Future<void> _initializeSearch() async {
     try {
+      // 先初始化数据库连接
       _db = DatabaseService();
+      // 确保数据库已打开
+      await _db!.database;
+      _dbInitialized = true;
       setState(() {
         _isInitialized = true;
+        _errorMessage = null;
       });
-      _searchFocusNode.requestFocus();
+      // 延迟聚焦，确保页面已完全渲染
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          _searchFocusNode.requestFocus();
+        }
+      });
     } catch (e) {
+      debugPrint('SearchScreen 初始化失败: $e');
       setState(() {
         _errorMessage = '初始化失败: $e';
         _isInitialized = true;
@@ -119,6 +131,14 @@ class _SearchScreenState extends State<SearchScreen>
       return;
     }
 
+    // 检查数据库是否已初始化
+    if (_db == null || !_dbInitialized) {
+      if (mounted) {
+        showSnackBar(context, '数据库未初始化，请稍后重试', isError: true);
+      }
+      return;
+    }
+
     setState(() {
       _isLoading = true;
       _searchQuery = query.trim();
@@ -129,104 +149,124 @@ class _SearchScreenState extends State<SearchScreen>
       final keyword = query.toLowerCase();
 
       // 1. 搜索知识点
-      final knowledgeRows = await _db?.queryAllKnowledgePoints() ?? [];
-      for (final row in knowledgeRows) {
-        final title = (row['title']?.toString() ?? '').toLowerCase();
-        final content = (row['content']?.toString() ?? '').toLowerCase();
-        if (title.contains(keyword) || content.contains(keyword)) {
-          results.add(SearchResult(
-            id: row['uuid']?.toString() ?? row['id'].toString(),
-            title: row['title']?.toString() ?? '未命名知识点',
-            summary: _extractSummary(row['content']?.toString() ?? ''),
-            subject: row['subject']?.toString() ?? '未分类',
-            type: SearchResultType.knowledge,
-            rawData: row,
-            updatedAt: row['updated_at'] != null
-                ? DateTime.tryParse(row['updated_at'].toString())
-                : null,
-          ));
+      try {
+        final knowledgeRows = await _db?.queryAllKnowledgePoints() ?? [];
+        for (final row in knowledgeRows) {
+          final title = (row['title']?.toString() ?? '').toLowerCase();
+          final content = (row['content']?.toString() ?? '').toLowerCase();
+          if (title.contains(keyword) || content.contains(keyword)) {
+            results.add(SearchResult(
+              id: row['uuid']?.toString() ?? row['id'].toString(),
+              title: row['title']?.toString() ?? '未命名知识点',
+              summary: _extractSummary(row['content']?.toString() ?? ''),
+              subject: row['subject']?.toString() ?? '未分类',
+              type: SearchResultType.knowledge,
+              rawData: row,
+              updatedAt: row['updated_at'] != null
+                  ? DateTime.tryParse(row['updated_at'].toString())
+                  : null,
+            ));
+          }
         }
+      } catch (e) {
+        debugPrint('搜索知识点失败: $e');
       }
 
       // 2. 搜索笔记
-      final noteRows = await _db?.queryAllNotes() ?? [];
-      for (final row in noteRows) {
-        final title = (row['title']?.toString() ?? '').toLowerCase();
-        final content = (row['content']?.toString() ?? '').toLowerCase();
-        if (title.contains(keyword) || content.contains(keyword)) {
-          results.add(SearchResult(
-            id: row['uuid']?.toString() ?? row['id'].toString(),
-            title: row['title']?.toString() ?? '未命名笔记',
-            summary: _extractSummary(row['content']?.toString() ?? ''),
-            subject: row['subject']?.toString() ?? '未分类',
-            type: SearchResultType.note,
-            rawData: row,
-            updatedAt: row['updated_at'] != null
-                ? DateTime.tryParse(row['updated_at'].toString())
-                : null,
-          ));
+      try {
+        final noteRows = await _db?.queryAllNotes() ?? [];
+        for (final row in noteRows) {
+          final title = (row['title']?.toString() ?? '').toLowerCase();
+          final content = (row['content']?.toString() ?? '').toLowerCase();
+          if (title.contains(keyword) || content.contains(keyword)) {
+            results.add(SearchResult(
+              id: row['uuid']?.toString() ?? row['id'].toString(),
+              title: row['title']?.toString() ?? '未命名笔记',
+              summary: _extractSummary(row['content']?.toString() ?? ''),
+              subject: row['subject']?.toString() ?? '未分类',
+              type: SearchResultType.note,
+              rawData: row,
+              updatedAt: row['updated_at'] != null
+                  ? DateTime.tryParse(row['updated_at'].toString())
+                  : null,
+            ));
+          }
         }
+      } catch (e) {
+        debugPrint('搜索笔记失败: $e');
       }
 
       // 3. 搜索错题
-      final wrongQuestionRows = await _db?.queryAllWrongQuestions() ?? [];
-      for (final row in wrongQuestionRows) {
-        final content = (row['question_content']?.toString() ?? '').toLowerCase();
-        final analysis = (row['analysis']?.toString() ?? '').toLowerCase();
-        if (content.contains(keyword) || analysis.contains(keyword)) {
-          results.add(SearchResult(
-            id: row['uuid']?.toString() ?? row['id'].toString(),
-            title: row['question_content']?.toString() ?? '未命名错题',
-            summary: _extractSummary(row['analysis']?.toString() ?? ''),
-            subject: row['subject']?.toString() ?? '未分类',
-            type: SearchResultType.wrongQuestion,
-            rawData: row,
-            updatedAt: row['updated_at'] != null
-                ? DateTime.tryParse(row['updated_at'].toString())
-                : null,
-          ));
+      try {
+        final wrongQuestionRows = await _db?.queryAllWrongQuestions() ?? [];
+        for (final row in wrongQuestionRows) {
+          final content = (row['question_content']?.toString() ?? '').toLowerCase();
+          final analysis = (row['analysis']?.toString() ?? '').toLowerCase();
+          if (content.contains(keyword) || analysis.contains(keyword)) {
+            results.add(SearchResult(
+              id: row['uuid']?.toString() ?? row['id'].toString(),
+              title: row['question_content']?.toString() ?? '未命名错题',
+              summary: _extractSummary(row['analysis']?.toString() ?? ''),
+              subject: row['subject']?.toString() ?? '未分类',
+              type: SearchResultType.wrongQuestion,
+              rawData: row,
+              updatedAt: row['updated_at'] != null
+                  ? DateTime.tryParse(row['updated_at'].toString())
+                  : null,
+            ));
+          }
         }
+      } catch (e) {
+        debugPrint('搜索错题失败: $e');
       }
 
       // 4. 搜索母题
-      final motherQuestionRows = await _db?.queryAllMotherQuestions() ?? [];
-      for (final row in motherQuestionRows) {
-        final title = (row['title']?.toString() ?? '').toLowerCase();
-        final content = (row['question_content']?.toString() ?? '').toLowerCase();
-        final tags = (row['tags']?.toString() ?? '').toLowerCase();
-        if (title.contains(keyword) || content.contains(keyword) || tags.contains(keyword)) {
-          results.add(SearchResult(
-            id: row['uuid']?.toString() ?? row['id'].toString(),
-            title: row['title']?.toString() ?? '未命名母题',
-            summary: _extractSummary(row['question_content']?.toString() ?? ''),
-            subject: row['subject']?.toString() ?? '未分类',
-            type: SearchResultType.motherQuestion,
-            rawData: row,
-            updatedAt: row['updated_at'] != null
-                ? DateTime.tryParse(row['updated_at'].toString())
-                : null,
-          ));
+      try {
+        final motherQuestionRows = await _db?.queryAllMotherQuestions() ?? [];
+        for (final row in motherQuestionRows) {
+          final title = (row['title']?.toString() ?? '').toLowerCase();
+          final content = (row['question_content']?.toString() ?? '').toLowerCase();
+          final tags = (row['tags']?.toString() ?? '').toLowerCase();
+          if (title.contains(keyword) || content.contains(keyword) || tags.contains(keyword)) {
+            results.add(SearchResult(
+              id: row['uuid']?.toString() ?? row['id'].toString(),
+              title: row['title']?.toString() ?? '未命名母题',
+              summary: _extractSummary(row['question_content']?.toString() ?? ''),
+              subject: row['subject']?.toString() ?? '未分类',
+              type: SearchResultType.motherQuestion,
+              rawData: row,
+              updatedAt: row['updated_at'] != null
+                  ? DateTime.tryParse(row['updated_at'].toString())
+                  : null,
+            ));
+          }
         }
+      } catch (e) {
+        debugPrint('搜索母题失败: $e');
       }
 
       // 5. 搜索必记必背
-      final mustRememberRows = await _db?.queryAllMustRemembers() ?? [];
-      for (final row in mustRememberRows) {
-        final title = (row['title']?.toString() ?? '').toLowerCase();
-        final content = (row['content']?.toString() ?? '').toLowerCase();
-        if (title.contains(keyword) || content.contains(keyword)) {
-          results.add(SearchResult(
-            id: row['uuid']?.toString() ?? row['id'].toString(),
-            title: row['title']?.toString() ?? '未命名内容',
-            summary: _extractSummary(row['content']?.toString() ?? ''),
-            subject: row['subject']?.toString() ?? '未分类',
-            type: SearchResultType.mustRemember,
-            rawData: row,
-            updatedAt: row['updated_at'] != null
-                ? DateTime.tryParse(row['updated_at'].toString())
-                : null,
-          ));
+      try {
+        final mustRememberRows = await _db?.queryAllMustRemembers() ?? [];
+        for (final row in mustRememberRows) {
+          final title = (row['title']?.toString() ?? '').toLowerCase();
+          final content = (row['content']?.toString() ?? '').toLowerCase();
+          if (title.contains(keyword) || content.contains(keyword)) {
+            results.add(SearchResult(
+              id: row['uuid']?.toString() ?? row['id'].toString(),
+              title: row['title']?.toString() ?? '未命名内容',
+              summary: _extractSummary(row['content']?.toString() ?? ''),
+              subject: row['subject']?.toString() ?? '未分类',
+              type: SearchResultType.mustRemember,
+              rawData: row,
+              updatedAt: row['updated_at'] != null
+                  ? DateTime.tryParse(row['updated_at'].toString())
+                  : null,
+            ));
+          }
         }
+      } catch (e) {
+        debugPrint('搜索必记必背失败: $e');
       }
 
       // 按更新时间排序
@@ -243,6 +283,7 @@ class _SearchScreenState extends State<SearchScreen>
       });
     } catch (e) {
       setState(() => _isLoading = false);
+      debugPrint('搜索失败: $e');
       if (mounted) {
         showSnackBar(context, '搜索失败: $e', isError: true);
       }
@@ -623,6 +664,69 @@ class _SearchScreenState extends State<SearchScreen>
   Widget build(BuildContext context) {
     try {
       final theme = Theme.of(context);
+      
+      // 如果还在初始化，显示加载状态
+      if (!_isInitialized) {
+        return Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text('正在初始化...', style: TextStyle(
+                    fontSize: AppFontSize.md,
+                    color: AppColors.textSecondary,
+                  )),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+      
+      // 如果初始化失败，显示错误信息
+      if (_errorMessage != null && !_dbInitialized) {
+        return Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('初始化失败', style: TextStyle(
+                    fontSize: AppFontSize.lg,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  )),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                    child: Text(_errorMessage!, style: TextStyle(
+                      fontSize: AppFontSize.sm,
+                      color: AppColors.textSecondary,
+                    ), textAlign: TextAlign.center),
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _isInitialized = false;
+                        _errorMessage = null;
+                      });
+                      _initializeSearch();
+                    },
+                    child: const Text('重试'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+      
       final counts = _getTypeCounts();
       final currentResults = _getCurrentResults();
 
@@ -660,10 +764,13 @@ class _SearchScreenState extends State<SearchScreen>
                   color: AppColors.textPrimary,
                 )),
                 const SizedBox(height: 8),
-                Text('$e', style: TextStyle(
-                  fontSize: AppFontSize.sm,
-                  color: AppColors.textSecondary,
-                ), textAlign: TextAlign.center),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: Text('$e', style: TextStyle(
+                    fontSize: AppFontSize.sm,
+                    color: AppColors.textSecondary,
+                  ), textAlign: TextAlign.center),
+                ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {

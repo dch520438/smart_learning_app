@@ -178,12 +178,12 @@ class ThemeProvider extends ChangeNotifier {
   }
 
   // 获取字体族名称
-  // 注意：在 Linux 上使用系统默认字体，确保中文字体正确显示
-  // 如果需要使用自定义字体，请在 pubspec.yaml 中配置并确保字体文件存在
+  // 使用打包的 NotoSansCJK 字体，确保中文正确显示
+  // 该字体文件已包含在 fonts/ 目录下，支持完整的中日韩字符集
   String? get fontFamilyName {
-    // 使用系统默认字体，让系统选择支持中文的字体
-    // 这样可以避免字体文件加载失败导致的方块字符问题
-    return null; // null 表示使用系统默认字体
+    // 使用打包的 Noto Sans CJK 字体
+    // 这是 Google 提供的开源字体，支持完整的中日韩字符
+    return 'NotoSansCJK';
   }
 
   // 获取圆角值
