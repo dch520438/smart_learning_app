@@ -129,7 +129,7 @@ class _SearchScreenState extends State<SearchScreen>
       final keyword = query.toLowerCase();
 
       // 1. 搜索知识点
-      final knowledgeRows = await _db.queryAllKnowledgePoints();
+      final knowledgeRows = await _db?.queryAllKnowledgePoints() ?? [];
       for (final row in knowledgeRows) {
         final title = (row['title']?.toString() ?? '').toLowerCase();
         final content = (row['content']?.toString() ?? '').toLowerCase();
@@ -149,7 +149,7 @@ class _SearchScreenState extends State<SearchScreen>
       }
 
       // 2. 搜索笔记
-      final noteRows = await _db.queryAllNotes();
+      final noteRows = await _db?.queryAllNotes() ?? [];
       for (final row in noteRows) {
         final title = (row['title']?.toString() ?? '').toLowerCase();
         final content = (row['content']?.toString() ?? '').toLowerCase();
@@ -169,7 +169,7 @@ class _SearchScreenState extends State<SearchScreen>
       }
 
       // 3. 搜索错题
-      final wrongQuestionRows = await _db.queryAllWrongQuestions();
+      final wrongQuestionRows = await _db?.queryAllWrongQuestions() ?? [];
       for (final row in wrongQuestionRows) {
         final content = (row['question_content']?.toString() ?? '').toLowerCase();
         final analysis = (row['analysis']?.toString() ?? '').toLowerCase();
@@ -189,7 +189,7 @@ class _SearchScreenState extends State<SearchScreen>
       }
 
       // 4. 搜索母题
-      final motherQuestionRows = await _db.queryAllMotherQuestions();
+      final motherQuestionRows = await _db?.queryAllMotherQuestions() ?? [];
       for (final row in motherQuestionRows) {
         final title = (row['title']?.toString() ?? '').toLowerCase();
         final content = (row['question_content']?.toString() ?? '').toLowerCase();
@@ -210,7 +210,7 @@ class _SearchScreenState extends State<SearchScreen>
       }
 
       // 5. 搜索必记必背
-      final mustRememberRows = await _db.queryAllMustRemembers();
+      final mustRememberRows = await _db?.queryAllMustRemembers() ?? [];
       for (final row in mustRememberRows) {
         final title = (row['title']?.toString() ?? '').toLowerCase();
         final content = (row['content']?.toString() ?? '').toLowerCase();

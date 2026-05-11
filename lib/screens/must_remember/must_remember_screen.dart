@@ -2331,7 +2331,7 @@ class _ConvertToQuestionSheetState extends State<_ConvertToQuestionSheet> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(AppRadius.md),
-                    borderSide: BorderSide(color: theme.colorScheme.primary),
+                    borderSide: BorderSide(color: Theme.of(context).colorScheme.primary),
                   ),
                   filled: true,
                   fillColor: Colors.grey[50],
