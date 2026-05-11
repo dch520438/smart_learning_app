@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
 
 import 'database_service.dart';
 import 'storage_service.dart';
@@ -76,10 +77,18 @@ class ExportService {
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
       final finalFileName = fileName ?? 'smart_learning_backup_$timestamp.json';
 
-      // 保存到导出目录
+      // 生成JSON字符串
+      final jsonString = const JsonEncoder.withIndent('  ').convert(data);
+
+      // 在 Linux 平台上使用文件选择器
+      if (Platform.isLinux) {
+        return await _exportOnLinux(jsonString, finalFileName, allModules);
+      }
+
+      // 其他平台：保存到导出目录
       final filePath = await _storageService.getExportPath(fileName: finalFileName);
       await _storageService.saveFileFromString(
-        jsonEncode(data),
+        jsonString,
         finalFileName,
       );
 
@@ -130,14 +139,24 @@ class ExportService {
 
       // 生成文件名
       final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
-      final moduleSuffix = validModules.join('_');
+      final moduleSuffix = validModules.length <= 3 
+          ? validModules.join('_') 
+          : '${validModules.length}_modules';
       final finalFileName =
           fileName ?? 'smart_learning_${moduleSuffix}_$timestamp.json';
 
-      // 保存到导出目录
+      // 生成JSON字符串
+      final jsonString = const JsonEncoder.withIndent('  ').convert(data);
+
+      // 在 Linux 平台上使用文件选择器
+      if (Platform.isLinux) {
+        return await _exportOnLinux(jsonString, finalFileName, validModules);
+      }
+
+      // 其他平台：保存到导出目录
       final filePath = await _storageService.getExportPath(fileName: finalFileName);
       await _storageService.saveFileFromString(
-        jsonEncode(data),
+        jsonString,
         finalFileName,
       );
 
@@ -162,6 +181,85 @@ class ExportService {
       return ExportResult(
         success: false,
         errorMessage: '导出失败: $e',
+      );
+    }
+  }
+
+  /// Linux 平台导出方法
+  /// 使用文件选择器让用户选择保存位置
+  Future<ExportResult> _exportOnLinux(
+    String jsonString,
+    String defaultFileName,
+    List<String> modules,
+  ) async {
+    try {
+      // 获取默认下载目录
+      String? defaultDirectory;
+      try {
+        // 尝试获取下载目录
+        if (Platform.isLinux) {
+          final home = Platform.environment['HOME'];
+          if (home != null) {
+            defaultDirectory = '$home/Downloads';
+            // 检查下载目录是否存在
+            final downloadDir = Directory(defaultDirectory);
+            if (!await downloadDir.exists()) {
+              defaultDirectory = home;
+            }
+          }
+        }
+      } catch (_) {
+        // 忽略错误，使用默认行为
+      }
+
+      // 使用文件选择器让用户选择保存位置
+      String? outputPath = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: '选择保存位置',
+        initialDirectory: defaultDirectory,
+      );
+
+      if (outputPath == null) {
+        return ExportResult(
+          success: false,
+          errorMessage: '用户取消了导出操作',
+        );
+      }
+
+      // 构建完整文件路径
+      final filePath = '$outputPath/$defaultFileName';
+      final file = File(filePath);
+
+      // 确保目录存在
+      final dir = file.parent;
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
+      // 写入文件
+      await file.writeAsString(jsonString);
+
+      // 计算导出统计
+      final data = jsonDecode(jsonString) as Map<String, dynamic>;
+      final stats = <String, int>{};
+      for (final module in modules) {
+        if (data.containsKey(module)) {
+          final list = data[module] as List;
+          stats[module] = list.length;
+        }
+      }
+
+      return ExportResult(
+        success: true,
+        filePath: filePath,
+        fileName: defaultFileName,
+        stats: stats,
+        totalRecords: stats.values.fold(0, (sum, count) => sum + count),
+        exportedModules: modules,
+      );
+    } catch (e) {
+      return ExportResult(
+        success: false,
+        errorMessage: 'Linux 导出失败: $e',
       );
     }
   }
@@ -254,6 +352,42 @@ class ExportService {
       return ImportResult(
         success: false,
         errorMessage: '数据导入处理失败: $e',
+      );
+    }
+  }
+
+  /// Linux 平台选择文件并导入
+  Future<ImportResult> importWithFilePicker({
+    ImportMode mode = ImportMode.merge,
+  }) async {
+    try {
+      // 使用文件选择器选择JSON文件
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
+        dialogTitle: '选择要导入的JSON文件',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result == null || result.files.isEmpty) {
+        return ImportResult(
+          success: false,
+          errorMessage: '用户取消了导入操作',
+        );
+      }
+
+      final filePath = result.files.first.path;
+      if (filePath == null) {
+        return ImportResult(
+          success: false,
+          errorMessage: '无法获取文件路径',
+        );
+      }
+
+      return await importFromJsonFile(filePath, mode: mode);
+    } catch (e) {
+      return ImportResult(
+        success: false,
+        errorMessage: '导入失败: $e',
       );
     }
   }
@@ -418,6 +552,12 @@ class ExportService {
   /// 获取导入目录路径
   Future<String> getImportDirectoryPath() async {
     return await _storageService.getImportDir();
+  }
+
+  /// 检查当前平台是否支持 share_plus 分享
+  bool get isShareSupported {
+    // Linux 不支持 share_plus
+    return !Platform.isLinux;
   }
 }
 

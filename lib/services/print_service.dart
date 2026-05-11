@@ -1,8 +1,11 @@
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import '../utils/helpers.dart';
 
 /// 打印内容类型枚举
@@ -12,6 +15,7 @@ enum PrintContentType {
   wrongQuestion,
   motherQuestion,
   mustRemember,
+  studySuggestion, // 学习建议
 }
 
 /// 打印内容项模型
@@ -56,6 +60,8 @@ class PrintContentItem {
         return '母题';
       case PrintContentType.mustRemember:
         return '必背必记';
+      case PrintContentType.studySuggestion:
+        return '学习建议';
     }
   }
 
@@ -71,15 +77,46 @@ class PrintContentItem {
         return Colors.purple;
       case PrintContentType.mustRemember:
         return Colors.orange;
+      case PrintContentType.studySuggestion:
+        return Colors.teal;
     }
   }
+}
+
+/// 打印结果
+class PrintResult {
+  final bool success;
+  final String? filePath;
+  final String? errorMessage;
+
+  const PrintResult({
+    required this.success,
+    this.filePath,
+    this.errorMessage,
+  });
 }
 
 /// 打印服务类
 /// 用于生成PDF并打印各类型内容
 class PrintService {
+  /// 检查打印功能是否可用
+  static Future<bool> isPrintingAvailable() async {
+    try {
+      // 在 Linux 上，printing 插件可能有问题
+      // 我们尝试检测是否可用
+      if (Platform.isLinux) {
+        // Linux 上打印功能可能不稳定，返回 true 让用户尝试
+        // 如果失败会捕获异常并提供替代方案
+        return true;
+      }
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   /// 打印知识点详情
-  static Future<void> printKnowledgePoint({
+  static Future<PrintResult> printKnowledgePoint({
     required BuildContext context,
     required String title,
     required String content,
@@ -89,7 +126,7 @@ class PrintService {
     int? difficulty,
     int? masteryLevel,
   }) async {
-    await _printContent(
+    return await _printContent(
       context: context,
       title: title,
       content: content,
@@ -105,7 +142,7 @@ class PrintService {
   }
 
   /// 打印笔记详情
-  static Future<void> printNote({
+  static Future<PrintResult> printNote({
     required BuildContext context,
     required String title,
     required String content,
@@ -113,7 +150,7 @@ class PrintService {
     String? tags,
     String? createdAt,
   }) async {
-    await _printContent(
+    return await _printContent(
       context: context,
       title: title,
       content: content,
@@ -127,7 +164,7 @@ class PrintService {
   }
 
   /// 打印错题详情
-  static Future<void> printWrongQuestion({
+  static Future<PrintResult> printWrongQuestion({
     required BuildContext context,
     required String question,
     String? options,
@@ -163,7 +200,7 @@ class PrintService {
       buffer.writeln(analysis);
     }
 
-    await _printContent(
+    return await _printContent(
       context: context,
       title: '错题详情',
       content: buffer.toString(),
@@ -178,7 +215,7 @@ class PrintService {
   }
 
   /// 打印母题详情
-  static Future<void> printMotherQuestion({
+  static Future<PrintResult> printMotherQuestion({
     required BuildContext context,
     required String title,
     required String question,
@@ -213,7 +250,7 @@ class PrintService {
       buffer.writeln(analysis);
     }
 
-    await _printContent(
+    return await _printContent(
       context: context,
       title: '母题详情',
       content: buffer.toString(),
@@ -229,7 +266,7 @@ class PrintService {
   }
 
   /// 打印必背必记详情
-  static Future<void> printMustRemember({
+  static Future<PrintResult> printMustRemember({
     required BuildContext context,
     required String title,
     required String content,
@@ -241,7 +278,7 @@ class PrintService {
     bool? isMastered,
     String? createdAt,
   }) async {
-    await _printContent(
+    return await _printContent(
       context: context,
       title: title,
       content: content,
@@ -259,7 +296,7 @@ class PrintService {
   }
 
   /// 打印试卷
-  static Future<void> printExamPaper({
+  static Future<PrintResult> printExamPaper({
     required BuildContext context,
     required String paperName,
     required String subject,
@@ -283,7 +320,7 @@ class PrintService {
       content.writeln('\n备注:\n$notes');
     }
 
-    await _printContent(
+    return await _printContent(
       context: context,
       title: paperName,
       content: content.toString(),
@@ -297,7 +334,7 @@ class PrintService {
 
   /// 批量打印内容
   /// 支持多种内容类型混合打印
-  static Future<void> printBatch({
+  static Future<PrintResult> printBatch({
     required BuildContext context,
     required List<PrintContentItem> items,
     String? customTitle,
@@ -308,7 +345,7 @@ class PrintService {
           const SnackBar(content: Text('没有选择要打印的内容')),
         );
       }
-      return;
+      return const PrintResult(success: false, errorMessage: '没有选择要打印的内容');
     }
 
     try {
@@ -529,7 +566,15 @@ class PrintService {
         );
       }
 
-      // 显示打印预览对话框
+      // 生成 PDF 字节
+      final pdfBytes = await pdf.save();
+
+      // 在 Linux 上，提供保存 PDF 的选项
+      if (Platform.isLinux) {
+        return await _savePdfOnLinux(context, pdfBytes, customTitle ?? '学习资料', now);
+      }
+
+      // 其他平台：显示打印预览对话框
       if (context.mounted) {
         await showDialog(
           context: context,
@@ -541,7 +586,7 @@ class PrintService {
                 width: double.infinity,
                 height: MediaQuery.of(context).size.height * 0.8,
                 child: PdfPreview(
-                  build: (format) => pdf.save(),
+                  build: (format) => pdfBytes,
                   allowPrinting: true,
                   allowSharing: true,
                   canChangePageFormat: false,
@@ -553,13 +598,111 @@ class PrintService {
           ),
         );
       }
+
+      return PrintResult(success: true);
+    } catch (e) {
+      // 打印失败，提供替代方案
+      if (context.mounted) {
+        _showPrintErrorDialog(context, e.toString());
+      }
+      return PrintResult(success: false, errorMessage: '生成PDF失败: $e');
+    }
+  }
+
+  /// Linux 平台保存 PDF
+  static Future<PrintResult> _savePdfOnLinux(
+    BuildContext context,
+    Uint8List pdfBytes,
+    String defaultName,
+    DateTime now,
+  ) async {
+    try {
+      // 获取默认下载目录
+      String? defaultDirectory;
+      try {
+        final home = Platform.environment['HOME'];
+        if (home != null) {
+          defaultDirectory = '$home/Downloads';
+          final downloadDir = Directory(defaultDirectory);
+          if (!await downloadDir.exists()) {
+            defaultDirectory = home;
+          }
+        }
+      } catch (_) {}
+
+      // 使用文件选择器让用户选择保存位置
+      String? outputPath = await FilePicker.platform.getDirectoryPath(
+        dialogTitle: '选择PDF保存位置',
+        initialDirectory: defaultDirectory,
+      );
+
+      if (outputPath == null) {
+        return const PrintResult(success: false, errorMessage: '用户取消了保存操作');
+      }
+
+      // 构建文件路径
+      final fileName = '${defaultName}_${formatDate(now)}.pdf';
+      final filePath = '$outputPath/$fileName';
+      final file = File(filePath);
+
+      // 写入文件
+      await file.writeAsBytes(pdfBytes);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('PDF已保存到: $filePath'),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: '打开目录',
+              onPressed: () async {
+                // 打开文件所在目录
+                final dir = file.parent;
+                // 可以使用 xdg-open 打开目录
+              },
+            ),
+          ),
+        );
+      }
+
+      return PrintResult(success: true, filePath: filePath);
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('生成PDF失败: $e')),
+          SnackBar(content: Text('保存PDF失败: $e')),
         );
       }
+      return PrintResult(success: false, errorMessage: '保存PDF失败: $e');
     }
+  }
+
+  /// 显示打印错误对话框，提供替代方案
+  static void _showPrintErrorDialog(BuildContext context, String error) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('打印失败'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('错误信息: $error'),
+            const SizedBox(height: 16),
+            const Text('您可以尝试以下替代方案:'),
+            const SizedBox(height: 8),
+            const Text('1. 导出数据为JSON文件'),
+            const Text('2. 使用截图功能保存内容'),
+            const Text('3. 复制文本内容到其他应用'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 构建类型统计
@@ -622,6 +765,8 @@ class PrintService {
         return PdfColors.purple700;
       case PrintContentType.mustRemember:
         return PdfColors.orange700;
+      case PrintContentType.studySuggestion:
+        return PdfColors.teal700;
     }
   }
 
@@ -705,7 +850,7 @@ class PrintService {
   }
 
   /// 通用打印内容方法
-  static Future<void> _printContent({
+  static Future<PrintResult> _printContent({
     required BuildContext context,
     required String title,
     required String content,
@@ -817,7 +962,15 @@ class PrintService {
         ),
       );
 
-      // 显示打印预览对话框
+      // 生成 PDF 字节
+      final pdfBytes = await pdf.save();
+
+      // 在 Linux 上，提供保存 PDF 的选项
+      if (Platform.isLinux) {
+        return await _savePdfOnLinux(context, pdfBytes, type, now);
+      }
+
+      // 其他平台：显示打印预览对话框
       await showDialog(
         context: context,
         builder: (context) => Dialog(
@@ -828,7 +981,7 @@ class PrintService {
               width: double.infinity,
               height: MediaQuery.of(context).size.height * 0.8,
               child: PdfPreview(
-                build: (format) => pdf.save(),
+                build: (format) => pdfBytes,
                 allowPrinting: true,
                 allowSharing: true,
                 canChangePageFormat: false,
@@ -839,12 +992,116 @@ class PrintService {
           ),
         ),
       );
+
+      return const PrintResult(success: true);
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('生成PDF失败: $e')),
-        );
+        _showPrintErrorDialog(context, e.toString());
       }
+      return PrintResult(success: false, errorMessage: '生成PDF失败: $e');
+    }
+  }
+
+  /// 生成PDF字节（不显示预览）
+  /// 用于组合打印或保存到文件
+  static Future<Uint8List?> generatePdfBytes({
+    required String title,
+    required String content,
+    required String type,
+    Map<String, String> metadata = const {},
+  }) async {
+    try {
+      final pdf = pw.Document();
+      final now = DateTime.now();
+      final printTime = formatDateTime(now);
+
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat.a4,
+          build: (pw.Context context) {
+            return pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  title,
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                pw.SizedBox(height: 8),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: pw.BoxDecoration(
+                    color: PdfColors.blue100,
+                    borderRadius: pw.BorderRadius.circular(4),
+                  ),
+                  child: pw.Text(
+                    type,
+                    style: pw.TextStyle(
+                      fontSize: 12,
+                      color: PdfColors.blue800,
+                    ),
+                  ),
+                ),
+                pw.SizedBox(height: 16),
+                if (metadata.isNotEmpty) ...[
+                  pw.Container(
+                    padding: const pw.EdgeInsets.all(12),
+                    decoration: pw.BoxDecoration(
+                      color: PdfColors.grey100,
+                      borderRadius: pw.BorderRadius.circular(8),
+                    ),
+                    child: pw.Wrap(
+                      spacing: 16,
+                      runSpacing: 8,
+                      children: metadata.entries.map((entry) {
+                        return pw.Row(
+                          mainAxisSize: pw.MainAxisSize.min,
+                          children: [
+                            pw.Text(
+                              '${entry.key}: ',
+                              style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
+                            ),
+                            pw.Text(
+                              entry.value,
+                              style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                            ),
+                          ],
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  pw.SizedBox(height: 16),
+                ],
+                pw.Divider(),
+                pw.SizedBox(height: 16),
+                pw.Text(content, style: const pw.TextStyle(fontSize: 12)),
+                pw.SizedBox(height: 32),
+                pw.Divider(),
+                pw.SizedBox(height: 8),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.end,
+                  children: [
+                    pw.Text(
+                      '打印时间: $printTime',
+                      style: pw.TextStyle(
+                        fontSize: 10,
+                        color: PdfColors.grey600,
+                        fontStyle: pw.FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      );
+
+      return await pdf.save();
+    } catch (e) {
+      return null;
     }
   }
 
@@ -876,6 +1133,8 @@ extension PrintContentTypeExtension on PrintContentType {
         return '母题';
       case PrintContentType.mustRemember:
         return '必背必记';
+      case PrintContentType.studySuggestion:
+        return '学习建议';
     }
   }
 }

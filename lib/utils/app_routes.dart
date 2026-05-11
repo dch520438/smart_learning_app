@@ -3,6 +3,7 @@ import '../widgets/common_widgets.dart';
 import '../widgets/knowledge_widgets.dart';
 import '../widgets/question_widgets.dart';
 import '../widgets/note_widgets.dart';
+import '../screens/print/print_combination_screen.dart';
 
 /// 路由常量定义
 class AppRoutes {
@@ -64,6 +65,9 @@ class AppRoutes {
 
   // 必记必背相关
   static const String mustRememberDetail = '/mustRemember/detail';
+
+  // 打印相关
+  static const String printCombination = '/print/combination';
 }
 
 /// 路由生成器
@@ -140,6 +144,10 @@ Route<dynamic> generateRoute(RouteSettings settings) {
     // 搜索
     case AppRoutes.search:
       return _buildPageRoute(const SizedBox()); // 占位
+
+    // 打印相关
+    case AppRoutes.printCombination:
+      return _buildPageRoute(const PrintCombinationScreen());
 
     default:
       return _buildPageRoute(
