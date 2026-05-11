@@ -284,6 +284,7 @@ class _NotesScreenState extends State<NotesScreen> {
   Future<void> _deleteNote(int dbId, String title) async {
     final confirmed = await AppDialog.showConfirmDelete(
       context: context,
+      title: '删除笔记',
       message: '确定要删除笔记"$title"吗？',
     );
     if (confirmed == true) {

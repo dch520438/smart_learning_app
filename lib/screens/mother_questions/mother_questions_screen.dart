@@ -561,6 +561,7 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
                           if (value == 'delete') {
                             AppDialog.showConfirmDelete(
                               context: context,
+                              title: '删除母题',
                               onConfirm: () =>
                                   _deleteQuestions([questionId]),
                             );

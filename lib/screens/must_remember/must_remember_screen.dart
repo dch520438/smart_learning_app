@@ -1157,6 +1157,7 @@ class _MustRememberDetailScreenState extends State<MustRememberDetailScreen> {
   Future<void> _deleteItem() async {
     final confirmed = await AppDialog.showConfirmDelete(
       context: context,
+      title: '删除必记内容',
       message: '确定要删除这条内容吗？此操作不可撤销。',
     );
     if (confirmed != true) return;

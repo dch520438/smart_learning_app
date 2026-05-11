@@ -622,6 +622,7 @@ class KnowledgeDetailPage extends StatelessWidget {
             onPressed: () async {
               final confirmed = await AppDialog.showConfirmDelete(
                 context: context,
+                title: '删除知识点',
                 message: '确定要删除知识点"$title"吗？',
               );
               if (confirmed == true) {

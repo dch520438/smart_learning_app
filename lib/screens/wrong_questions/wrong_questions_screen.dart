@@ -1069,6 +1069,7 @@ class _WrongQuestionDetailScreenState extends State<WrongQuestionDetailScreen> {
   Future<void> _deleteQuestion() async {
     final confirmed = await AppDialog.showConfirmDelete(
       context: context,
+      title: '删除错题',
       message: '确定要删除这道错题吗？此操作不可撤销。',
     );
     if (confirmed != true) return;

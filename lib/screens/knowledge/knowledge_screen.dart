@@ -403,6 +403,7 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
   Future<void> _deleteKnowledgePoint(int dbId, String title) async {
     final confirmed = await AppDialog.showConfirmDelete(
       context: context,
+      title: '删除知识点',
       message: '确定要删除知识点"$title"吗？',
     );
     if (confirmed == true) {
