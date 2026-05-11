@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/ocr_service.dart';
@@ -106,7 +107,7 @@ class _InputMethodSelectorWidget extends StatelessWidget {
     final methods = [
       InputMethod.keyboard,
       InputMethod.voice,
-      InputMethod.camera,
+      if (!Platform.isLinux) InputMethod.camera,
       InputMethod.gallery,
     ];
 
@@ -291,6 +292,13 @@ class InputMethodHandler {
 
   /// 处理拍照输入
   Future<String?> _handleCameraInput() async {
+    // Linux平台不支持相机功能
+    if (Platform.isLinux) {
+      if (context.mounted) {
+        showSnackBar(context, 'Linux平台暂不支持拍照功能，请使用相册选择', isError: true);
+      }
+      return null;
+    }
     try {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(

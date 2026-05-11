@@ -1990,6 +1990,7 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
+  final TextEditingController _chapterController = TextEditingController();
 
   String _subject = '数学';
   String _category = '公式';
@@ -2011,6 +2012,7 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
       _titleController.text = widget.item!.title;
       _contentController.text = widget.item!.content;
       _subject = widget.item!.subject;
+      _chapterController.text = widget.item!.chapter ?? '';
       _category = widget.item!.category;
       _examMethods = widget.item!.examMethods;
       _keyPoints = widget.item!.keyPoints;
@@ -2196,6 +2198,7 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
         'title': _titleController.text.trim(),
         'content': _contentController.text.trim(),
         'subject': _subject,
+        'chapter': _chapterController.text.trim().isEmpty ? null : _chapterController.text.trim(),
         'category': _category,
         'memory_level': widget.item?.memoryLevel ?? 0,
         'review_count': widget.item?.reviewCount ?? 0,
@@ -2286,6 +2289,15 @@ class _MustRememberAddScreenState extends State<MustRememberAddScreen> {
                   onTap: () => setState(() => _subject = s),
                 );
               }).toList(),
+            ),
+            const SizedBox(height: 16),
+
+            // 章节输入
+            AppInput(
+              controller: _chapterController,
+              label: '章节（选填）',
+              hintText: '如：第三章 函数',
+              prefixIcon: Icons.book_outlined,
             ),
             const SizedBox(height: 16),
 

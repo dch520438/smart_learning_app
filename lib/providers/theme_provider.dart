@@ -184,11 +184,11 @@ class ThemeProvider extends ChangeNotifier {
       case AppFontFamily.system:
         return 'WQYMicroHei'; // 使用项目内置的中文字体
       case AppFontFamily.songti:
-        return 'Noto Serif CJK SC';  // Linux 系统常见宋体
+        return 'WQYMicroHei'; // 回退到内置字体，确保中文显示
       case AppFontFamily.heiti:
-        return 'Noto Sans CJK SC';   // Linux 系统常见黑体
+        return 'WQYMicroHei'; // 回退到内置字体，确保中文显示
       case AppFontFamily.kaiti:
-        return 'AR PL UKai CN';      // Linux 系统常见楷体
+        return 'WQYMicroHei'; // 回退到内置字体，确保中文显示
     }
   }
 

@@ -14,7 +14,7 @@ class DatabaseService {
 
   // 数据库名称和版本
   static const String _databaseName = 'smart_learning.db';
-  static const int _databaseVersion = 4;
+  static const int _databaseVersion = 5;
 
   // 表名常量
   static const String tableKnowledgePoints = 'knowledge_points';
@@ -61,6 +61,7 @@ class DatabaseService {
         title TEXT NOT NULL,
         content TEXT,
         subject TEXT,
+        chapter TEXT,
         category TEXT,
         tags TEXT,
         exam_methods TEXT,
@@ -108,6 +109,7 @@ class DatabaseService {
         title TEXT NOT NULL,
         content TEXT NOT NULL,
         subject TEXT,
+        chapter TEXT,
         category TEXT,
         tags TEXT,
         exam_methods TEXT,
@@ -139,6 +141,7 @@ class DatabaseService {
         my_answer TEXT,
         analysis TEXT,
         subject TEXT,
+        chapter TEXT,
         error_type TEXT,
         knowledge_point_id INTEGER,
         error_count INTEGER DEFAULT 1,
@@ -169,6 +172,7 @@ class DatabaseService {
         correct_answer TEXT,
         analysis TEXT,
         subject TEXT,
+        chapter TEXT,
         category TEXT,
         tags TEXT,
         exam_methods TEXT,
@@ -458,6 +462,16 @@ class DatabaseService {
     // 版本3 -> 版本4：添加 attachment_paths 列到试卷表
     if (oldVersion < 4) {
       await _addColumnSafe(db, tableExamPapers, 'attachment_paths', 'TEXT');
+    }
+
+    // 版本4 -> 版本5：添加 subject, source 列到 exam_results 表，添加 chapter 列到多个表
+    if (oldVersion < 5) {
+      await _addColumnSafe(db, tableExamResults, 'subject', 'TEXT');
+      await _addColumnSafe(db, tableExamResults, 'source', 'TEXT');
+      await _addColumnSafe(db, tableKnowledgePoints, 'chapter', 'TEXT');
+      await _addColumnSafe(db, tableMustRemembers, 'chapter', 'TEXT');
+      await _addColumnSafe(db, tableWrongQuestions, 'chapter', 'TEXT');
+      await _addColumnSafe(db, tableMotherQuestions, 'chapter', 'TEXT');
     }
   }
 
@@ -879,6 +893,73 @@ class DatabaseService {
     ) ?? 0;
   }
 
+  /// 按科目和标签查询必记必背（用于做题模式抽题）
+  Future<List<Map<String, dynamic>>> queryMustRemembersBySubjectAndTags(
+    String subject,
+    List<String>? tags,
+  ) async {
+    final db = await database;
+    if (tags == null || tags.isEmpty) {
+      return await db.query(
+        tableMustRemembers,
+        where: 'subject = ?',
+        whereArgs: [subject],
+        orderBy: 'created_at DESC',
+      );
+    }
+    final conditions = <String>['subject = ?'];
+    final args = <dynamic>[subject];
+    for (final tag in tags) {
+      conditions.add('(tags LIKE ? OR category LIKE ? OR exam_methods LIKE ? OR key_points LIKE ?)');
+      args.add('%$tag%');
+      args.add('%$tag%');
+      args.add('%$tag%');
+      args.add('%$tag%');
+    }
+    final whereClause = conditions.join(' AND ');
+    return await db.query(
+      tableMustRemembers,
+      where: whereClause,
+      whereArgs: args,
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// 获取必记必背的分类/章节列表（按科目）
+  Future<List<String>> queryMustRememberCategoriesBySubject(String subject) async {
+    final db = await database;
+    final results = await db.rawQuery(
+      "SELECT DISTINCT category FROM $tableMustRemembers WHERE subject = ? AND category IS NOT NULL AND category != ''",
+      [subject],
+    );
+    final categories = <String>{};
+    for (final row in results) {
+      final cat = row['category'] as String?;
+      if (cat != null && cat.trim().isNotEmpty) {
+        categories.add(cat.trim());
+      }
+    }
+    // 也从 tags 字段提取
+    final tagResults = await db.rawQuery(
+      "SELECT DISTINCT tags FROM $tableMustRemembers WHERE subject = ? AND tags IS NOT NULL AND tags != ''",
+      [subject],
+    );
+    for (final row in tagResults) {
+      final tags = row['tags'] as String?;
+      if (tags != null && tags.isNotEmpty) {
+        try {
+          final tagList = jsonDecode(tags) as List;
+          for (final t in tagList) {
+            if (t.toString().trim().isNotEmpty) {
+              categories.add(t.toString().trim());
+            }
+          }
+        } catch (_) {}
+      }
+    }
+    return categories.toList()..sort();
+  }
+
   // ==================== 错题 CRUD ====================
 
   /// 插入错题
@@ -1026,6 +1107,66 @@ class DatabaseService {
     ) ?? 0;
   }
 
+  /// 按科目和标签查询错题（用于做题模式抽题）
+  Future<List<Map<String, dynamic>>> queryWrongQuestionsBySubjectAndTags(
+    String subject,
+    List<String>? tags,
+  ) async {
+    final db = await database;
+    if (tags == null || tags.isEmpty) {
+      return await db.query(
+        tableWrongQuestions,
+        where: 'subject = ?',
+        whereArgs: [subject],
+        orderBy: 'created_at DESC',
+      );
+    }
+    // 使用 tags 字段进行模糊匹配
+    final conditions = <String>['subject = ?'];
+    final args = <dynamic>[subject];
+    for (final tag in tags) {
+      conditions.add('(tags LIKE ? OR exam_methods LIKE ? OR key_points LIKE ?)');
+      args.add('%$tag%');
+      args.add('%$tag%');
+      args.add('%$tag%');
+    }
+    final whereClause = conditions.join(' AND ');
+    return await db.query(
+      tableWrongQuestions,
+      where: whereClause,
+      whereArgs: args,
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// 获取错题的标签/章节列表（按科目）
+  Future<List<String>> queryWrongQuestionTagsBySubject(String subject) async {
+    final db = await database;
+    final results = await db.rawQuery(
+      "SELECT DISTINCT tags FROM $tableWrongQuestions WHERE subject = ? AND tags IS NOT NULL AND tags != ''",
+      [subject],
+    );
+    final tagSet = <String>{};
+    for (final row in results) {
+      final tags = row['tags'] as String?;
+      if (tags != null && tags.isNotEmpty) {
+        try {
+          final tagList = jsonDecode(tags) as List;
+          for (final t in tagList) {
+            if (t.toString().trim().isNotEmpty) {
+              tagSet.add(t.toString().trim());
+            }
+          }
+        } catch (_) {
+          if (tags.trim().isNotEmpty) {
+            tagSet.add(tags.trim());
+          }
+        }
+      }
+    }
+    return tagSet.toList()..sort();
+  }
+
   // ==================== 母题 CRUD ====================
 
   /// 插入母题
@@ -1146,6 +1287,73 @@ class DatabaseService {
     return Sqflite.firstIntValue(
       await db.rawQuery('SELECT COUNT(*) as count FROM $tableMotherQuestions'),
     ) ?? 0;
+  }
+
+  /// 按科目和标签查询母题（用于做题模式抽题）
+  Future<List<Map<String, dynamic>>> queryMotherQuestionsBySubjectAndTags(
+    String subject,
+    List<String>? tags,
+  ) async {
+    final db = await database;
+    if (tags == null || tags.isEmpty) {
+      return await db.query(
+        tableMotherQuestions,
+        where: 'subject = ?',
+        whereArgs: [subject],
+        orderBy: 'created_at DESC',
+      );
+    }
+    final conditions = <String>['subject = ?'];
+    final args = <dynamic>[subject];
+    for (final tag in tags) {
+      conditions.add('(tags LIKE ? OR category LIKE ? OR exam_methods LIKE ? OR key_points LIKE ?)');
+      args.add('%$tag%');
+      args.add('%$tag%');
+      args.add('%$tag%');
+      args.add('%$tag%');
+    }
+    final whereClause = conditions.join(' AND ');
+    return await db.query(
+      tableMotherQuestions,
+      where: whereClause,
+      whereArgs: args,
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// 获取母题的分类/章节列表（按科目）
+  Future<List<String>> queryMotherQuestionCategoriesBySubject(String subject) async {
+    final db = await database;
+    final results = await db.rawQuery(
+      "SELECT DISTINCT category FROM $tableMotherQuestions WHERE subject = ? AND category IS NOT NULL AND category != ''",
+      [subject],
+    );
+    final categories = <String>{};
+    for (final row in results) {
+      final cat = row['category'] as String?;
+      if (cat != null && cat.trim().isNotEmpty) {
+        categories.add(cat.trim());
+      }
+    }
+    // 也从 tags 字段提取
+    final tagResults = await db.rawQuery(
+      "SELECT DISTINCT tags FROM $tableMotherQuestions WHERE subject = ? AND tags IS NOT NULL AND tags != ''",
+      [subject],
+    );
+    for (final row in tagResults) {
+      final tags = row['tags'] as String?;
+      if (tags != null && tags.isNotEmpty) {
+        try {
+          final tagList = jsonDecode(tags) as List;
+          for (final t in tagList) {
+            if (t.toString().trim().isNotEmpty) {
+              categories.add(t.toString().trim());
+            }
+          }
+        } catch (_) {}
+      }
+    }
+    return categories.toList()..sort();
   }
 
   // ==================== 考试 CRUD ====================

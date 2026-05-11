@@ -94,25 +94,346 @@ class MindMapService {
   /// 加载知识点数据
   Future<List<KnowledgePoint>> _loadKnowledgePoints() async {
     final rows = await _dbService.queryAllKnowledgePoints(limit: 1000);
-    return rows.map((r) => KnowledgePoint.fromJson(r)).toList();
+    return rows.map((r) => _rowToKnowledgePoint(r)).toList();
   }
 
   /// 加载错题数据
   Future<List<WrongQuestion>> _loadWrongQuestions() async {
     final rows = await _dbService.queryAllWrongQuestions(limit: 1000);
-    return rows.map((r) => WrongQuestion.fromJson(r)).toList();
+    return rows.map((r) => _rowToWrongQuestion(r)).toList();
   }
 
   /// 加载笔记数据
   Future<List<Note>> _loadNotes() async {
     final rows = await _dbService.queryAllNotes(limit: 1000);
-    return rows.map((r) => Note.fromJson(r)).toList();
+    return rows.map((r) => _rowToNote(r)).toList();
   }
 
   /// 加载必记必背数据
   Future<List<MustRemember>> _loadMustRemember() async {
     final rows = await _dbService.queryAllMustRemembers(limit: 1000);
-    return rows.map((r) => MustRemember.fromJson(r)).toList();
+    return rows.map((r) => _rowToMustRemember(r)).toList();
+  }
+
+  /// 将数据库行转换为 KnowledgePoint
+  KnowledgePoint _rowToKnowledgePoint(Map<String, dynamic> r) {
+    List<String> tags = [];
+    if (r['tags'] != null) {
+      if (r['tags'] is String) {
+        final decoded = jsonDecode(r['tags'] as String);
+        if (decoded is List) {
+          tags = decoded.map((e) => e.toString()).toList();
+        }
+      } else if (r['tags'] is List) {
+        tags = (r['tags'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    List<String> examMethods = [];
+    if (r['exam_methods'] != null) {
+      if (r['exam_methods'] is String) {
+        final decoded = jsonDecode(r['exam_methods'] as String);
+        if (decoded is List) {
+          examMethods = decoded.map((e) => e.toString()).toList();
+        }
+      } else if (r['exam_methods'] is List) {
+        examMethods = (r['exam_methods'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    List<String> keyPoints = [];
+    if (r['key_points'] != null) {
+      if (r['key_points'] is String) {
+        final decoded = jsonDecode(r['key_points'] as String);
+        if (decoded is List) {
+          keyPoints = decoded.map((e) => e.toString()).toList();
+        }
+      } else if (r['key_points'] is List) {
+        keyPoints = (r['key_points'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    int createdAt = DateTime.now().millisecondsSinceEpoch;
+    if (r['created_at'] != null) {
+      if (r['created_at'] is int) {
+        createdAt = r['created_at'] as int;
+      } else {
+        createdAt = DateTime.tryParse(r['created_at'].toString())
+                ?.millisecondsSinceEpoch ??
+            createdAt;
+      }
+    }
+
+    int updatedAt = DateTime.now().millisecondsSinceEpoch;
+    if (r['updated_at'] != null) {
+      if (r['updated_at'] is int) {
+        updatedAt = r['updated_at'] as int;
+      } else {
+        updatedAt = DateTime.tryParse(r['updated_at'].toString())
+                ?.millisecondsSinceEpoch ??
+            updatedAt;
+      }
+    }
+
+    return KnowledgePoint(
+      id: r['uuid']?.toString() ?? r['id'].toString(),
+      title: r['title']?.toString() ?? '',
+      content: r['content']?.toString() ?? '',
+      subject: r['subject']?.toString() ?? '其他',
+      tags: tags,
+      categoryId: r['category']?.toString(),
+      difficulty: r['difficulty'] is int ? r['difficulty'] as int : int.tryParse(r['difficulty']?.toString() ?? '') ?? 1,
+      masteryLevel: r['mastery_level'] is int ? r['mastery_level'] as int : int.tryParse(r['mastery_level']?.toString() ?? '') ?? 0,
+      reviewCount: r['review_count'] is int ? r['review_count'] as int : int.tryParse(r['review_count']?.toString() ?? '') ?? 0,
+      isFavorite: (r['is_favorite'] is int ? r['is_favorite'] as int : 0) == 1,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      examMethods: examMethods,
+      keyPoints: keyPoints,
+    );
+  }
+
+  /// 将数据库行转换为 WrongQuestion
+  WrongQuestion _rowToWrongQuestion(Map<String, dynamic> r) {
+    List<Map<String, dynamic>> options = [];
+    if (r['options'] != null) {
+      if (r['options'] is String) {
+        final decoded = jsonDecode(r['options'] as String);
+        if (decoded is List) {
+          options = decoded.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+        }
+      } else if (r['options'] is List) {
+        options = (r['options'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+    }
+
+    List<String> examMethods = [];
+    if (r['exam_methods'] != null) {
+      if (r['exam_methods'] is String) {
+        final decoded = jsonDecode(r['exam_methods'] as String);
+        if (decoded is List) {
+          examMethods = decoded.map((e) => e.toString()).toList();
+        }
+      } else if (r['exam_methods'] is List) {
+        examMethods = (r['exam_methods'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    List<String> keyPoints = [];
+    if (r['key_points'] != null) {
+      if (r['key_points'] is String) {
+        final decoded = jsonDecode(r['key_points'] as String);
+        if (decoded is List) {
+          keyPoints = decoded.map((e) => e.toString()).toList();
+        }
+      } else if (r['key_points'] is List) {
+        keyPoints = (r['key_points'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    List<String> tags = [];
+    if (r['tags'] != null) {
+      if (r['tags'] is String) {
+        final decoded = jsonDecode(r['tags'] as String);
+        if (decoded is List) {
+          tags = decoded.map((e) => e.toString()).toList();
+        }
+      } else if (r['tags'] is List) {
+        tags = (r['tags'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    int createdAt = DateTime.now().millisecondsSinceEpoch;
+    if (r['created_at'] != null) {
+      if (r['created_at'] is int) {
+        createdAt = r['created_at'] as int;
+      } else {
+        createdAt = DateTime.tryParse(r['created_at'].toString())
+                ?.millisecondsSinceEpoch ??
+            createdAt;
+      }
+    }
+
+    int updatedAt = DateTime.now().millisecondsSinceEpoch;
+    if (r['updated_at'] != null) {
+      if (r['updated_at'] is int) {
+        updatedAt = r['updated_at'] as int;
+      } else {
+        updatedAt = DateTime.tryParse(r['updated_at'].toString())
+                ?.millisecondsSinceEpoch ??
+            updatedAt;
+      }
+    }
+
+    return WrongQuestion(
+      id: r['uuid']?.toString() ?? r['id'].toString(),
+      title: r['question_content']?.toString() ?? r['title']?.toString() ?? '',
+      content: r['question_content']?.toString() ?? '',
+      options: options,
+      correctAnswer: r['correct_answer']?.toString() ?? '',
+      userAnswer: r['my_answer']?.toString(),
+      analysis: r['analysis']?.toString() ?? '',
+      subject: r['subject']?.toString() ?? '其他',
+      errorType: r['error_type']?.toString() ?? '知识盲区',
+      errorCount: r['error_count'] is int ? r['error_count'] as int : int.tryParse(r['error_count']?.toString() ?? '') ?? 1,
+      isResolved: (r['is_mastered'] is int ? r['is_mastered'] as int : 0) == 1,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      examMethods: examMethods,
+      keyPoints: keyPoints,
+      tags: tags,
+    );
+  }
+
+  /// 将数据库行转换为 Note
+  Note _rowToNote(Map<String, dynamic> r) {
+    List<String> tags = [];
+    if (r['tags'] != null) {
+      if (r['tags'] is String) {
+        final decoded = jsonDecode(r['tags'] as String);
+        if (decoded is List) {
+          tags = decoded.map((e) => e.toString()).toList();
+        }
+      } else if (r['tags'] is List) {
+        tags = (r['tags'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    List<String> examMethods = [];
+    if (r['exam_methods'] != null) {
+      if (r['exam_methods'] is String) {
+        final decoded = jsonDecode(r['exam_methods'] as String);
+        if (decoded is List) {
+          examMethods = decoded.map((e) => e.toString()).toList();
+        }
+      } else if (r['exam_methods'] is List) {
+        examMethods = (r['exam_methods'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    List<String> keyPoints = [];
+    if (r['key_points'] != null) {
+      if (r['key_points'] is String) {
+        final decoded = jsonDecode(r['key_points'] as String);
+        if (decoded is List) {
+          keyPoints = decoded.map((e) => e.toString()).toList();
+        }
+      } else if (r['key_points'] is List) {
+        keyPoints = (r['key_points'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    int createdAt = DateTime.now().millisecondsSinceEpoch;
+    if (r['created_at'] != null) {
+      if (r['created_at'] is int) {
+        createdAt = r['created_at'] as int;
+      } else {
+        createdAt = DateTime.tryParse(r['created_at'].toString())
+                ?.millisecondsSinceEpoch ??
+            createdAt;
+      }
+    }
+
+    int updatedAt = DateTime.now().millisecondsSinceEpoch;
+    if (r['updated_at'] != null) {
+      if (r['updated_at'] is int) {
+        updatedAt = r['updated_at'] as int;
+      } else {
+        updatedAt = DateTime.tryParse(r['updated_at'].toString())
+                ?.millisecondsSinceEpoch ??
+            updatedAt;
+      }
+    }
+
+    return Note(
+      id: r['uuid']?.toString() ?? r['id'].toString(),
+      title: r['title']?.toString() ?? '',
+      content: r['content']?.toString() ?? '',
+      subject: r['subject']?.toString() ?? '其他',
+      tags: tags,
+      color: r['color']?.toString() ?? '#FFFFFF',
+      isFavorite: (r['is_favorite'] is int ? r['is_favorite'] as int : 0) == 1,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      examMethods: examMethods,
+      keyPoints: keyPoints,
+    );
+  }
+
+  /// 将数据库行转换为 MustRemember
+  MustRemember _rowToMustRemember(Map<String, dynamic> r) {
+    List<String> examMethods = [];
+    if (r['exam_methods'] != null) {
+      if (r['exam_methods'] is String) {
+        final decoded = jsonDecode(r['exam_methods'] as String);
+        if (decoded is List) {
+          examMethods = decoded.map((e) => e.toString()).toList();
+        }
+      } else if (r['exam_methods'] is List) {
+        examMethods = (r['exam_methods'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    List<String> keyPoints = [];
+    if (r['key_points'] != null) {
+      if (r['key_points'] is String) {
+        final decoded = jsonDecode(r['key_points'] as String);
+        if (decoded is List) {
+          keyPoints = decoded.map((e) => e.toString()).toList();
+        }
+      } else if (r['key_points'] is List) {
+        keyPoints = (r['key_points'] as List).map((e) => e.toString()).toList();
+      }
+    }
+
+    int createdAt = DateTime.now().millisecondsSinceEpoch;
+    if (r['created_at'] != null) {
+      if (r['created_at'] is int) {
+        createdAt = r['created_at'] as int;
+      } else {
+        createdAt = DateTime.tryParse(r['created_at'].toString())
+                ?.millisecondsSinceEpoch ??
+            createdAt;
+      }
+    }
+
+    int updatedAt = DateTime.now().millisecondsSinceEpoch;
+    if (r['updated_at'] != null) {
+      if (r['updated_at'] is int) {
+        updatedAt = r['updated_at'] as int;
+      } else {
+        updatedAt = DateTime.tryParse(r['updated_at'].toString())
+                ?.millisecondsSinceEpoch ??
+            updatedAt;
+      }
+    }
+
+    int? nextReviewTime;
+    if (r['next_review_time'] != null) {
+      if (r['next_review_time'] is int) {
+        nextReviewTime = r['next_review_time'] as int;
+      } else if (r['next_review_time'] is String) {
+        nextReviewTime = DateTime.tryParse(r['next_review_time'] as String)
+                ?.millisecondsSinceEpoch;
+      }
+    }
+
+    return MustRemember(
+      id: r['uuid']?.toString() ?? r['id'].toString(),
+      title: r['title']?.toString() ?? '',
+      content: r['content']?.toString() ?? '',
+      subject: r['subject']?.toString() ?? '其他',
+      category: r['category']?.toString() ?? '其他',
+      memoryLevel: r['memory_level'] is int ? r['memory_level'] as int : int.tryParse(r['memory_level']?.toString() ?? '') ?? 0,
+      nextReviewTime: nextReviewTime,
+      reviewInterval: r['review_interval'] is int ? r['review_interval'] as int : int.tryParse(r['review_interval']?.toString() ?? '') ?? 0,
+      reviewCount: r['review_count'] is int ? r['review_count'] as int : int.tryParse(r['review_count']?.toString() ?? '') ?? 0,
+      isMastered: (r['is_mastered'] is int ? r['is_mastered'] as int : 0) == 1,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      examMethods: examMethods,
+      keyPoints: keyPoints,
+    );
   }
 
   /// 生成全部内容的思维导图

@@ -709,13 +709,13 @@ class _FontFamilyPickerSheet extends StatelessWidget {
   String? _getFontFamilyName(AppFontFamily family) {
     switch (family) {
       case AppFontFamily.system:
-        return null;
+        return 'WQYMicroHei';
       case AppFontFamily.songti:
-        return 'Songti';
+        return 'WQYMicroHei';
       case AppFontFamily.heiti:
-        return 'Heiti';
+        return 'WQYMicroHei';
       case AppFontFamily.kaiti:
-        return 'Kaiti';
+        return 'WQYMicroHei';
     }
   }
 

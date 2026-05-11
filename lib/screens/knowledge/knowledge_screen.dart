@@ -986,6 +986,7 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
   late TextEditingController _titleController;
   late TextEditingController _contentController;
   late TextEditingController _tagController;
+  late TextEditingController _chapterController;
 
   String _selectedSubject = '数学';
   int _difficulty = 1;
@@ -1007,12 +1008,14 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
     _contentController = TextEditingController(
         text: widget.initialContent ?? '');
     _tagController = TextEditingController();
+    _chapterController = TextEditingController();
 
     if (widget.existingPoint != null) {
       _isEditing = true;
       final point = widget.existingPoint!;
       _titleController.text = point['title'] as String? ?? '';
       _contentController.text = point['content'] as String? ?? '';
+      _chapterController.text = point['chapter'] as String? ?? '';
       _selectedSubject = point['subject'] as String? ?? '数学';
       _difficulty = point['difficulty'] as int? ?? 1;
       _parseExistingTags(point['tags']);
@@ -1133,6 +1136,7 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
     _titleController.dispose();
     _contentController.dispose();
     _tagController.dispose();
+    _chapterController.dispose();
     super.dispose();
   }
 
@@ -1186,6 +1190,7 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
         'title': _titleController.text.trim(),
         'content': _contentController.text.trim(),
         'subject': _selectedSubject,
+        'chapter': _chapterController.text.trim().isEmpty ? null : _chapterController.text.trim(),
         'difficulty': _difficulty,
         'mastery_level': widget.existingPoint?['mastery_level'] ?? 0,
         'review_count': widget.existingPoint?['review_count'] ?? 0,
@@ -1400,6 +1405,15 @@ class _KnowledgeAddPageState extends State<KnowledgeAddPage> {
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 16),
+
+              // 章节输入
+              AppInput(
+                controller: _chapterController,
+                label: '章节',
+                hintText: '如：第三章 函数',
+                prefixIcon: Icons.book_outlined,
               ),
               const SizedBox(height: 16),
 

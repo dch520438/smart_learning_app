@@ -1324,6 +1324,8 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   final _analysisController = TextEditingController();
+  final _chapterController = TextEditingController();
+  final _examPointController = TextEditingController();
   List<String> _tags = [];
 
   // 选项控制器
@@ -1339,6 +1341,18 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
   int _selectedCorrectAnswer = 0; // 0=A, 1=B, 2=C, 3=D
   bool _isSaving = false;
   bool _isEditing = false; // 编辑模式标记
+
+  // 题目类型: single_choice, multi_choice, fill_blank, short_answer, true_false
+  String _questionType = 'single_choice';
+
+  // 多选题正确答案（多个）
+  List<String> _multiCorrectAnswers = ['A'];
+  // 判断题正确答案
+  String _trueFalseCorrectAnswer = '对';
+
+  // 填空题/简答题的答案控制器
+  final TextEditingController _fillCorrectAnswerController = TextEditingController();
+  final TextEditingController _shortCorrectAnswerController = TextEditingController();
 
   // OCR 和语音服务
   final OcrService _ocrService = OcrService();
@@ -1361,9 +1375,26 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
       _titleController.text = q['title'] as String? ?? '';
       _contentController.text = q['question_content'] as String? ?? '';
       _analysisController.text = q['analysis'] as String? ?? '';
+      _chapterController.text = q['chapter'] as String? ?? '';
       _tags = (q['tags'] as String? ?? '').split(',').where((t) => t.trim().isNotEmpty).toList();
       _selectedSubject = q['subject'] as String? ?? kSubjectNames.first;
       _selectedDifficulty = q['difficulty'] as int? ?? 1;
+
+      // 推断题目类型
+      final questionType = q['question_type'] as String?;
+      if (questionType != null && questionType.isNotEmpty) {
+        _questionType = questionType;
+      }
+      final correctAnswer = q['correct_answer'] as String?;
+      if (correctAnswer != null && correctAnswer.isNotEmpty) {
+        if (correctAnswer.contains(',') || correctAnswer.contains('、')) {
+          _questionType = 'multi_choice';
+          _multiCorrectAnswers = correctAnswer.split(RegExp(r'[,、]')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+        } else if (correctAnswer == '对' || correctAnswer == '错' || correctAnswer == '正确' || correctAnswer == '错误') {
+          _questionType = 'true_false';
+          _trueFalseCorrectAnswer = (correctAnswer == '对' || correctAnswer == '正确') ? '对' : '错';
+        }
+      }
       
       // 解析选项
       final options = q['options'];
@@ -1387,9 +1418,15 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
       }
       
       // 解析正确答案
-      final correctAnswer = q['correct_answer'] as String?;
-      if (correctAnswer != null && correctAnswer.isNotEmpty) {
+      if (correctAnswer != null && correctAnswer.isNotEmpty && _questionType == 'single_choice') {
         _selectedCorrectAnswer = correctAnswer.codeUnitAt(0) - 65; // A=0, B=1, etc.
+      }
+      
+      // 初始化填空题/简答题控制器
+      if (_questionType == 'fill_blank') {
+        _fillCorrectAnswerController.text = correctAnswer ?? '';
+      } else if (_questionType == 'short_answer') {
+        _shortCorrectAnswerController.text = correctAnswer ?? '';
       }
       
       // 解析附件
@@ -1539,27 +1576,49 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
       // 构建选项JSON
       final options = <Map<String, dynamic>>[];
       const labels = ['A', 'B', 'C', 'D'];
-      for (int i = 0; i < _optionControllers.length; i++) {
-        final text = _optionControllers[i].text.trim();
-        if (text.isNotEmpty) {
-          options.add({
-            'label': labels[i],
-            'text': text,
-            'isCorrect': i == _selectedCorrectAnswer,
-          });
+      if (_questionType == 'single_choice' || _questionType == 'multi_choice') {
+        for (int i = 0; i < _optionControllers.length; i++) {
+          final text = _optionControllers[i].text.trim();
+          if (text.isNotEmpty) {
+            options.add({
+              'label': labels[i],
+              'text': text,
+              'isCorrect': _questionType == 'single_choice' ? i == _selectedCorrectAnswer : _multiCorrectAnswers.contains(labels[i]),
+            });
+          }
         }
+      }
+
+      // 根据题目类型确定正确答案
+      String correctAnswer;
+      switch (_questionType) {
+        case 'multi_choice':
+          correctAnswer = _multiCorrectAnswers.join(',');
+          break;
+        case 'true_false':
+          correctAnswer = _trueFalseCorrectAnswer;
+          break;
+        case 'fill_blank':
+          correctAnswer = _fillCorrectAnswerController.text.trim();
+          break;
+        case 'short_answer':
+          correctAnswer = _shortCorrectAnswerController.text.trim();
+          break;
+        default:
+          correctAnswer = options.isNotEmpty
+              ? labels[_selectedCorrectAnswer]
+              : '';
       }
 
       final data = {
         'title': _titleController.text.trim(),
         'question_content': _contentController.text.trim(),
-        'question_type': options.isNotEmpty ? 'singleChoice' : 'shortAnswer',
+        'question_type': _questionType,
         'options': options.isNotEmpty ? jsonEncode(options) : null,
-        'correct_answer': options.isNotEmpty
-            ? labels[_selectedCorrectAnswer]
-            : '',
+        'correct_answer': correctAnswer,
         'analysis': _analysisController.text.trim(),
         'subject': _selectedSubject,
+        'chapter': _chapterController.text.trim().isEmpty ? null : _chapterController.text.trim(),
         'category': '',
         'tags': _tags.isNotEmpty ? _tags.join(',') : null,
         'difficulty': _selectedDifficulty,
@@ -1690,6 +1749,29 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
               ),
               const SizedBox(height: 16),
 
+              // 题目类型选择
+              Text(
+                '题目类型',
+                style: TextStyle(
+                  fontSize: AppFontSize.md,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _buildQuestionTypeChip('单选题', 'single_choice', Icons.radio_button_checked),
+                  _buildQuestionTypeChip('多选题', 'multi_choice', Icons.check_box_outlined),
+                  _buildQuestionTypeChip('填空题', 'fill_blank', Icons.text_fields),
+                  _buildQuestionTypeChip('简答题', 'short_answer', Icons.article_outlined),
+                  _buildQuestionTypeChip('判断题', 'true_false', Icons.done_all),
+                ],
+              ),
+              const SizedBox(height: 16),
+
               // 题目内容
               Row(
                 children: [
@@ -1813,70 +1895,8 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
               ],
               const SizedBox(height: 16),
 
-              // 选项输入
-              Text(
-                '选项',
-                style: TextStyle(
-                  fontSize: AppFontSize.md,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 8),
-              ...List.generate(4, (index) {
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Row(
-                    children: [
-                      // 正确答案选择
-                      GestureDetector(
-                        onTap: () => setState(
-                            () => _selectedCorrectAnswer = index),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: _selectedCorrectAnswer == index
-                                ? AppColors.success.withOpacity(0.15)
-                                : AppColors.divider.withOpacity(0.5),
-                            shape: BoxShape.circle,
-                            border: _selectedCorrectAnswer == index
-                                ? Border.all(color: AppColors.success, width: 2)
-                                : null,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            labels[index],
-                            style: TextStyle(
-                              fontSize: AppFontSize.sm,
-                              fontWeight: FontWeight.w700,
-                              color: _selectedCorrectAnswer == index
-                                  ? AppColors.success
-                                  : AppColors.textSecondary,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      // 选项输入
-                      Expanded(
-                        child: AppInput(
-                          hintText: '选项 ${labels[index]}',
-                          controller: _optionControllers[index],
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-              Text(
-                '点击字母标记正确答案',
-                style: TextStyle(
-                  fontSize: AppFontSize.xs,
-                  color: AppColors.textHint,
-                ),
-              ),
-              const SizedBox(height: 16),
+              // 根据题目类型显示不同的表单
+              ..._buildQuestionTypeForm(),
 
               // 解析
               AppInput(
@@ -1885,6 +1905,22 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
                 controller: _analysisController,
                 multiline: true,
                 maxLines: 4,
+              ),
+              const SizedBox(height: 16),
+
+              // 章节
+              AppInput(
+                label: '章节（选填）',
+                hintText: '如：第三章 函数',
+                controller: _chapterController,
+              ),
+              const SizedBox(height: 16),
+
+              // 考点
+              AppInput(
+                label: '考点（选填）',
+                hintText: '如：函数的单调性',
+                controller: _examPointController,
               ),
               const SizedBox(height: 16),
 
@@ -1914,6 +1950,244 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildQuestionTypeChip(String label, String type, IconData icon) {
+    final selected = _questionType == type;
+    final color = selected ? AppColors.primary : AppColors.textSecondary;
+    return GestureDetector(
+      onTap: () => setState(() => _questionType = type),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary.withOpacity(0.1) : null,
+          borderRadius: BorderRadius.circular(AppRadius.xl),
+          border: Border.all(
+            color: selected ? AppColors.primary : AppColors.divider,
+            width: selected ? 1.5 : 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: AppFontSize.sm,
+                color: color,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildQuestionTypeForm() {
+    final theme = Theme.of(context);
+    switch (_questionType) {
+      case 'single_choice':
+        return _buildChoiceQuestionForm(theme, isMulti: false);
+      case 'multi_choice':
+        return _buildChoiceQuestionForm(theme, isMulti: true);
+      case 'fill_blank':
+        return _buildFillBlankForm(theme);
+      case 'short_answer':
+        return _buildShortAnswerForm(theme);
+      case 'true_false':
+        return _buildTrueFalseForm(theme);
+      default:
+        return [];
+    }
+  }
+
+  List<Widget> _buildChoiceQuestionForm(ThemeData theme, {required bool isMulti}) {
+    final widgets = <Widget>[];
+    const labels = ['A', 'B', 'C', 'D'];
+
+    // 选项输入
+    widgets.add(Text(
+      '选项',
+      style: TextStyle(
+        fontSize: AppFontSize.md,
+        fontWeight: FontWeight.w600,
+        color: AppColors.textPrimary,
+      ),
+    ));
+    widgets.add(const SizedBox(height: 8));
+    for (int index = 0; index < 4; index++) {
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                labels[index],
+                style: TextStyle(
+                  fontSize: AppFontSize.sm,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: AppInput(
+                hintText: '选项${labels[index]}内容...',
+                controller: _optionControllers[index],
+              ),
+            ),
+          ],
+        ),
+      ));
+    }
+    widgets.add(const SizedBox(height: 16));
+
+    // 正确答案
+    widgets.add(Text(
+      '正确答案',
+      style: TextStyle(
+        fontSize: AppFontSize.md,
+        fontWeight: FontWeight.w600,
+        color: AppColors.textPrimary,
+      ),
+    ));
+    widgets.add(const SizedBox(height: 8));
+    if (isMulti) {
+      widgets.add(Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: labels.map((label) {
+          final selected = _multiCorrectAnswers.contains(label);
+          return FilterChip(
+            label: Text(label),
+            selected: selected,
+            onSelected: (selected) {
+              setState(() {
+                if (selected) {
+                  if (!_multiCorrectAnswers.contains(label)) {
+                    _multiCorrectAnswers.add(label);
+                    _multiCorrectAnswers.sort();
+                  }
+                } else {
+                  _multiCorrectAnswers.remove(label);
+                }
+              });
+            },
+            selectedColor: AppColors.success.withOpacity(0.2),
+            checkmarkColor: AppColors.success,
+            labelStyle: TextStyle(
+              color: selected ? AppColors.success : null,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+            ),
+          );
+        }).toList(),
+      ));
+    } else {
+      widgets.add(Wrap(
+        spacing: 8,
+        children: labels.map((label) {
+          final index = labels.indexOf(label);
+          final selected = _selectedCorrectAnswer == index;
+          return ChoiceChip(
+            label: Text(label),
+            selected: selected,
+            onSelected: (_) => setState(() => _selectedCorrectAnswer = index),
+            selectedColor: AppColors.success.withOpacity(0.2),
+            labelStyle: TextStyle(
+              color: selected ? AppColors.success : null,
+              fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+            ),
+          );
+        }).toList(),
+      ));
+    }
+    widgets.add(const SizedBox(height: 16));
+
+    return widgets;
+  }
+
+  List<Widget> _buildFillBlankForm(ThemeData theme) {
+    return [
+      Text(
+        '正确答案',
+        style: TextStyle(
+          fontSize: AppFontSize.md,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+      ),
+      const SizedBox(height: 8),
+      AppInput(
+        hintText: '请输入正确答案...',
+        controller: _fillCorrectAnswerController,
+      ),
+      const SizedBox(height: 16),
+    ];
+  }
+
+  List<Widget> _buildShortAnswerForm(ThemeData theme) {
+    return [
+      Text(
+        '正确答案',
+        style: TextStyle(
+          fontSize: AppFontSize.md,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+      ),
+      const SizedBox(height: 8),
+      AppInput(
+        hintText: '请输入正确答案要点...',
+        controller: _shortCorrectAnswerController,
+        multiline: true,
+        maxLines: 4,
+      ),
+      const SizedBox(height: 16),
+    ];
+  }
+
+  List<Widget> _buildTrueFalseForm(ThemeData theme) {
+    return [
+      Text(
+        '正确答案',
+        style: TextStyle(
+          fontSize: AppFontSize.md,
+          fontWeight: FontWeight.w600,
+          color: AppColors.textPrimary,
+        ),
+      ),
+      const SizedBox(height: 8),
+      Row(
+        children: ['对', '错'].map((label) {
+          final selected = _trueFalseCorrectAnswer == label;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: ChoiceChip(
+              label: Text(label),
+              selected: selected,
+              onSelected: (_) => setState(() => _trueFalseCorrectAnswer = label),
+              selectedColor: AppColors.success.withOpacity(0.2),
+              labelStyle: TextStyle(
+                color: selected ? AppColors.success : null,
+                fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+      const SizedBox(height: 16),
+    ];
   }
 
   Widget _buildTagsInput() {

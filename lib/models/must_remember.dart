@@ -7,6 +7,7 @@ class MustRemember {
   final String title;
   final String content;
   final String subject;
+  final String? chapter;
   final String category; // 如公式/单词/概念等
   final int memoryLevel; // 记忆程度 0-100
   final int? nextReviewTime; // 时间戳
@@ -23,6 +24,7 @@ class MustRemember {
     required this.title,
     required this.content,
     required this.subject,
+    this.chapter,
     required this.category,
     this.memoryLevel = 0,
     this.nextReviewTime,
@@ -46,6 +48,7 @@ class MustRemember {
       title: json['title'] as String,
       content: json['content'] as String,
       subject: json['subject'] as String,
+      chapter: json['chapter'] as String?,
       category: json['category'] as String,
       memoryLevel: json['memoryLevel'] as int? ?? 0,
       nextReviewTime: json['nextReviewTime'] as int?,
@@ -72,6 +75,7 @@ class MustRemember {
       'title': title,
       'content': content,
       'subject': subject,
+      'chapter': chapter,
       'category': category,
       'memoryLevel': memoryLevel,
       'nextReviewTime': nextReviewTime,
@@ -91,6 +95,7 @@ class MustRemember {
     String? title,
     String? content,
     String? subject,
+    String? chapter,
     String? category,
     int? memoryLevel,
     int? nextReviewTime,
@@ -107,6 +112,7 @@ class MustRemember {
       title: title ?? this.title,
       content: content ?? this.content,
       subject: subject ?? this.subject,
+      chapter: chapter ?? this.chapter,
       category: category ?? this.category,
       memoryLevel: memoryLevel ?? this.memoryLevel,
       nextReviewTime: nextReviewTime ?? this.nextReviewTime,
@@ -123,7 +129,7 @@ class MustRemember {
   @override
   String toString() {
     return 'MustRemember(id: $id, title: $title, subject: $subject, '
-        'category: $category, memoryLevel: $memoryLevel, '
+        'chapter: $chapter, category: $category, memoryLevel: $memoryLevel, '
         'reviewCount: $reviewCount, isMastered: $isMastered, '
         'examMethods: $examMethods, keyPoints: $keyPoints)';
   }

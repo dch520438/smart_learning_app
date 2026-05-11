@@ -7,6 +7,7 @@ class KnowledgePoint {
   final String title;
   final String content;
   final String subject;
+  final String? chapter;
   final List<String> tags;
   final String? categoryId;
   final int difficulty; // 1-5
@@ -25,6 +26,7 @@ class KnowledgePoint {
     required this.title,
     required this.content,
     required this.subject,
+    this.chapter,
     List<String>? tags,
     this.categoryId,
     this.difficulty = 1,
@@ -52,6 +54,7 @@ class KnowledgePoint {
       title: json['title'] as String,
       content: json['content'] as String,
       subject: json['subject'] as String,
+      chapter: json['chapter'] as String?,
       tags: (json['tags'] as List<dynamic>).cast<String>(),
       categoryId: json['categoryId'] as String?,
       difficulty: json['difficulty'] as int? ?? 1,
@@ -83,6 +86,7 @@ class KnowledgePoint {
       'title': title,
       'content': content,
       'subject': subject,
+      'chapter': chapter,
       'tags': tags,
       'categoryId': categoryId,
       'difficulty': difficulty,
@@ -104,6 +108,7 @@ class KnowledgePoint {
     String? title,
     String? content,
     String? subject,
+    String? chapter,
     List<String>? tags,
     String? categoryId,
     int? difficulty,
@@ -122,6 +127,7 @@ class KnowledgePoint {
       title: title ?? this.title,
       content: content ?? this.content,
       subject: subject ?? this.subject,
+      chapter: chapter ?? this.chapter,
       tags: tags ?? this.tags,
       categoryId: categoryId ?? this.categoryId,
       difficulty: difficulty ?? this.difficulty,
@@ -140,7 +146,7 @@ class KnowledgePoint {
   @override
   String toString() {
     return 'KnowledgePoint(id: $id, title: $title, subject: $subject, '
-        'difficulty: $difficulty, masteryLevel: $masteryLevel, '
+        'chapter: $chapter, difficulty: $difficulty, masteryLevel: $masteryLevel, '
         'reviewCount: $reviewCount, isFavorite: $isFavorite, '
         'tags: $tags, categoryId: $categoryId, '
         'examMethods: $examMethods, keyPoints: $keyPoints)';

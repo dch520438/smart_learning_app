@@ -724,14 +724,16 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('拍照'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickFromCamera();
-              },
-            ),
+            // Linux平台不支持相机功能，只显示相册选项
+            if (!Platform.isLinux)
+              ListTile(
+                leading: const Icon(Icons.camera_alt),
+                title: const Text('拍照'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _pickFromCamera();
+                },
+              ),
             ListTile(
               leading: const Icon(Icons.photo_library),
               title: const Text('从相册选择'),
@@ -756,6 +758,13 @@ class _ExamPaperAddScreenState extends State<_ExamPaperAddScreen> {
 
   /// 从相机拍照
   Future<void> _pickFromCamera() async {
+    // Linux平台不支持相机功能
+    if (Platform.isLinux) {
+      if (mounted) {
+        showSnackBar(context, 'Linux平台暂不支持拍照功能，请使用相册选择', isError: true);
+      }
+      return;
+    }
     try {
       final picker = ImagePicker();
       final image = await picker.pickImage(

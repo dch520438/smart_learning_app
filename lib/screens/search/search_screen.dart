@@ -110,18 +110,18 @@ class _SearchScreenState extends State<SearchScreen>
       // 1. 搜索知识点
       final knowledgeRows = await _db.queryAllKnowledgePoints();
       for (final row in knowledgeRows) {
-        final title = (row['title'] as String? ?? '').toLowerCase();
-        final content = (row['content'] as String? ?? '').toLowerCase();
+        final title = (row['title']?.toString() ?? '').toLowerCase();
+        final content = (row['content']?.toString() ?? '').toLowerCase();
         if (title.contains(keyword) || content.contains(keyword)) {
           results.add(SearchResult(
-            id: row['id'].toString(),
-            title: row['title'] as String? ?? '未命名知识点',
-            summary: _extractSummary(row['content'] as String? ?? ''),
-            subject: row['subject'] as String? ?? '未分类',
+            id: row['uuid']?.toString() ?? row['id'].toString(),
+            title: row['title']?.toString() ?? '未命名知识点',
+            summary: _extractSummary(row['content']?.toString() ?? ''),
+            subject: row['subject']?.toString() ?? '未分类',
             type: SearchResultType.knowledge,
             rawData: row,
             updatedAt: row['updated_at'] != null
-                ? DateTime.tryParse(row['updated_at'] as String)
+                ? DateTime.tryParse(row['updated_at'].toString())
                 : null,
           ));
         }
@@ -130,18 +130,18 @@ class _SearchScreenState extends State<SearchScreen>
       // 2. 搜索笔记
       final noteRows = await _db.queryAllNotes();
       for (final row in noteRows) {
-        final title = (row['title'] as String? ?? '').toLowerCase();
-        final content = (row['content'] as String? ?? '').toLowerCase();
+        final title = (row['title']?.toString() ?? '').toLowerCase();
+        final content = (row['content']?.toString() ?? '').toLowerCase();
         if (title.contains(keyword) || content.contains(keyword)) {
           results.add(SearchResult(
-            id: row['uuid'] as String? ?? row['id'].toString(),
-            title: row['title'] as String? ?? '未命名笔记',
-            summary: _extractSummary(row['content'] as String? ?? ''),
-            subject: row['subject'] as String? ?? '未分类',
+            id: row['uuid']?.toString() ?? row['id'].toString(),
+            title: row['title']?.toString() ?? '未命名笔记',
+            summary: _extractSummary(row['content']?.toString() ?? ''),
+            subject: row['subject']?.toString() ?? '未分类',
             type: SearchResultType.note,
             rawData: row,
             updatedAt: row['updated_at'] != null
-                ? DateTime.tryParse(row['updated_at'] as String)
+                ? DateTime.tryParse(row['updated_at'].toString())
                 : null,
           ));
         }
@@ -150,18 +150,18 @@ class _SearchScreenState extends State<SearchScreen>
       // 3. 搜索错题
       final wrongQuestionRows = await _db.queryAllWrongQuestions();
       for (final row in wrongQuestionRows) {
-        final content = (row['question_content'] as String? ?? '').toLowerCase();
-        final analysis = (row['analysis'] as String? ?? '').toLowerCase();
+        final content = (row['question_content']?.toString() ?? '').toLowerCase();
+        final analysis = (row['analysis']?.toString() ?? '').toLowerCase();
         if (content.contains(keyword) || analysis.contains(keyword)) {
           results.add(SearchResult(
-            id: row['uuid'] as String? ?? row['id'].toString(),
-            title: row['question_content'] as String? ?? '未命名错题',
-            summary: _extractSummary(row['analysis'] as String? ?? ''),
-            subject: row['subject'] as String? ?? '未分类',
+            id: row['uuid']?.toString() ?? row['id'].toString(),
+            title: row['question_content']?.toString() ?? '未命名错题',
+            summary: _extractSummary(row['analysis']?.toString() ?? ''),
+            subject: row['subject']?.toString() ?? '未分类',
             type: SearchResultType.wrongQuestion,
             rawData: row,
             updatedAt: row['updated_at'] != null
-                ? DateTime.tryParse(row['updated_at'] as String)
+                ? DateTime.tryParse(row['updated_at'].toString())
                 : null,
           ));
         }
@@ -170,19 +170,19 @@ class _SearchScreenState extends State<SearchScreen>
       // 4. 搜索母题
       final motherQuestionRows = await _db.queryAllMotherQuestions();
       for (final row in motherQuestionRows) {
-        final title = (row['title'] as String? ?? '').toLowerCase();
-        final content = (row['question_content'] as String? ?? '').toLowerCase();
-        final tags = (row['tags'] as String? ?? '').toLowerCase();
+        final title = (row['title']?.toString() ?? '').toLowerCase();
+        final content = (row['question_content']?.toString() ?? '').toLowerCase();
+        final tags = (row['tags']?.toString() ?? '').toLowerCase();
         if (title.contains(keyword) || content.contains(keyword) || tags.contains(keyword)) {
           results.add(SearchResult(
-            id: row['id'].toString(),
-            title: row['title'] as String? ?? '未命名母题',
-            summary: _extractSummary(row['question_content'] as String? ?? ''),
-            subject: row['subject'] as String? ?? '未分类',
+            id: row['uuid']?.toString() ?? row['id'].toString(),
+            title: row['title']?.toString() ?? '未命名母题',
+            summary: _extractSummary(row['question_content']?.toString() ?? ''),
+            subject: row['subject']?.toString() ?? '未分类',
             type: SearchResultType.motherQuestion,
             rawData: row,
             updatedAt: row['updated_at'] != null
-                ? DateTime.tryParse(row['updated_at'] as String)
+                ? DateTime.tryParse(row['updated_at'].toString())
                 : null,
           ));
         }
@@ -191,18 +191,18 @@ class _SearchScreenState extends State<SearchScreen>
       // 5. 搜索必记必背
       final mustRememberRows = await _db.queryAllMustRemembers();
       for (final row in mustRememberRows) {
-        final title = (row['title'] as String? ?? '').toLowerCase();
-        final content = (row['content'] as String? ?? '').toLowerCase();
+        final title = (row['title']?.toString() ?? '').toLowerCase();
+        final content = (row['content']?.toString() ?? '').toLowerCase();
         if (title.contains(keyword) || content.contains(keyword)) {
           results.add(SearchResult(
-            id: row['uuid'] as String? ?? row['id'].toString(),
-            title: row['title'] as String? ?? '未命名内容',
-            summary: _extractSummary(row['content'] as String? ?? ''),
-            subject: row['subject'] as String? ?? '未分类',
+            id: row['uuid']?.toString() ?? row['id'].toString(),
+            title: row['title']?.toString() ?? '未命名内容',
+            summary: _extractSummary(row['content']?.toString() ?? ''),
+            subject: row['subject']?.toString() ?? '未分类',
             type: SearchResultType.mustRemember,
             rawData: row,
             updatedAt: row['updated_at'] != null
-                ? DateTime.tryParse(row['updated_at'] as String)
+                ? DateTime.tryParse(row['updated_at'].toString())
                 : null,
           ));
         }
@@ -339,16 +339,16 @@ class _SearchScreenState extends State<SearchScreen>
           builder: (context) => KnowledgeDetailPage(
             knowledgeId: result.id,
             title: result.title,
-            subject: row['subject'] as String?,
-            difficulty: row['difficulty'] as int?,
-            mastery: row['mastery_level'] as int?,
-            content: row['content'] as String?,
-            summary: row['content'] as String?,
+            subject: row['subject']?.toString(),
+            difficulty: row['difficulty'] is int ? row['difficulty'] as int : int.tryParse(row['difficulty']?.toString() ?? '') ,
+            mastery: row['mastery_level'] is int ? row['mastery_level'] as int : int.tryParse(row['mastery_level']?.toString() ?? ''),
+            content: row['content']?.toString(),
+            summary: row['content']?.toString(),
             createdAt: row['created_at'] != null
-                ? DateTime.tryParse(row['created_at'] as String)
+                ? DateTime.tryParse(row['created_at'].toString())
                 : null,
             updatedAt: row['updated_at'] != null
-                ? DateTime.tryParse(row['updated_at'] as String)
+                ? DateTime.tryParse(row['updated_at'].toString())
                 : null,
             onEdit: () async {
               Navigator.pop(context);
@@ -364,8 +364,8 @@ class _SearchScreenState extends State<SearchScreen>
               }
             },
             onDelete: () async {
-              final dbId = row['id'] as int?;
-              if (dbId != null) {
+              final dbId = row['id'];
+              if (dbId is int) {
                 await db.deleteKnowledgePoint(dbId);
                 Navigator.pop(context);
                 _performSearch(_searchController.text);
@@ -444,7 +444,7 @@ class _SearchScreenState extends State<SearchScreen>
     List<Map<String, dynamic>> options = [];
     if (r['options'] != null) {
       if (r['options'] is String) {
-        options = (jsonDecode(r['options']) as List)
+        options = (jsonDecode(r['options'] as String) as List)
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
       } else if (r['options'] is List) {
@@ -456,7 +456,7 @@ class _SearchScreenState extends State<SearchScreen>
     List<Map<String, dynamic>> attachments = [];
     if (r['attachment_paths'] != null) {
       if (r['attachment_paths'] is String) {
-        final decoded = jsonDecode(r['attachment_paths']);
+        final decoded = jsonDecode(r['attachment_paths'] as String);
         if (decoded is List) {
           attachments = decoded
               .map((e) => {'path': e.toString()})
@@ -469,30 +469,30 @@ class _SearchScreenState extends State<SearchScreen>
       }
     }
     return WrongQuestion(
-      id: r['uuid'] as String? ?? r['id'].toString(),
-      title: r['question_content'] as String? ?? '',
-      content: r['question_content'] as String? ?? '',
+      id: r['uuid']?.toString() ?? r['id'].toString(),
+      title: r['question_content']?.toString() ?? r['title']?.toString() ?? '',
+      content: r['question_content']?.toString() ?? '',
       options: options,
-      correctAnswer: r['correct_answer'] as String? ?? '',
-      userAnswer: r['my_answer'] as String?,
-      analysis: r['analysis'] as String? ?? '',
-      subject: r['subject'] as String? ?? '其他',
+      correctAnswer: r['correct_answer']?.toString() ?? '',
+      userAnswer: r['my_answer']?.toString(),
+      analysis: r['analysis']?.toString() ?? '',
+      subject: r['subject']?.toString() ?? '其他',
       chapter: null,
       errorType: _mapErrorType(r),
-      errorCount: r['error_count'] as int? ?? 1,
-      isResolved: (r['is_mastered'] as int?) == 1,
+      errorCount: r['error_count'] is int ? r['error_count'] as int : int.tryParse(r['error_count']?.toString() ?? '') ?? 1,
+      isResolved: (r['is_mastered'] is int ? r['is_mastered'] as int : 0) == 1,
       createdAt: r['created_at'] != null
-          ? DateTime.tryParse(r['created_at'] as String)
+          ? DateTime.tryParse(r['created_at'].toString())
                   ?.millisecondsSinceEpoch ??
               DateTime.now().millisecondsSinceEpoch
           : DateTime.now().millisecondsSinceEpoch,
       updatedAt: r['updated_at'] != null
-          ? DateTime.tryParse(r['updated_at'] as String)
+          ? DateTime.tryParse(r['updated_at'].toString())
                   ?.millisecondsSinceEpoch ??
               DateTime.now().millisecondsSinceEpoch
           : DateTime.now().millisecondsSinceEpoch,
       attachments: attachments,
-      tags: (r['tags'] as String? ?? '').split(',').where((t) => t.trim().isNotEmpty).toList(),
+      tags: (r['tags']?.toString() ?? '').split(',').where((t) => t.trim().isNotEmpty).toList(),
     );
   }
   
@@ -575,23 +575,23 @@ class _SearchScreenState extends State<SearchScreen>
     }
 
     return MustRemember(
-      id: r['uuid'] as String? ?? r['id'].toString(),
-      title: r['title'] as String? ?? '',
-      content: r['content'] as String? ?? '',
-      subject: r['subject'] as String? ?? '其他',
-      category: r['category'] as String? ?? '其他',
-      memoryLevel: r['memory_level'] as int? ?? 0,
+      id: r['uuid']?.toString() ?? r['id'].toString(),
+      title: r['title']?.toString() ?? '',
+      content: r['content']?.toString() ?? '',
+      subject: r['subject']?.toString() ?? '其他',
+      category: r['category']?.toString() ?? '其他',
+      memoryLevel: r['memory_level'] is int ? r['memory_level'] as int : int.tryParse(r['memory_level']?.toString() ?? '') ?? 0,
       nextReviewTime: nextReviewTime,
       reviewInterval: reviewInterval,
-      reviewCount: r['review_count'] as int? ?? 0,
-      isMastered: (r['is_mastered'] as int?) == 1,
+      reviewCount: r['review_count'] is int ? r['review_count'] as int : int.tryParse(r['review_count']?.toString() ?? '') ?? 0,
+      isMastered: (r['is_mastered'] is int ? r['is_mastered'] as int : 0) == 1,
       createdAt: r['created_at'] != null
-          ? DateTime.tryParse(r['created_at'] as String)
+          ? DateTime.tryParse(r['created_at'].toString())
                   ?.millisecondsSinceEpoch ??
               DateTime.now().millisecondsSinceEpoch
           : DateTime.now().millisecondsSinceEpoch,
       updatedAt: r['updated_at'] != null
-          ? DateTime.tryParse(r['updated_at'] as String)
+          ? DateTime.tryParse(r['updated_at'].toString())
                   ?.millisecondsSinceEpoch ??
               DateTime.now().millisecondsSinceEpoch
           : DateTime.now().millisecondsSinceEpoch,
@@ -600,28 +600,62 @@ class _SearchScreenState extends State<SearchScreen>
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final counts = _getTypeCounts();
-    final currentResults = _getCurrentResults();
+    try {
+      final theme = Theme.of(context);
+      final counts = _getTypeCounts();
+      final currentResults = _getCurrentResults();
 
-    return Scaffold(
-      body: SafeArea(
-        child: Column(
-          children: [
-            // 搜索栏
-            _buildSearchBar(theme),
+      return Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              // 搜索栏
+              _buildSearchBar(theme),
 
-            // Tab栏
-            if (_searchQuery.isNotEmpty) _buildTabBar(theme, counts),
+              // Tab栏
+              if (_searchQuery.isNotEmpty) _buildTabBar(theme, counts),
 
-            // 搜索结果
-            Expanded(
-              child: _buildResultContent(currentResults),
-            ),
-          ],
+              // 搜索结果
+              Expanded(
+                child: _buildResultContent(currentResults),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    } catch (e, stack) {
+      debugPrint('SearchScreen build error: $e\n$stack');
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 48, color: Colors.red),
+                const SizedBox(height: 16),
+                Text('页面加载出错', style: TextStyle(
+                  fontSize: AppFontSize.lg,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary,
+                )),
+                const SizedBox(height: 8),
+                Text('$e', style: TextStyle(
+                  fontSize: AppFontSize.sm,
+                  color: AppColors.textSecondary,
+                ), textAlign: TextAlign.center),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {});
+                  },
+                  child: const Text('重试'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
   }
 
   Widget _buildSearchBar(ThemeData theme) {
