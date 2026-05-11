@@ -1037,6 +1037,25 @@ class SpecialSymbolInput extends StatefulWidget {
 
   @override
   State<SpecialSymbolInput> createState() => _SpecialSymbolInputState();
+
+  /// 显示特殊符号输入面板（底部弹出）
+  static Future<void> showBottomSheet({
+    required BuildContext context,
+    TextEditingController? controller,
+    ValueChanged<String>? onSymbolTap,
+    bool showSuperscriptSubscript = true,
+  }) {
+    return showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => SpecialSymbolInput(
+        controller: controller,
+        onSymbolTap: onSymbolTap,
+        showSuperscriptSubscript: showSuperscriptSubscript,
+      ),
+    );
+  }
 }
 
 class _SpecialSymbolInputState extends State<SpecialSymbolInput>
@@ -1197,25 +1216,6 @@ class _SpecialSymbolInputState extends State<SpecialSymbolInput>
           ),
         );
       },
-    );
-  }
-
-  /// 显示特殊符号输入面板（底部弹出）
-  static Future<void> showBottomSheet({
-    required BuildContext context,
-    TextEditingController? controller,
-    ValueChanged<String>? onSymbolTap,
-    bool showSuperscriptSubscript = true,
-  }) {
-    return showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => SpecialSymbolInput(
-        controller: controller,
-        onSymbolTap: onSymbolTap,
-        showSuperscriptSubscript: showSuperscriptSubscript,
-      ),
     );
   }
 }

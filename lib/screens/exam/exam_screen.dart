@@ -1814,11 +1814,11 @@ class _PracticeTabState extends State<_PracticeTab> {
     required Random random,
   }) {
     String type;
-    if (_selectedTypeFilter == _QuestionTypeFilter.all) {
+    if (_selectedTypeFilters.isEmpty) {
       final types = ['singleChoice', 'trueFalse', 'fillBlank', 'multipleChoice', 'shortAnswer'];
       type = types[random.nextInt(types.length)];
     } else {
-      type = _selectedTypeFilter.name;
+      type = _selectedTypeFilters.first.name;
     }
 
     String correctAnswer;
@@ -2363,7 +2363,7 @@ class _PracticeTabState extends State<_PracticeTab> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          '${_selectedSubject} - ${_selectedTypeFilter.label}',
+          '${_selectedSubject} - ${_selectedTypeFilters.isNotEmpty ? _selectedTypeFilters.map((f) => f.label).join(',') : '全部题型'}',
           style: TextStyle(fontSize: AppFontSize.md),
         ),
         leading: IconButton(
