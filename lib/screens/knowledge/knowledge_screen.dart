@@ -15,6 +15,7 @@ import '../../widgets/input_method_selector.dart';
 import '../../widgets/symbol_picker.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
+import '../exam/exam_screen.dart';
 
 // ============================================================
 // KnowledgeScreen - 知识点积累页面
