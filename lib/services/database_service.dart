@@ -2033,6 +2033,128 @@ class DatabaseService {
     );
   }
 
+  /// 按科目和日期范围查询学习记录
+  Future<List<Map<String, dynamic>>> queryStudyRecordsBySubjectAndDateRange(
+    String subject,
+    String startDate,
+    String endDate,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableStudyRecords,
+      where: 'subject = ? AND created_at >= ? AND created_at <= ?',
+      whereArgs: [subject, startDate, endDate],
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// 按日期范围查询错题
+  Future<List<Map<String, dynamic>>> queryWrongQuestionsByDateRange(
+    String startDate,
+    String endDate,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableWrongQuestions,
+      where: 'created_at >= ? AND created_at <= ?',
+      whereArgs: [startDate, endDate],
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// 按科目和日期范围查询错题
+  Future<List<Map<String, dynamic>>> queryWrongQuestionsBySubjectAndDateRange(
+    String subject,
+    String startDate,
+    String endDate,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableWrongQuestions,
+      where: 'subject = ? AND created_at >= ? AND created_at <= ?',
+      whereArgs: [subject, startDate, endDate],
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// 按日期范围查询考试结果
+  Future<List<Map<String, dynamic>>> queryExamResultsByDateRange(
+    String startDate,
+    String endDate,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableExamResults,
+      where: 'created_at >= ? AND created_at <= ?',
+      whereArgs: [startDate, endDate],
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// 按科目和日期范围查询考试结果
+  Future<List<Map<String, dynamic>>> queryExamResultsBySubjectAndDateRange(
+    String subject,
+    String startDate,
+    String endDate,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableExamResults,
+      where: 'subject = ? AND created_at >= ? AND created_at <= ?',
+      whereArgs: [subject, startDate, endDate],
+      orderBy: 'created_at DESC',
+    );
+  }
+
+  /// 按日期范围查询试卷
+  Future<List<Map<String, dynamic>>> queryExamPapersByTextDateRange(
+    String startDate,
+    String endDate,
+  ) async {
+    final db = await database;
+    // exam_papers 的 created_at 是 INTEGER 类型（毫秒时间戳）
+    final startMs = DateTime.parse(startDate).millisecondsSinceEpoch;
+    final endMs = DateTime.parse(endDate).millisecondsSinceEpoch;
+    return await db.query(
+      tableExamPapers,
+      where: 'created_at >= ? AND created_at <= ?',
+      whereArgs: [startMs, endMs],
+      orderBy: 'exam_date DESC',
+    );
+  }
+
+  /// 按科目和日期范围查询试卷
+  Future<List<Map<String, dynamic>>> queryExamPapersBySubjectAndDateRange(
+    String subject,
+    String startDate,
+    String endDate,
+  ) async {
+    final db = await database;
+    final startMs = DateTime.parse(startDate).millisecondsSinceEpoch;
+    final endMs = DateTime.parse(endDate).millisecondsSinceEpoch;
+    return await db.query(
+      tableExamPapers,
+      where: 'subject = ? AND created_at >= ? AND created_at <= ?',
+      whereArgs: [subject, startMs, endMs],
+      orderBy: 'exam_date DESC',
+    );
+  }
+
+  /// 按科目查询知识点
+  Future<List<Map<String, dynamic>>> queryKnowledgePointsBySubjectAndDateRange(
+    String subject,
+    String startDate,
+    String endDate,
+  ) async {
+    final db = await database;
+    return await db.query(
+      tableKnowledgePoints,
+      where: 'subject = ? AND created_at >= ? AND created_at <= ?',
+      whereArgs: [subject, startDate, endDate],
+      orderBy: 'created_at DESC',
+    );
+  }
+
   /// 学习记录计数
   Future<int> countStudyRecords({String? recordType, String? subject}) async {
     final db = await database;

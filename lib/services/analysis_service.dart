@@ -8,11 +8,38 @@ class AnalysisService {
   final DatabaseService _db = DatabaseService();
 
   /// 获取整体学习情况数据
-  Future<Map<String, dynamic>> getOverallAnalysis() async {
+  Future<Map<String, dynamic>> getOverallAnalysis({
+    List<String>? subjects,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final results = <String, dynamic>{};
 
     // 1. 获取错题统计数据
-    final wrongQuestions = await _db.queryAllWrongQuestions();
+    List<Map<String, dynamic>> wrongQuestions;
+    if (subjects != null && subjects.isNotEmpty && startDate != null && endDate != null) {
+      // 多学科 + 时间范围：分别查询后合并
+      wrongQuestions = [];
+      for (final subject in subjects) {
+        wrongQuestions.addAll(await _db.queryWrongQuestionsBySubjectAndDateRange(
+          subject, startDate.toIso8601String(), endDate.toIso8601String(),
+        ));
+      }
+    } else if (subjects != null && subjects.isNotEmpty) {
+      // 仅学科筛选
+      wrongQuestions = [];
+      for (final subject in subjects) {
+        wrongQuestions.addAll(await _db.queryWrongQuestionsBySubject(subject));
+      }
+    } else if (startDate != null && endDate != null) {
+      // 仅时间范围
+      wrongQuestions = await _db.queryWrongQuestionsByDateRange(
+        startDate.toIso8601String(), endDate.toIso8601String(),
+      );
+    } else {
+      wrongQuestions = await _db.queryAllWrongQuestions();
+    }
+
     final wrongBySubject = <String, int>{};
     final wrongByType = <String, int>{};
     final wrongByErrorType = <String, int>{
@@ -41,7 +68,27 @@ class AnalysisService {
     };
 
     // 2. 获取考试结果数据
-    final examResults = await _db.queryAllExamResults();
+    List<Map<String, dynamic>> examResults;
+    if (subjects != null && subjects.isNotEmpty && startDate != null && endDate != null) {
+      examResults = [];
+      for (final subject in subjects) {
+        examResults.addAll(await _db.queryExamResultsBySubjectAndDateRange(
+          subject, startDate.toIso8601String(), endDate.toIso8601String(),
+        ));
+      }
+    } else if (subjects != null && subjects.isNotEmpty) {
+      examResults = [];
+      for (final subject in subjects) {
+        examResults.addAll(await _db.queryExamResultsBySubject(subject));
+      }
+    } else if (startDate != null && endDate != null) {
+      examResults = await _db.queryExamResultsByDateRange(
+        startDate.toIso8601String(), endDate.toIso8601String(),
+      );
+    } else {
+      examResults = await _db.queryAllExamResults();
+    }
+
     double totalScore = 0;
     double totalAccuracy = 0;
     int resultCount = 0;
@@ -79,7 +126,27 @@ class AnalysisService {
     };
 
     // 3. 获取学习时长数据
-    final studyRecords = await _db.queryAllStudyRecords();
+    List<Map<String, dynamic>> studyRecords;
+    if (subjects != null && subjects.isNotEmpty && startDate != null && endDate != null) {
+      studyRecords = [];
+      for (final subject in subjects) {
+        studyRecords.addAll(await _db.queryStudyRecordsBySubjectAndDateRange(
+          subject, startDate.toIso8601String(), endDate.toIso8601String(),
+        ));
+      }
+    } else if (subjects != null && subjects.isNotEmpty) {
+      studyRecords = [];
+      for (final subject in subjects) {
+        studyRecords.addAll(await _db.queryStudyRecordsBySubject(subject));
+      }
+    } else if (startDate != null && endDate != null) {
+      studyRecords = await _db.queryStudyRecordsByDateRange(
+        startDate.toIso8601String(), endDate.toIso8601String(),
+      );
+    } else {
+      studyRecords = await _db.queryAllStudyRecords();
+    }
+
     int totalDuration = 0;
     final durationBySubject = <String, int>{};
     final durationByDate = <String, int>{};
@@ -103,7 +170,27 @@ class AnalysisService {
     };
 
     // 4. 获取试卷数据
-    final examPapers = await _db.queryAllExamPapers();
+    List<Map<String, dynamic>> examPapers;
+    if (subjects != null && subjects.isNotEmpty && startDate != null && endDate != null) {
+      examPapers = [];
+      for (final subject in subjects) {
+        examPapers.addAll(await _db.queryExamPapersBySubjectAndDateRange(
+          subject, startDate.toIso8601String(), endDate.toIso8601String(),
+        ));
+      }
+    } else if (subjects != null && subjects.isNotEmpty) {
+      examPapers = [];
+      for (final subject in subjects) {
+        examPapers.addAll(await _db.queryExamPapersBySubject(subject));
+      }
+    } else if (startDate != null && endDate != null) {
+      examPapers = await _db.queryExamPapersByTextDateRange(
+        startDate.toIso8601String(), endDate.toIso8601String(),
+      );
+    } else {
+      examPapers = await _db.queryAllExamPapers();
+    }
+
     double totalPaperScore = 0;
     int paperCount = 0;
     final paperBySubject = <String, List<double>>{};
@@ -133,16 +220,36 @@ class AnalysisService {
   }
 
   /// 获取知识点掌握情况
-  Future<Map<String, dynamic>> getKnowledgePointMastery() async {
+  Future<Map<String, dynamic>> getKnowledgePointMastery({
+    List<String>? subjects,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final results = <String, dynamic>{};
 
-    // 获取所有知识点
-    final knowledgePoints = await _db.queryAllKnowledgePoints();
+    // 获取知识点
+    List<Map<String, dynamic>> knowledgePoints;
+    if (subjects != null && subjects.isNotEmpty && startDate != null && endDate != null) {
+      knowledgePoints = [];
+      for (final subject in subjects) {
+        knowledgePoints.addAll(await _db.queryKnowledgePointsBySubjectAndDateRange(
+          subject, startDate.toIso8601String(), endDate.toIso8601String(),
+        ));
+      }
+    } else if (subjects != null && subjects.isNotEmpty) {
+      knowledgePoints = [];
+      for (final subject in subjects) {
+        knowledgePoints.addAll(await _db.queryKnowledgePointsBySubject(subject));
+      }
+    } else {
+      knowledgePoints = await _db.queryAllKnowledgePoints();
+    }
+
     final masteryData = <String, Map<String, dynamic>>{};
 
     for (final kp in knowledgePoints) {
       final subject = kp['subject'] as String? ?? '其他';
-      final mastery = (kp['mastery'] as num?)?.toDouble() ?? 0;
+      final mastery = (kp['mastery_level'] as num?)?.toDouble() ?? 0;
       final importance = (kp['importance'] as num?)?.toInt() ?? 1;
 
       masteryData.putIfAbsent(subject, () => {
@@ -155,7 +262,7 @@ class AnalysisService {
 
       masteryData[subject]!['total'] = (masteryData[subject]!['total'] as int) + 1;
       masteryData[subject]!['points'].add({
-        'name': kp['name'],
+        'name': kp['title'],
         'mastery': mastery,
         'importance': importance,
       });
@@ -188,13 +295,28 @@ class AnalysisService {
   }
 
   /// 获取学科强弱分析
-  Future<Map<String, dynamic>> getSubjectStrengthAnalysis() async {
+  Future<Map<String, dynamic>> getSubjectStrengthAnalysis({
+    List<String>? subjects,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final results = <String, Map<String, dynamic>>{};
 
+    // 确定要分析的学科列表
+    final allSubjects = ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
+    final targetSubjects = subjects != null && subjects.isNotEmpty ? subjects : allSubjects;
+
     // 获取各学科的数据
-    for (final subject in ['语文', '数学', '英语', '物理', '化学', '生物', '历史', '地理', '政治']) {
+    for (final subject in targetSubjects) {
       // 考试成绩
-      final examResults = await _db.queryExamResultsBySubject(subject);
+      List<Map<String, dynamic>> examResults;
+      if (startDate != null && endDate != null) {
+        examResults = await _db.queryExamResultsBySubjectAndDateRange(
+          subject, startDate.toIso8601String(), endDate.toIso8601String(),
+        );
+      } else {
+        examResults = await _db.queryExamResultsBySubject(subject);
+      }
       double totalScore = 0;
       int count = 0;
       for (final r in examResults) {
@@ -207,18 +329,39 @@ class AnalysisService {
       final avgScore = count > 0 ? totalScore / count : 0;
 
       // 错题数量
-      final wrongQuestions = await _db.queryWrongQuestionsBySubject(subject);
+      List<Map<String, dynamic>> wrongQuestions;
+      if (startDate != null && endDate != null) {
+        wrongQuestions = await _db.queryWrongQuestionsBySubjectAndDateRange(
+          subject, startDate.toIso8601String(), endDate.toIso8601String(),
+        );
+      } else {
+        wrongQuestions = await _db.queryWrongQuestionsBySubject(subject);
+      }
       final wrongCount = wrongQuestions.length;
 
       // 学习时长
-      final studyRecords = await _db.queryStudyRecordsBySubject(subject);
+      List<Map<String, dynamic>> studyRecords;
+      if (startDate != null && endDate != null) {
+        studyRecords = await _db.queryStudyRecordsBySubjectAndDateRange(
+          subject, startDate.toIso8601String(), endDate.toIso8601String(),
+        );
+      } else {
+        studyRecords = await _db.queryStudyRecordsBySubject(subject);
+      }
       int totalDuration = 0;
       for (final r in studyRecords) {
         totalDuration += (r['duration'] as int?) ?? 0;
       }
 
       // 试卷得分率
-      final examPapers = await _db.queryExamPapersBySubject(subject);
+      List<Map<String, dynamic>> examPapers;
+      if (startDate != null && endDate != null) {
+        examPapers = await _db.queryExamPapersBySubjectAndDateRange(
+          subject, startDate.toIso8601String(), endDate.toIso8601String(),
+        );
+      } else {
+        examPapers = await _db.queryExamPapersBySubject(subject);
+      }
       double totalRate = 0;
       int paperCount = 0;
       for (final p in examPapers) {
@@ -248,10 +391,34 @@ class AnalysisService {
   }
 
   /// 获取学习时间分布
-  Future<Map<String, dynamic>> getStudyTimeDistribution() async {
+  Future<Map<String, dynamic>> getStudyTimeDistribution({
+    List<String>? subjects,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final results = <String, dynamic>{};
 
-    final studyRecords = await _db.queryAllStudyRecords();
+    // 获取学习记录
+    List<Map<String, dynamic>> studyRecords;
+    if (subjects != null && subjects.isNotEmpty && startDate != null && endDate != null) {
+      studyRecords = [];
+      for (final subject in subjects) {
+        studyRecords.addAll(await _db.queryStudyRecordsBySubjectAndDateRange(
+          subject, startDate.toIso8601String(), endDate.toIso8601String(),
+        ));
+      }
+    } else if (subjects != null && subjects.isNotEmpty) {
+      studyRecords = [];
+      for (final subject in subjects) {
+        studyRecords.addAll(await _db.queryStudyRecordsBySubject(subject));
+      }
+    } else if (startDate != null && endDate != null) {
+      studyRecords = await _db.queryStudyRecordsByDateRange(
+        startDate.toIso8601String(), endDate.toIso8601String(),
+      );
+    } else {
+      studyRecords = await _db.queryAllStudyRecords();
+    }
 
     // 按时段分布（0-6, 6-12, 12-18, 18-24）
     final timeSlots = {
@@ -309,10 +476,34 @@ class AnalysisService {
   }
 
   /// 获取错题类型分析
-  Future<Map<String, dynamic>> getWrongQuestionAnalysis() async {
+  Future<Map<String, dynamic>> getWrongQuestionAnalysis({
+    List<String>? subjects,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final results = <String, dynamic>{};
 
-    final wrongQuestions = await _db.queryAllWrongQuestions();
+    // 获取错题
+    List<Map<String, dynamic>> wrongQuestions;
+    if (subjects != null && subjects.isNotEmpty && startDate != null && endDate != null) {
+      wrongQuestions = [];
+      for (final subject in subjects) {
+        wrongQuestions.addAll(await _db.queryWrongQuestionsBySubjectAndDateRange(
+          subject, startDate.toIso8601String(), endDate.toIso8601String(),
+        ));
+      }
+    } else if (subjects != null && subjects.isNotEmpty) {
+      wrongQuestions = [];
+      for (final subject in subjects) {
+        wrongQuestions.addAll(await _db.queryWrongQuestionsBySubject(subject));
+      }
+    } else if (startDate != null && endDate != null) {
+      wrongQuestions = await _db.queryWrongQuestionsByDateRange(
+        startDate.toIso8601String(), endDate.toIso8601String(),
+      );
+    } else {
+      wrongQuestions = await _db.queryAllWrongQuestions();
+    }
 
     // 按错误类型统计
     final errorTypes = {
@@ -365,24 +556,42 @@ class AnalysisService {
   }
 
   /// 获取学习趋势数据
-  Future<Map<String, dynamic>> getLearningTrend({int days = 30}) async {
+  Future<Map<String, dynamic>> getLearningTrend({
+    int days = 30,
+    List<String>? subjects,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final results = <String, dynamic>{};
 
     final now = DateTime.now();
-    final startDate = now.subtract(Duration(days: days));
+    // 如果指定了自定义时间范围，使用自定义范围；否则使用 days 参数
+    final effectiveStart = startDate ?? now.subtract(Duration(days: days));
+    final effectiveEnd = endDate ?? now;
+    final totalDays = effectiveEnd.difference(effectiveStart).inDays;
 
     // 生成日期列表
     final dateList = <String>[];
-    for (int i = days; i >= 0; i--) {
-      final date = now.subtract(Duration(days: i));
+    for (int i = totalDays; i >= 0; i--) {
+      final date = effectiveEnd.subtract(Duration(days: i));
       dateList.add('${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}');
     }
 
     // 获取学习记录
-    final studyRecords = await _db.queryStudyRecordsByDateRange(
-      startDate.toIso8601String(),
-      now.toIso8601String(),
-    );
+    List<Map<String, dynamic>> studyRecords;
+    if (subjects != null && subjects.isNotEmpty) {
+      studyRecords = [];
+      for (final subject in subjects) {
+        studyRecords.addAll(await _db.queryStudyRecordsBySubjectAndDateRange(
+          subject, effectiveStart.toIso8601String(), effectiveEnd.toIso8601String(),
+        ));
+      }
+    } else {
+      studyRecords = await _db.queryStudyRecordsByDateRange(
+        effectiveStart.toIso8601String(),
+        effectiveEnd.toIso8601String(),
+      );
+    }
 
     // 按日期聚合
     final dailyData = <String, Map<String, dynamic>>{};
@@ -421,11 +630,19 @@ class AnalysisService {
   }
 
   /// 生成个性化学习建议
-  Future<List<Map<String, dynamic>>> generateLearningSuggestions() async {
+  Future<List<Map<String, dynamic>>> generateLearningSuggestions({
+    List<String>? subjects,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final suggestions = <Map<String, dynamic>>[];
 
     // 1. 分析薄弱学科
-    final subjectStrength = await getSubjectStrengthAnalysis();
+    final subjectStrength = await getSubjectStrengthAnalysis(
+      subjects: subjects,
+      startDate: startDate,
+      endDate: endDate,
+    );
     final weakSubjects = subjectStrength.entries
         .where((e) => e.value['strength'] == 'weak')
         .toList();
@@ -443,7 +660,11 @@ class AnalysisService {
     }
 
     // 2. 分析错题类型
-    final wrongAnalysis = await getWrongQuestionAnalysis();
+    final wrongAnalysis = await getWrongQuestionAnalysis(
+      subjects: subjects,
+      startDate: startDate,
+      endDate: endDate,
+    );
     final errorTypes = wrongAnalysis['byErrorType'] as Map<String, dynamic>;
 
     final carelessCount = (errorTypes['careless'] as Map<String, dynamic>)['count'] as int;
@@ -470,9 +691,13 @@ class AnalysisService {
     }
 
     // 3. 分析学习时长
-    final timeDistribution = await getStudyTimeDistribution();
+    final timeDistribution = await getStudyTimeDistribution(
+      subjects: subjects,
+      startDate: startDate,
+      endDate: endDate,
+    );
     final byTimeSlot = timeDistribution['byTimeSlot'] as Map<String, int>;
-    final totalMinutes = byTimeSlot.values.reduce((a, b) => a + b);
+    final totalMinutes = byTimeSlot.values.fold<int>(0, (a, b) => a + b);
 
     if (totalMinutes < 300) { // 少于5小时
       suggestions.add({
@@ -498,7 +723,11 @@ class AnalysisService {
     }
 
     // 5. 分析试卷得分率
-    final overallAnalysis = await getOverallAnalysis();
+    final overallAnalysis = await getOverallAnalysis(
+      subjects: subjects,
+      startDate: startDate,
+      endDate: endDate,
+    );
     final examPapers = overallAnalysis['examPapers'] as Map<String, dynamic>;
     final avgScoreRate = (examPapers['averageScoreRate'] as num?)?.toDouble() ?? 0;
 
@@ -522,27 +751,53 @@ class AnalysisService {
   }
 
   /// 获取雷达图数据
-  Future<Map<String, double>> getRadarChartData() async {
+  Future<Map<String, double>> getRadarChartData({
+    List<String>? subjects,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final data = <String, double>{};
 
     // 1. 知识掌握度
-    final knowledgeMastery = await getKnowledgePointMastery();
+    final knowledgeMastery = await getKnowledgePointMastery(
+      subjects: subjects,
+      startDate: startDate,
+      endDate: endDate,
+    );
     data['知识掌握'] = (knowledgeMastery['overallMastery'] as num?)?.toDouble() ?? 0;
 
     // 2. 考试成绩
-    final overallAnalysis = await getOverallAnalysis();
+    final overallAnalysis = await getOverallAnalysis(
+      subjects: subjects,
+      startDate: startDate,
+      endDate: endDate,
+    );
     final examResults = overallAnalysis['examResults'] as Map<String, dynamic>;
     data['考试成绩'] = (examResults['averageAccuracy'] as num?)?.toDouble() ?? 0;
 
     // 3. 学习时长
     final studyTime = overallAnalysis['studyTime'] as Map<String, dynamic>;
     final totalMinutes = studyTime['totalMinutes'] as int? ?? 0;
+    // 根据时间范围动态计算满分基准
+    int referenceDays = 30;
+    if (startDate != null && endDate != null) {
+      referenceDays = endDate.difference(startDate).inDays;
+      if (referenceDays <= 0) referenceDays = 1;
+    }
     // 假设每天学习2小时为满分
-    data['学习时长'] = (totalMinutes / (30 * 120) * 100).clamp(0, 100);
+    data['学习时长'] = (totalMinutes / (referenceDays * 120) * 100).clamp(0, 100);
 
     // 4. 错题改进率
-    final wrongAnalysis = await getWrongQuestionAnalysis();
-    final wrongCount = wrongAnalysis['total'] as int? ?? 0;
+    final wrongAnalysis = await getWrongQuestionAnalysis(
+      subjects: subjects,
+      startDate: startDate,
+      endDate: endDate,
+    );
+    final byErrorType = wrongAnalysis['byErrorType'] as Map<String, dynamic>;
+    int wrongCount = 0;
+    for (final entry in byErrorType.entries) {
+      wrongCount += ((entry.value as Map<String, dynamic>)['count'] as int?) ?? 0;
+    }
     // 错题越少越好，假设50道为0分，0道为100分
     data['错题控制'] = ((1 - wrongCount / 50) * 100).clamp(0, 100);
 
@@ -554,11 +809,19 @@ class AnalysisService {
   }
 
   /// 获取推荐复习内容
-  Future<List<Map<String, dynamic>>> getRecommendedReview() async {
+  Future<List<Map<String, dynamic>>> getRecommendedReview({
+    List<String>? subjects,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) async {
     final recommendations = <Map<String, dynamic>>[];
 
     // 1. 获取掌握度低的知识点
-    final knowledgeMastery = await getKnowledgePointMastery();
+    final knowledgeMastery = await getKnowledgePointMastery(
+      subjects: subjects,
+      startDate: startDate,
+      endDate: endDate,
+    );
     final bySubject = knowledgeMastery['bySubject'] as Map<String, dynamic>;
 
     for (final entry in bySubject.entries) {
@@ -580,7 +843,11 @@ class AnalysisService {
     }
 
     // 2. 获取高频错题
-    final wrongAnalysis = await getWrongQuestionAnalysis();
+    final wrongAnalysis = await getWrongQuestionAnalysis(
+      subjects: subjects,
+      startDate: startDate,
+      endDate: endDate,
+    );
     final topKnowledgePoints = wrongAnalysis['topKnowledgePoints'] as List<dynamic>;
 
     for (final point in topKnowledgePoints.take(5)) {

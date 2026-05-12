@@ -21,6 +21,16 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   late TabController _tabController;
   bool _isLoading = true;
 
+  // 学科筛选
+  List<String> _selectedSubjects = [];
+
+  // 时间段筛选
+  enum _TimeFilter { thisWeek, thisMonth, threeMonths, all }
+  _TimeFilter _timeFilter = _TimeFilter.thisMonth;
+
+  // 所有学科列表
+  static const List<String> _allSubjects = ['数学', '语文', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
+
   // 分析数据
   Map<String, dynamic> _overallAnalysis = {};
   Map<String, dynamic> _knowledgeMastery = {};
@@ -45,19 +55,97 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
     super.dispose();
   }
 
+  DateTime? get _startDate {
+    final now = DateTime.now();
+    switch (_timeFilter) {
+      case _TimeFilter.thisWeek:
+        final monday = now.subtract(Duration(days: now.weekday - 1));
+        return DateTime(monday.year, monday.month, monday.day);
+      case _TimeFilter.thisMonth:
+        return DateTime(now.year, now.month, 1);
+      case _TimeFilter.threeMonths:
+        final threeMonthsAgo = DateTime(now.year, now.month - 3, now.day);
+        return threeMonthsAgo;
+      case _TimeFilter.all:
+        return null;
+    }
+  }
+
+  DateTime? get _endDate {
+    if (_timeFilter == _TimeFilter.all) return null;
+    final now = DateTime.now();
+    return DateTime(now.year, now.month, now.day, 23, 59, 59);
+  }
+
+  String get _timeFilterLabel {
+    switch (_timeFilter) {
+      case _TimeFilter.thisWeek: return '本周';
+      case _TimeFilter.thisMonth: return '本月';
+      case _TimeFilter.threeMonths: return '近三月';
+      case _TimeFilter.all: return '全部';
+    }
+  }
+
+  String _getTimeFilterLabel(_TimeFilter filter) {
+    switch (filter) {
+      case _TimeFilter.thisWeek: return '本周';
+      case _TimeFilter.thisMonth: return '本月';
+      case _TimeFilter.threeMonths: return '近三月';
+      case _TimeFilter.all: return '全部时间';
+    }
+  }
+
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
+      final subjects = _selectedSubjects.isNotEmpty ? _selectedSubjects : null;
       final results = await Future.wait([
-        _analysisService.getOverallAnalysis(),
-        _analysisService.getKnowledgePointMastery(),
-        _analysisService.getSubjectStrengthAnalysis(),
-        _analysisService.getStudyTimeDistribution(),
-        _analysisService.getWrongQuestionAnalysis(),
-        _analysisService.getLearningTrend(days: 30),
-        _analysisService.generateLearningSuggestions(),
-        _analysisService.getRecommendedReview(),
-        _analysisService.getRadarChartData(),
+        _analysisService.getOverallAnalysis(
+          subjects: subjects,
+          startDate: _startDate,
+          endDate: _endDate,
+        ),
+        _analysisService.getKnowledgePointMastery(
+          subjects: subjects,
+          startDate: _startDate,
+          endDate: _endDate,
+        ),
+        _analysisService.getSubjectStrengthAnalysis(
+          subjects: subjects,
+          startDate: _startDate,
+          endDate: _endDate,
+        ),
+        _analysisService.getStudyTimeDistribution(
+          subjects: subjects,
+          startDate: _startDate,
+          endDate: _endDate,
+        ),
+        _analysisService.getWrongQuestionAnalysis(
+          subjects: subjects,
+          startDate: _startDate,
+          endDate: _endDate,
+        ),
+        _analysisService.getLearningTrend(
+          days: _timeFilter == _TimeFilter.thisWeek ? 7 : _timeFilter == _TimeFilter.thisMonth ? 30 : 90,
+          subjects: subjects,
+          startDate: _startDate,
+          endDate: _endDate,
+        ),
+        _analysisService.generateLearningSuggestions(
+          subjects: subjects,
+          startDate: _startDate,
+          endDate: _endDate,
+        ),
+        _analysisService.getRecommendedReview(
+          subjects: subjects,
+          startDate: _startDate,
+          endDate: _endDate,
+        ),
+        _analysisService.getRadarChartData(
+          subjects: subjects,
+          startDate: _startDate,
+          endDate: _endDate,
+        ),
       ]);
 
       setState(() {
@@ -104,15 +192,108 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
       ),
       body: _isLoading
           ? const AppLoading(message: '分析中...')
-          : TabBarView(
-              controller: _tabController,
+          : Column(
               children: [
-                _buildOverviewTab(theme),
-                _buildSubjectAnalysisTab(theme),
-                _buildWrongQuestionTab(theme),
-                _buildSuggestionsTab(theme),
+                _buildFilterSection(),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _buildOverviewTab(theme),
+                      _buildSubjectAnalysisTab(theme),
+                      _buildWrongQuestionTab(theme),
+                      _buildSuggestionsTab(theme),
+                    ],
+                  ),
+                ),
               ],
             ),
+    );
+  }
+
+  // ==================== 筛选控件 ====================
+  Widget _buildFilterSection() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 时间段筛选
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: _TimeFilter.values.map((filter) {
+                final isSelected = _timeFilter == filter;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(_getTimeFilterLabel(filter)),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _timeFilter = filter);
+                        _loadData();
+                      }
+                    },
+                    selectedColor: AppColors.primary.withOpacity(0.2),
+                    labelStyle: TextStyle(
+                      color: isSelected ? AppColors.primary : null,
+                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 8),
+          // 学科筛选
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: const Text('全部学科'),
+                    selected: _selectedSubjects.isEmpty,
+                    onSelected: (_) {
+                      setState(() => _selectedSubjects.clear());
+                      _loadData();
+                    },
+                    selectedColor: AppColors.primary.withOpacity(0.2),
+                  ),
+                ),
+                ..._allSubjects.map((subject) {
+                  final isSelected = _selectedSubjects.contains(subject);
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: FilterChip(
+                      label: Text(subject),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedSubjects.add(subject);
+                          } else {
+                            _selectedSubjects.remove(subject);
+                          }
+                        });
+                        _loadData();
+                      },
+                      selectedColor: AppColors.primary.withOpacity(0.2),
+                      checkmarkColor: AppColors.primary,
+                      labelStyle: TextStyle(
+                        color: isSelected ? AppColors.primary : null,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      ),
+                    ),
+                  );
+                }),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
