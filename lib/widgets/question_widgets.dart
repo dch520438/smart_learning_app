@@ -217,10 +217,12 @@ class _QuestionCardState extends State<QuestionCard> {
 
   /// 解析选项文本，处理 {label: A, content: ...} 格式
   String _parseOptionText(String optionText) {
+    final trimmedText = optionText.trim();
+
     // 尝试匹配 {label: A, content: xxx} 格式
     // 使用非贪婪匹配来正确处理 content 中的内容
     final pattern = RegExp(r'\{label:\s*([^,]+?),\s*content:\s*(.+?)\s*\}$', caseSensitive: false);
-    final match = pattern.firstMatch(optionText.trim());
+    final match = pattern.firstMatch(trimmedText);
     if (match != null && match.groupCount >= 2) {
       final content = match.group(2)?.trim() ?? '';
       // 移除 content 值两端可能存在的引号
@@ -230,8 +232,33 @@ class _QuestionCardState extends State<QuestionCard> {
       }
       return content;
     }
+
+    // 尝试匹配其他可能的格式，如 {"label": "A", "content": "xxx"}
+    final jsonPattern = RegExp(r'["\']?label["\']?\s*:\s*["\']?([^,"\']+)["\']?\s*,\s*["\']?content["\']?\s*:\s*["\']?(.+?)["\']?\s*\}', caseSensitive: false);
+    final jsonMatch = jsonPattern.firstMatch(trimmedText);
+    if (jsonMatch != null && jsonMatch.groupCount >= 2) {
+      return jsonMatch.group(2)?.trim() ?? trimmedText;
+    }
+
     // 如果不是特殊格式，直接返回原文本
-    return optionText;
+    return trimmedText;
+  }
+
+  /// 清理题目内容，处理可能的代码格式
+  String _cleanContent(String content) {
+    if (content.isEmpty) return content;
+
+    // 处理 {label: ..., content: ...} 格式的题目内容
+    if (content.trim().startsWith('{') && content.trim().endsWith('}')) {
+      // 尝试提取 content 字段
+      final contentPattern = RegExp(r'["\']?content["\']?\s*:\s*["\']?(.+?)["\']?\s*(?:,|\})', caseSensitive: false);
+      final match = contentPattern.firstMatch(content);
+      if (match != null && match.group(1) != null) {
+        return match.group(1)!.trim();
+      }
+    }
+
+    return content;
   }
 
   @override
@@ -328,9 +355,9 @@ class _QuestionCardState extends State<QuestionCard> {
           ),
           const SizedBox(height: 12),
 
-          // 题目内容（移除提示部分）
+          // 题目内容（移除提示部分，清理代码格式）
           Text(
-            _cleanQuestionContent(widget.content),
+            _cleanContent(_cleanQuestionContent(widget.content)),
             style: theme.textTheme.bodyLarge?.copyWith(
               fontWeight: FontWeight.w500,
               color: AppColors.textPrimary,
@@ -366,17 +393,51 @@ class _QuestionCardState extends State<QuestionCard> {
             }),
           ],
 
-          // 填空题输入框
+          // 填空题输入框（带特殊符号按钮）
           if (widget.type == QuestionType.fillBlank && !widget.showResult) ...[
-            const SizedBox(height: 12),
-            _buildSymbolInputField(
-              hintText: '请输入答案...',
-              onChanged: (value) {
-                setState(() {
-                  _selectedAnswer = value;
-                });
-                widget.onAnswer?.call(value);
-              },
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primary.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+                border: Border.all(
+                  color: theme.colorScheme.primary.withOpacity(0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.edit_note,
+                        size: 18,
+                        color: theme.colorScheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '答题区域',
+                        style: TextStyle(
+                          fontSize: AppFontSize.sm,
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSymbolInputField(
+                    hintText: '请输入答案，点击右侧按钮插入特殊符号...',
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedAnswer = value;
+                      });
+                      widget.onAnswer?.call(value);
+                    },
+                  ),
+                ],
+              ),
             ),
           ],
 
@@ -489,7 +550,7 @@ class _QuestionCardState extends State<QuestionCard> {
             }),
           ],
 
-          // 简答题/证明题/论述题输入框（用于需要文字作答的题型）
+          // 简答题/证明题/论述题输入框（用于需要文字作答的题型，带特殊符号按钮）
           if ((widget.type == QuestionType.shortAnswer ||
                widget.type == QuestionType.proof ||
                widget.type == QuestionType.essay ||
@@ -499,13 +560,13 @@ class _QuestionCardState extends State<QuestionCard> {
                 widget.type != QuestionType.trueFalse &&
                 widget.type != QuestionType.fillBlank)) &&
               !widget.showResult) ...[
-            const SizedBox(height: 12),
-            _buildSymbolTextField(
+            const SizedBox(height: 16),
+            _buildAnswerAreaWithSymbols(
               hintText: widget.type == QuestionType.proof
-                  ? '请输入证明过程...'
+                  ? '请输入证明过程，点击右侧 ƒ 按钮插入数学符号...'
                   : widget.type == QuestionType.essay
-                      ? '请输入论述内容...'
-                      : '请输入您的答案...',
+                      ? '请输入论述内容，点击右侧 ƒ 按钮插入特殊符号...'
+                      : '请输入您的答案，点击右侧 ƒ 按钮插入特殊符号...',
               maxLines: widget.type == QuestionType.proof || widget.type == QuestionType.essay ? 8 : 5,
               maxLength: widget.type == QuestionType.proof || widget.type == QuestionType.essay ? 2000 : 1000,
               onChanged: (value) {
@@ -624,10 +685,9 @@ class _QuestionCardState extends State<QuestionCard> {
     required ValueChanged<String> onChanged,
   }) {
     final controller = TextEditingController();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return TextField(
           controller: controller,
           maxLines: maxLines,
           maxLength: maxLength,
@@ -639,14 +699,125 @@ class _QuestionCardState extends State<QuestionCard> {
             filled: true,
             fillColor: AppColors.background,
             suffixIcon: _buildSymbolButton(controller, onChanged, isCompact: true),
+            counterText: '', // 隐藏默认计数器
           ),
           style: TextStyle(
             fontSize: AppFontSize.md,
             color: AppColors.textPrimary,
           ),
-          onChanged: onChanged,
-        ),
-      ],
+          onChanged: (value) {
+            setState(() {}); // 更新字数统计
+            onChanged(value);
+          },
+        );
+      },
+    );
+  }
+
+  /// 构建带特殊符号按钮的答题区域（用于简答题/证明题/论述题）
+  Widget _buildAnswerAreaWithSymbols({
+    required String hintText,
+    required int maxLines,
+    required int maxLength,
+    required ValueChanged<String> onChanged,
+  }) {
+    final controller = TextEditingController();
+    final theme = Theme.of(context);
+
+    return StatefulBuilder(
+      builder: (context, setState) {
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.primary.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(AppRadius.md),
+            border: Border.all(
+              color: theme.colorScheme.primary.withOpacity(0.2),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 头部：标题和字数统计
+              Row(
+                children: [
+                  Icon(
+                    Icons.edit_note,
+                    size: 18,
+                    color: theme.colorScheme.primary,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    '答题区域',
+                    style: TextStyle(
+                      fontSize: AppFontSize.sm,
+                      fontWeight: FontWeight.w600,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const Spacer(),
+                  // 字数统计
+                  Text(
+                    '${controller.text.length}/$maxLength',
+                    style: TextStyle(
+                      fontSize: AppFontSize.xs,
+                      color: controller.text.length > maxLength * 0.9
+                          ? AppColors.error
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              // 文本输入框
+              TextField(
+                controller: controller,
+                maxLines: maxLines,
+                maxLength: maxLength,
+                decoration: InputDecoration(
+                  hintText: hintText,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  filled: true,
+                  fillColor: AppColors.background,
+                  suffixIcon: _buildSymbolButton(controller, onChanged, isCompact: true),
+                  counterText: '', // 隐藏默认计数器
+                ),
+                style: TextStyle(
+                  fontSize: AppFontSize.md,
+                  color: AppColors.textPrimary,
+                ),
+                onChanged: (value) {
+                  setState(() {}); // 更新字数统计
+                  onChanged(value);
+                },
+              ),
+              const SizedBox(height: 8),
+              // 提示文字
+              Row(
+                children: [
+                  Icon(
+                    Icons.functions,
+                    size: 14,
+                    color: AppColors.textHint,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      '点击输入框右侧的 ƒ 按钮插入数学/化学符号',
+                      style: TextStyle(
+                        fontSize: AppFontSize.xs,
+                        color: AppColors.textHint,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

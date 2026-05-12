@@ -9,18 +9,19 @@ import '../models/must_remember.dart';
 import 'database_service.dart';
 
 /// ============================================================
-/// MindMapService - 思维导图服务
+/// MindMapService - 思维导图服务 (重构版)
 /// ============================================================
-/// 
-/// 提供思维导图的自动生成、关联分析、导出等功能
+///
+/// 提供思维导图的自动生成、手动创建、编辑等功能
+/// 按学科->章节->内容的层次结构组织
 
 class MindMapService {
   final DatabaseService _dbService = DatabaseService();
 
   /// 生成思维导图数据
-  /// 
-  /// [type] - 导图类型: 'all'(全部), 'subject'(按学科), 'tag'(按标签)
-  /// [filterValue] - 过滤值（如学科名称或标签）
+  ///
+  /// [type] - 导图类型: 'all'(全部), 'subject'(按学科)
+  /// [filterValue] - 过滤值（如学科名称）
   Future<MindMapData> generateMindMap({
     String type = 'all',
     String? filterValue,
@@ -31,39 +32,12 @@ class MindMapService {
     final notes = await _loadNotes();
     final mustRemember = await _loadMustRemember();
 
-    // 根据类型过滤
-    List<MindMapNode> allNodes = [];
-    
+    // 根据类型生成不同的结构
+    MindMapNode rootNode;
+
     switch (type) {
       case 'subject':
-        allNodes = await _generateBySubject(
-          knowledgePoints,
-          wrongQuestions,
-          notes,
-          mustRemember,
-          filterValue,
-        );
-        break;
-      case 'tag':
-        allNodes = await _generateByTag(
-          knowledgePoints,
-          wrongQuestions,
-          notes,
-          mustRemember,
-          filterValue,
-        );
-        break;
-      case 'exam_method':
-        allNodes = await _generateByExamMethod(
-          knowledgePoints,
-          wrongQuestions,
-          notes,
-          mustRemember,
-          filterValue,
-        );
-        break;
-      case 'key_point':
-        allNodes = await _generateByKeyPoint(
+        rootNode = await _generateBySubject(
           knowledgePoints,
           wrongQuestions,
           notes,
@@ -72,7 +46,7 @@ class MindMapService {
         );
         break;
       default:
-        allNodes = await _generateAll(
+        rootNode = await _generateAll(
           knowledgePoints,
           wrongQuestions,
           notes,
@@ -80,11 +54,11 @@ class MindMapService {
         );
     }
 
-    // 自动分析关联
-    final connections = _analyzeConnections(allNodes);
+    // 分析节点间的关联
+    final connections = _analyzeConnections(rootNode.getAllNodes());
 
     return MindMapData(
-      nodes: allNodes,
+      rootNode: rootNode,
       connections: connections,
       title: _getMindMapTitle(type, filterValue),
       createdAt: DateTime.now().millisecondsSinceEpoch,
@@ -118,19 +92,24 @@ class MindMapService {
   /// 安全解析 JSON 字符串为 List<String>
   List<String> _safeParseJsonList(dynamic value) {
     if (value == null) return [];
-    
+
     try {
       if (value is String) {
-        // 检查是否为空字符串
         if (value.trim().isEmpty) return [];
-        
+
         final decoded = jsonDecode(value);
         if (decoded is List) {
-          return decoded.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toList();
+          return decoded
+              .map((e) => e?.toString() ?? '')
+              .where((e) => e.isNotEmpty)
+              .toList();
         }
         return [];
       } else if (value is List) {
-        return value.map((e) => e?.toString() ?? '').where((e) => e.isNotEmpty).toList();
+        return value
+            .map((e) => e?.toString() ?? '')
+            .where((e) => e.isNotEmpty)
+            .toList();
       }
     } catch (e) {
       debugPrint('JSON 解析失败: $e, 原始值: $value');
@@ -141,9 +120,7 @@ class MindMapService {
   /// 将数据库行转换为 KnowledgePoint
   KnowledgePoint _rowToKnowledgePoint(Map<String, dynamic> r) {
     List<String> tags = _safeParseJsonList(r['tags']);
-
     List<String> examMethods = _safeParseJsonList(r['exam_methods']);
-
     List<String> keyPoints = _safeParseJsonList(r['key_points']);
 
     int createdAt = DateTime.now().millisecondsSinceEpoch;
@@ -173,12 +150,20 @@ class MindMapService {
       title: r['title']?.toString() ?? '',
       content: r['content']?.toString() ?? '',
       subject: r['subject']?.toString() ?? '其他',
+      chapter: r['chapter']?.toString(),
       tags: tags,
       categoryId: r['category']?.toString(),
-      difficulty: r['difficulty'] is int ? r['difficulty'] as int : int.tryParse(r['difficulty']?.toString() ?? '') ?? 1,
-      masteryLevel: r['mastery_level'] is int ? r['mastery_level'] as int : int.tryParse(r['mastery_level']?.toString() ?? '') ?? 0,
-      reviewCount: r['review_count'] is int ? r['review_count'] as int : int.tryParse(r['review_count']?.toString() ?? '') ?? 0,
-      isFavorite: (r['is_favorite'] is int ? r['is_favorite'] as int : 0) == 1,
+      difficulty: r['difficulty'] is int
+          ? r['difficulty'] as int
+          : int.tryParse(r['difficulty']?.toString() ?? '') ?? 1,
+      masteryLevel: r['mastery_level'] is int
+          ? r['mastery_level'] as int
+          : int.tryParse(r['mastery_level']?.toString() ?? '') ?? 0,
+      reviewCount: r['review_count'] is int
+          ? r['review_count'] as int
+          : int.tryParse(r['review_count']?.toString() ?? '') ?? 0,
+      isFavorite:
+          (r['is_favorite'] is int ? r['is_favorite'] as int : 0) == 1,
       createdAt: createdAt,
       updatedAt: updatedAt,
       examMethods: examMethods,
@@ -188,7 +173,6 @@ class MindMapService {
 
   /// 将数据库行转换为 WrongQuestion
   WrongQuestion _rowToWrongQuestion(Map<String, dynamic> r) {
-    // 安全解析 options 字段
     List<Map<String, dynamic>> options = [];
     if (r['options'] != null) {
       try {
@@ -218,9 +202,7 @@ class MindMapService {
     }
 
     List<String> examMethods = _safeParseJsonList(r['exam_methods']);
-
     List<String> keyPoints = _safeParseJsonList(r['key_points']);
-
     List<String> tags = _safeParseJsonList(r['tags']);
 
     int createdAt = DateTime.now().millisecondsSinceEpoch;
@@ -254,9 +236,13 @@ class MindMapService {
       userAnswer: r['my_answer']?.toString(),
       analysis: r['analysis']?.toString() ?? '',
       subject: r['subject']?.toString() ?? '其他',
+      chapter: r['chapter']?.toString(),
       errorType: r['error_type']?.toString() ?? '知识盲区',
-      errorCount: r['error_count'] is int ? r['error_count'] as int : int.tryParse(r['error_count']?.toString() ?? '') ?? 1,
-      isResolved: (r['is_mastered'] is int ? r['is_mastered'] as int : 0) == 1,
+      errorCount: r['error_count'] is int
+          ? r['error_count'] as int
+          : int.tryParse(r['error_count']?.toString() ?? '') ?? 1,
+      isResolved:
+          (r['is_mastered'] is int ? r['is_mastered'] as int : 0) == 1,
       createdAt: createdAt,
       updatedAt: updatedAt,
       examMethods: examMethods,
@@ -268,9 +254,7 @@ class MindMapService {
   /// 将数据库行转换为 Note
   Note _rowToNote(Map<String, dynamic> r) {
     List<String> tags = _safeParseJsonList(r['tags']);
-
     List<String> examMethods = _safeParseJsonList(r['exam_methods']);
-
     List<String> keyPoints = _safeParseJsonList(r['key_points']);
 
     int createdAt = DateTime.now().millisecondsSinceEpoch;
@@ -300,9 +284,11 @@ class MindMapService {
       title: r['title']?.toString() ?? '',
       content: r['content']?.toString() ?? '',
       subject: r['subject']?.toString() ?? '其他',
+      chapter: r['chapter']?.toString(),
       tags: tags,
       color: r['color']?.toString() ?? '#FFFFFF',
-      isFavorite: (r['is_favorite'] is int ? r['is_favorite'] as int : 0) == 1,
+      isFavorite:
+          (r['is_favorite'] is int ? r['is_favorite'] as int : 0) == 1,
       createdAt: createdAt,
       updatedAt: updatedAt,
       examMethods: examMethods,
@@ -313,7 +299,6 @@ class MindMapService {
   /// 将数据库行转换为 MustRemember
   MustRemember _rowToMustRemember(Map<String, dynamic> r) {
     List<String> examMethods = _safeParseJsonList(r['exam_methods']);
-
     List<String> keyPoints = _safeParseJsonList(r['key_points']);
 
     int createdAt = DateTime.now().millisecondsSinceEpoch;
@@ -343,7 +328,8 @@ class MindMapService {
       if (r['next_review_time'] is int) {
         nextReviewTime = r['next_review_time'] as int;
       } else if (r['next_review_time'] is String) {
-        nextReviewTime = DateTime.tryParse(r['next_review_time'] as String)
+        nextReviewTime =
+            DateTime.tryParse(r['next_review_time'] as String)
                 ?.millisecondsSinceEpoch;
       }
     }
@@ -353,12 +339,20 @@ class MindMapService {
       title: r['title']?.toString() ?? '',
       content: r['content']?.toString() ?? '',
       subject: r['subject']?.toString() ?? '其他',
+      chapter: r['chapter']?.toString(),
       category: r['category']?.toString() ?? '其他',
-      memoryLevel: r['memory_level'] is int ? r['memory_level'] as int : int.tryParse(r['memory_level']?.toString() ?? '') ?? 0,
+      memoryLevel: r['memory_level'] is int
+          ? r['memory_level'] as int
+          : int.tryParse(r['memory_level']?.toString() ?? '') ?? 0,
       nextReviewTime: nextReviewTime,
-      reviewInterval: r['review_interval'] is int ? r['review_interval'] as int : int.tryParse(r['review_interval']?.toString() ?? '') ?? 0,
-      reviewCount: r['review_count'] is int ? r['review_count'] as int : int.tryParse(r['review_count']?.toString() ?? '') ?? 0,
-      isMastered: (r['is_mastered'] is int ? r['is_mastered'] as int : 0) == 1,
+      reviewInterval: r['review_interval'] is int
+          ? r['review_interval'] as int
+          : int.tryParse(r['review_interval']?.toString() ?? '') ?? 0,
+      reviewCount: r['review_count'] is int
+          ? r['review_count'] as int
+          : int.tryParse(r['review_count']?.toString() ?? '') ?? 0,
+      isMastered:
+          (r['is_mastered'] is int ? r['is_mastered'] as int : 0) == 1,
       createdAt: createdAt,
       updatedAt: updatedAt,
       examMethods: examMethods,
@@ -367,24 +361,22 @@ class MindMapService {
   }
 
   /// 生成全部内容的思维导图
-  Future<List<MindMapNode>> _generateAll(
+  /// 结构：根节点 -> 学科 -> 章节 -> 内容
+  Future<MindMapNode> _generateAll(
     List<KnowledgePoint> knowledgePoints,
     List<WrongQuestion> wrongQuestions,
     List<Note> notes,
     List<MustRemember> mustRemember,
   ) async {
-    final List<MindMapNode> nodes = [];
-    final centerX = 0.0;
-    final centerY = 0.0;
-
     // 创建根节点
-    nodes.add(MindMapNode(
+    final rootNode = MindMapNode(
       id: 'root',
-      label: '学习知识图谱',
+      title: '学习知识图谱',
       type: NodeType.root,
-      x: centerX,
-      y: centerY,
-    ));
+      subject: '全部',
+      x: 0,
+      y: 0,
+    );
 
     // 按学科分组
     final subjects = _groupBySubject(
@@ -396,62 +388,109 @@ class MindMapService {
 
     // 为每个学科创建分支
     final subjectNames = subjects.keys.toList();
-    final angleStep = 2 * pi / subjectNames.length;
-    
+    final angleStep = 2 * pi / max(subjectNames.length, 1);
+
     for (int i = 0; i < subjectNames.length; i++) {
       final subject = subjectNames[i];
       final angle = i * angleStep - pi / 2;
-      final distance = 200.0;
-      
+      const distance = 250.0;
+
       final subjectNode = MindMapNode(
         id: 'subject_$subject',
-        label: subject,
+        title: subject,
+        content: '学科：$subject',
         type: NodeType.subject,
-        x: centerX + cos(angle) * distance,
-        y: centerY + sin(angle) * distance,
-        parentId: 'root',
-        data: {'subject': subject},
+        subject: subject,
+        x: cos(angle) * distance,
+        y: sin(angle) * distance,
+        parentId: rootNode.id,
       );
-      nodes.add(subjectNode);
+      rootNode.addChild(subjectNode);
 
-      // 添加学科下的内容
+      // 获取该学科下的所有内容
       final content = subjects[subject]!;
-      nodes.addAll(_createContentNodes(
-        content,
-        subjectNode.id,
-        subjectNode.x,
-        subjectNode.y,
-        angle,
-      ));
+
+      // 按章节分组
+      final chapters = _groupByChapter(content);
+
+      // 为每个章节创建子节点
+      final chapterNames = chapters.keys.toList();
+      final chapterAngleStep = (2 * pi / 6) / max(chapterNames.length, 1);
+      final chapterBaseAngle = angle - (2 * pi / 12);
+
+      for (int j = 0; j < chapterNames.length; j++) {
+        final chapter = chapterNames[j];
+        final chapterAngle = chapterBaseAngle + j * chapterAngleStep;
+        const chapterDistance = 180.0;
+
+        final chapterNode = MindMapNode(
+          id: 'chapter_${subject}_$chapter',
+          title: chapter,
+          content: '章节：$chapter',
+          type: NodeType.chapter,
+          subject: subject,
+          chapter: chapter,
+          x: subjectNode.x + cos(chapterAngle) * chapterDistance,
+          y: subjectNode.y + sin(chapterAngle) * chapterDistance,
+          parentId: subjectNode.id,
+        );
+        subjectNode.addChild(chapterNode);
+
+        // 添加章节下的内容节点
+        final chapterContent = chapters[chapter]!;
+        chapterNode.children.addAll(
+          _createContentNodesForChapter(
+            chapterContent,
+            chapterNode.x,
+            chapterNode.y,
+            chapterAngle,
+            subject,
+            chapter,
+          ),
+        );
+      }
+
+      // 如果没有章节，直接添加内容
+      if (chapterNames.isEmpty) {
+        subjectNode.children.addAll(
+          _createContentNodesForChapter(
+            content,
+            subjectNode.x,
+            subjectNode.y,
+            angle,
+            subject,
+            null,
+          ),
+        );
+      }
     }
 
-    return nodes;
+    return rootNode;
   }
 
   /// 按学科生成思维导图
-  Future<List<MindMapNode>> _generateBySubject(
+  Future<MindMapNode> _generateBySubject(
     List<KnowledgePoint> knowledgePoints,
     List<WrongQuestion> wrongQuestions,
     List<Note> notes,
     List<MustRemember> mustRemember,
     String? subject,
   ) async {
-    final List<MindMapNode> nodes = [];
-    final centerX = 0.0;
-    final centerY = 0.0;
-
     if (subject == null) {
-      return _generateAll(knowledgePoints, wrongQuestions, notes, mustRemember);
+      return _generateAll(
+          knowledgePoints, wrongQuestions, notes, mustRemember);
     }
 
     // 创建根节点
-    nodes.add(MindMapNode(
+    final rootNode = MindMapNode(
       id: 'root',
-      label: subject,
+      title: subject,
+      content: '学科知识图谱：$subject',
       type: NodeType.root,
-      x: centerX,
-      y: centerY,
-    ));
+      subject: subject,
+      x: 0,
+      y: 0,
+    );
 
     // 过滤该学科的内容
     final filtered = _filterBySubject(
@@ -462,421 +501,211 @@ class MindMapService {
       subject,
     );
 
-    // 按类型分组
-    final types = ['知识点', '错题', '笔记', '必记必背'];
-    final typeData = {
-      '知识点': filtered['knowledgePoints']!,
-      '错题': filtered['wrongQuestions']!,
-      '笔记': filtered['notes']!,
-      '必记必背': filtered['mustRemember']!,
+    // 按章节分组
+    final chapters = _groupByChapter(filtered);
+
+    // 为每个章节创建节点
+    final chapterNames = chapters.keys.toList();
+    final angleStep = 2 * pi / max(chapterNames.length, 1);
+
+    for (int i = 0; i < chapterNames.length; i++) {
+      final chapter = chapterNames[i];
+      final angle = i * angleStep - pi / 2;
+      const distance = 200.0;
+
+      final chapterNode = MindMapNode(
+        id: 'chapter_$chapter',
+        title: chapter,
+        content: '章节：$chapter',
+        type: NodeType.chapter,
+        subject: subject,
+        chapter: chapter,
+        x: cos(angle) * distance,
+        y: sin(angle) * distance,
+        parentId: rootNode.id,
+      );
+      rootNode.addChild(chapterNode);
+
+      // 添加章节下的内容节点
+      final chapterContent = chapters[chapter]!;
+      chapterNode.children.addAll(
+        _createContentNodesForChapter(
+          chapterContent,
+          chapterNode.x,
+          chapterNode.y,
+          angle,
+          subject,
+          chapter,
+        ),
+      );
+    }
+
+    return rootNode;
+  }
+
+  /// 按学科分组
+  Map<String, Map<String, List<dynamic>>> _groupBySubject(
+    List<KnowledgePoint> knowledgePoints,
+    List<WrongQuestion> wrongQuestions,
+    List<Note> notes,
+    List<MustRemember> mustRemember,
+  ) {
+    final Map<String, Map<String, List<dynamic>>> result = {};
+
+    void addToSubject(String subject, String type, dynamic item) {
+      result.putIfAbsent(subject, () => {});
+      result[subject]!.putIfAbsent(type, () => []);
+      result[subject]![type]!.add(item);
+    }
+
+    for (final kp in knowledgePoints) {
+      addToSubject(kp.subject, 'knowledgePoints', kp);
+    }
+    for (final wq in wrongQuestions) {
+      addToSubject(wq.subject, 'wrongQuestions', wq);
+    }
+    for (final note in notes) {
+      addToSubject(note.subject, 'notes', note);
+    }
+    for (final mr in mustRemember) {
+      addToSubject(mr.subject, 'mustRemember', mr);
+    }
+
+    return result;
+  }
+
+  /// 按学科过滤
+  Map<String, List<dynamic>> _filterBySubject(
+    List<KnowledgePoint> knowledgePoints,
+    List<WrongQuestion> wrongQuestions,
+    List<Note> notes,
+    List<MustRemember> mustRemember,
+    String subject,
+  ) {
+    return {
+      'knowledgePoints':
+          knowledgePoints.where((kp) => kp.subject == subject).toList(),
+      'wrongQuestions':
+          wrongQuestions.where((wq) => wq.subject == subject).toList(),
+      'notes': notes.where((n) => n.subject == subject).toList(),
+      'mustRemember':
+          mustRemember.where((mr) => mr.subject == subject).toList(),
     };
-
-    final angleStep = 2 * pi / types.length;
-    
-    for (int i = 0; i < types.length; i++) {
-      final type = types[i];
-      final items = typeData[type]!;
-      
-      if (items.isEmpty) continue;
-
-      final angle = i * angleStep - pi / 2;
-      final distance = 200.0;
-      
-      final typeNode = MindMapNode(
-        id: 'type_$type',
-        label: '$type (${items.length})',
-        type: NodeType.category,
-        x: centerX + cos(angle) * distance,
-        y: centerY + sin(angle) * distance,
-        parentId: 'root',
-        data: {'type': type},
-      );
-      nodes.add(typeNode);
-
-      // 添加具体内容节点
-      nodes.addAll(_createContentNodes(
-        {type: items},
-        typeNode.id,
-        typeNode.x,
-        typeNode.y,
-        angle,
-      ));
-    }
-
-    return nodes;
   }
 
-  /// 按标签生成思维导图
-  Future<List<MindMapNode>> _generateByTag(
-    List<KnowledgePoint> knowledgePoints,
-    List<WrongQuestion> wrongQuestions,
-    List<Note> notes,
-    List<MustRemember> mustRemember,
-    String? tag,
-  ) async {
-    final List<MindMapNode> nodes = [];
-    final centerX = 0.0;
-    final centerY = 0.0;
-
-    if (tag == null) {
-      // 显示所有标签
-      final allTags = _extractAllTags(
-        knowledgePoints,
-        wrongQuestions,
-        notes,
-        mustRemember,
-      );
-
-      nodes.add(MindMapNode(
-        id: 'root',
-        label: '标签分类',
-        type: NodeType.root,
-        x: centerX,
-        y: centerY,
-      ));
-
-      final angleStep = 2 * pi / allTags.length;
-      for (int i = 0; i < allTags.length; i++) {
-        final t = allTags[i];
-        final angle = i * angleStep - pi / 2;
-        final distance = 200.0;
-        
-        nodes.add(MindMapNode(
-          id: 'tag_$t',
-          label: t,
-          type: NodeType.tag,
-          x: centerX + cos(angle) * distance,
-          y: centerY + sin(angle) * distance,
-          parentId: 'root',
-          data: {'tag': t},
-        ));
-      }
-      return nodes;
-    }
-
-    // 显示特定标签的内容
-    nodes.add(MindMapNode(
-      id: 'root',
-      label: '标签: $tag',
-      type: NodeType.root,
-      x: centerX,
-      y: centerY,
-    ));
-
-    final filtered = _filterByTag(
-      knowledgePoints,
-      wrongQuestions,
-      notes,
-      mustRemember,
-      tag,
-    );
-
-    // 按类型分组显示
-    final types = ['知识点', '错题', '笔记', '必记必背'];
-    final typeData = {
-      '知识点': filtered['knowledgePoints']!,
-      '错题': filtered['wrongQuestions']!,
-      '笔记': filtered['notes']!,
-      '必记必背': filtered['mustRemember']!,
-    };
-
-    final angleStep = 2 * pi / types.length;
-    
-    for (int i = 0; i < types.length; i++) {
-      final type = types[i];
-      final items = typeData[type]!;
-      
-      if (items.isEmpty) continue;
-
-      final angle = i * angleStep - pi / 2;
-      final distance = 200.0;
-      
-      final typeNode = MindMapNode(
-        id: 'type_$type',
-        label: '$type (${items.length})',
-        type: NodeType.category,
-        x: centerX + cos(angle) * distance,
-        y: centerY + sin(angle) * distance,
-        parentId: 'root',
-        data: {'type': type},
-      );
-      nodes.add(typeNode);
-
-      nodes.addAll(_createContentNodes(
-        {type: items},
-        typeNode.id,
-        typeNode.x,
-        typeNode.y,
-        angle,
-      ));
-    }
-
-    return nodes;
-  }
-
-  /// 按考法生成思维导图
-  Future<List<MindMapNode>> _generateByExamMethod(
-    List<KnowledgePoint> knowledgePoints,
-    List<WrongQuestion> wrongQuestions,
-    List<Note> notes,
-    List<MustRemember> mustRemember,
-    String? examMethod,
-  ) async {
-    final List<MindMapNode> nodes = [];
-    final centerX = 0.0;
-    final centerY = 0.0;
-
-    // 提取所有考法
-    final allExamMethods = _extractAllExamMethods(
-      knowledgePoints,
-      wrongQuestions,
-      notes,
-      mustRemember,
-    );
-
-    if (examMethod == null) {
-      // 显示所有考法
-      nodes.add(MindMapNode(
-        id: 'root',
-        label: '考法分类',
-        type: NodeType.root,
-        x: centerX,
-        y: centerY,
-      ));
-
-      final angleStep = allExamMethods.isEmpty ? 0 : 2 * pi / allExamMethods.length;
-      for (int i = 0; i < allExamMethods.length; i++) {
-        final em = allExamMethods[i];
-        final angle = i * angleStep - pi / 2;
-        final distance = 200.0;
-        
-        nodes.add(MindMapNode(
-          id: 'exam_method_$em',
-          label: em,
-          type: NodeType.examMethod,
-          x: centerX + cos(angle) * distance,
-          y: centerY + sin(angle) * distance,
-          parentId: 'root',
-          data: {'examMethod': em},
-        ));
-      }
-      return nodes;
-    }
-
-    // 显示特定考法的内容
-    nodes.add(MindMapNode(
-      id: 'root',
-      label: '考法: $examMethod',
-      type: NodeType.root,
-      x: centerX,
-      y: centerY,
-    ));
-
-    final filtered = _filterByExamMethod(
-      knowledgePoints,
-      wrongQuestions,
-      notes,
-      mustRemember,
-      examMethod,
-    );
-
-    // 按学科分组
-    final subjects = filtered.keys.toList();
-    final angleStep = subjects.isEmpty ? 0 : 2 * pi / subjects.length;
-    
-    for (int i = 0; i < subjects.length; i++) {
-      final subject = subjects[i];
-      final items = filtered[subject]!;
-      
-      if (items.isEmpty) continue;
-
-      final angle = i * angleStep - pi / 2;
-      final distance = 200.0;
-      
-      final subjectNode = MindMapNode(
-        id: 'subject_$subject',
-        label: '$subject (${items.length})',
-        type: NodeType.subject,
-        x: centerX + cos(angle) * distance,
-        y: centerY + sin(angle) * distance,
-        parentId: 'root',
-        data: {'subject': subject},
-      );
-      nodes.add(subjectNode);
-
-      nodes.addAll(_createContentNodes(
-        {subject: items},
-        subjectNode.id,
-        subjectNode.x,
-        subjectNode.y,
-        angle,
-      ));
-    }
-
-    return nodes;
-  }
-
-  /// 按考点生成思维导图
-  Future<List<MindMapNode>> _generateByKeyPoint(
-    List<KnowledgePoint> knowledgePoints,
-    List<WrongQuestion> wrongQuestions,
-    List<Note> notes,
-    List<MustRemember> mustRemember,
-    String? keyPoint,
-  ) async {
-    // 与考法逻辑类似
-    final allKeyPoints = _extractAllKeyPoints(
-      knowledgePoints,
-      wrongQuestions,
-      notes,
-      mustRemember,
-    );
-
-    final List<MindMapNode> nodes = [];
-    final centerX = 0.0;
-    final centerY = 0.0;
-
-    if (keyPoint == null) {
-      nodes.add(MindMapNode(
-        id: 'root',
-        label: '考点分类',
-        type: NodeType.root,
-        x: centerX,
-        y: centerY,
-      ));
-
-      final angleStep = allKeyPoints.isEmpty ? 0 : 2 * pi / allKeyPoints.length;
-      for (int i = 0; i < allKeyPoints.length; i++) {
-        final kp = allKeyPoints[i];
-        final angle = i * angleStep - pi / 2;
-        final distance = 200.0;
-        
-        nodes.add(MindMapNode(
-          id: 'key_point_$kp',
-          label: kp,
-          type: NodeType.keyPoint,
-          x: centerX + cos(angle) * distance,
-          y: centerY + sin(angle) * distance,
-          parentId: 'root',
-          data: {'keyPoint': kp},
-        ));
-      }
-      return nodes;
-    }
-
-    nodes.add(MindMapNode(
-      id: 'root',
-      label: '考点: $keyPoint',
-      type: NodeType.root,
-      x: centerX,
-      y: centerY,
-    ));
-
-    final filtered = _filterByKeyPoint(
-      knowledgePoints,
-      wrongQuestions,
-      notes,
-      mustRemember,
-      keyPoint,
-    );
-
-    final subjects = filtered.keys.toList();
-    final angleStep = subjects.isEmpty ? 0 : 2 * pi / subjects.length;
-    
-    for (int i = 0; i < subjects.length; i++) {
-      final subject = subjects[i];
-      final items = filtered[subject]!;
-      
-      if (items.isEmpty) continue;
-
-      final angle = i * angleStep - pi / 2;
-      final distance = 200.0;
-      
-      final subjectNode = MindMapNode(
-        id: 'subject_$subject',
-        label: '$subject (${items.length})',
-        type: NodeType.subject,
-        x: centerX + cos(angle) * distance,
-        y: centerY + sin(angle) * distance,
-        parentId: 'root',
-        data: {'subject': subject},
-      );
-      nodes.add(subjectNode);
-
-      nodes.addAll(_createContentNodes(
-        {subject: items},
-        subjectNode.id,
-        subjectNode.x,
-        subjectNode.y,
-        angle,
-      ));
-    }
-
-    return nodes;
-  }
-
-  /// 创建内容节点
-  List<MindMapNode> _createContentNodes(
+  /// 按章节分组
+  Map<String, Map<String, List<dynamic>>> _groupByChapter(
     Map<String, List<dynamic>> content,
-    String parentId,
+  ) {
+    final Map<String, Map<String, List<dynamic>>> result = {};
+
+    void addItem(String? chapter, String type, dynamic item) {
+      final key = chapter ?? '未分类';
+      result.putIfAbsent(key, () => {});
+      result[key]!.putIfAbsent(type, () => []);
+      result[key]![type]!.add(item);
+    }
+
+    for (final kp in content['knowledgePoints'] ?? []) {
+      addItem((kp as KnowledgePoint).chapter, 'knowledgePoints', kp);
+    }
+    for (final wq in content['wrongQuestions'] ?? []) {
+      addItem((wq as WrongQuestion).chapter, 'wrongQuestions', wq);
+    }
+    for (final note in content['notes'] ?? []) {
+      addItem((note as Note).chapter, 'notes', note);
+    }
+    for (final mr in content['mustRemember'] ?? []) {
+      addItem((mr as MustRemember).chapter, 'mustRemember', mr);
+    }
+
+    return result;
+  }
+
+  /// 为章节创建内容节点
+  List<MindMapNode> _createContentNodesForChapter(
+    Map<String, List<dynamic>> content,
     double parentX,
     double parentY,
     double baseAngle,
+    String subject,
+    String? chapter,
   ) {
     final List<MindMapNode> nodes = [];
     final allItems = content.values.expand((x) => x).toList();
-    
+
     if (allItems.isEmpty) return nodes;
 
-    final itemAngleStep = pi / 3 / max(allItems.length, 1);
-    final startAngle = baseAngle - pi / 6;
-    final distance = 150.0;
+    // 按类型分组
+    final typeOrder = ['knowledgePoints', 'wrongQuestions', 'notes', 'mustRemember'];
+    final typeNames = {
+      'knowledgePoints': '知识点',
+      'wrongQuestions': '错题',
+      'notes': '笔记',
+      'mustRemember': '必记必背',
+    };
 
-    for (int i = 0; i < allItems.length; i++) {
-      final item = allItems[i];
-      final angle = startAngle + i * itemAngleStep;
-      
-      String id, label, itemType;
-      NodeType nodeType;
-      Map<String, dynamic> data = {};
+    final angleStep = pi / 4 / max(allItems.length, 1);
+    var currentAngle = baseAngle - pi / 8;
+    const distance = 120.0;
 
-      if (item is KnowledgePoint) {
-        id = 'kp_${item.id}';
-        label = item.title;
-        itemType = 'knowledgePoint';
-        nodeType = NodeType.knowledgePoint;
-        data = {'knowledgePoint': item.toJson()};
-      } else if (item is WrongQuestion) {
-        id = 'wq_${item.id}';
-        label = item.title.isNotEmpty ? item.title : '错题';
-        itemType = 'wrongQuestion';
-        nodeType = NodeType.wrongQuestion;
-        data = {'wrongQuestion': item.toJson()};
-      } else if (item is Note) {
-        id = 'note_${item.id}';
-        label = item.title;
-        itemType = 'note';
-        nodeType = NodeType.note;
-        data = {'note': item.toJson()};
-      } else if (item is MustRemember) {
-        id = 'mr_${item.id}';
-        label = item.title;
-        itemType = 'mustRemember';
-        nodeType = NodeType.mustRemember;
-        data = {'mustRemember': item.toJson()};
-      } else {
-        continue;
+    for (final type in typeOrder) {
+      final items = content[type] ?? [];
+      for (final item in items) {
+        String id, title, content;
+        NodeType nodeType;
+        Map<String, dynamic> data = {};
+
+        if (item is KnowledgePoint) {
+          id = 'kp_${item.id}';
+          title = item.title;
+          content = item.content.length > 50
+              ? '${item.content.substring(0, 50)}...'
+              : item.content;
+          nodeType = NodeType.knowledgePoint;
+          data = {'knowledgePoint': item.toJson()};
+        } else if (item is WrongQuestion) {
+          id = 'wq_${item.id}';
+          title = item.title.isNotEmpty ? item.title : '错题';
+          content = '错误类型：${item.errorType}';
+          nodeType = NodeType.wrongQuestion;
+          data = {'wrongQuestion': item.toJson()};
+        } else if (item is Note) {
+          id = 'note_${item.id}';
+          title = item.title;
+          content = item.content.length > 50
+              ? '${item.content.substring(0, 50)}...'
+              : item.content;
+          nodeType = NodeType.note;
+          data = {'note': item.toJson()};
+        } else if (item is MustRemember) {
+          id = 'mr_${item.id}';
+          title = item.title;
+          content = item.content.length > 50
+              ? '${item.content.substring(0, 50)}...'
+              : item.content;
+          nodeType = NodeType.mustRemember;
+          data = {'mustRemember': item.toJson()};
+        } else {
+          continue;
+        }
+
+        nodes.add(MindMapNode(
+          id: id,
+          title: title.length > 12 ? '${title.substring(0, 12)}...' : title,
+          content: content,
+          type: nodeType,
+          subject: subject,
+          chapter: chapter,
+          sourceId: item.id,
+          x: parentX + cos(currentAngle) * distance,
+          y: parentY + sin(currentAngle) * distance,
+          parentId: chapter != null ? 'chapter_$chapter' : 'subject_$subject',
+          data: data,
+        ));
+
+        currentAngle += angleStep;
       }
-
-      nodes.add(MindMapNode(
-        id: id,
-        label: label.length > 15 ? '${label.substring(0, 15)}...' : label,
-        type: nodeType,
-        x: parentX + cos(angle) * distance,
-        y: parentY + sin(angle) * distance,
-        parentId: parentId,
-        data: data,
-      ));
     }
 
     return nodes;
@@ -902,8 +731,8 @@ class MindMapService {
         if (relation != null) {
           final connId = '${node1.id}_${node2.id}';
           final reverseConnId = '${node2.id}_${node1.id}';
-          
-          if (!connectionIds.contains(connId) && 
+
+          if (!connectionIds.contains(connId) &&
               !connectionIds.contains(reverseConnId)) {
             connections.add(MindMapConnection(
               sourceId: node1.id,
@@ -922,38 +751,33 @@ class MindMapService {
 
   /// 检查两个节点之间的关联
   String? _checkRelation(MindMapNode node1, MindMapNode node2) {
+    // 同章节关联
+    if (node1.chapter != null &&
+        node2.chapter != null &&
+        node1.chapter == node2.chapter) {
+      return '同章节';
+    }
+
     // 同主题关联
-    final subject1 = node1.data?['subject'] ?? 
-        _extractSubjectFromNodeData(node1);
-    final subject2 = node2.data?['subject'] ?? 
-        _extractSubjectFromNodeData(node2);
-    
-    if (subject1 != null && subject2 != null && subject1 == subject2) {
-      return '同主题';
+    if (node1.subject == node2.subject) {
+      return '同学科';
     }
 
-    // 同标签关联
-    final tags1 = _extractTagsFromNodeData(node1);
-    final tags2 = _extractTagsFromNodeData(node2);
-    final commonTags = tags1.where((t) => tags2.contains(t)).toList();
-    if (commonTags.isNotEmpty) {
-      return '同标签: ${commonTags.first}';
-    }
-
-    // 同考法关联
+    // 从data中检查考法和考点
     final examMethods1 = _extractExamMethodsFromNodeData(node1);
     final examMethods2 = _extractExamMethodsFromNodeData(node2);
-    final commonExamMethods = examMethods1.where((em) => examMethods2.contains(em)).toList();
+    final commonExamMethods =
+        examMethods1.where((em) => examMethods2.contains(em)).toList();
     if (commonExamMethods.isNotEmpty) {
-      return '同考法: ${commonExamMethods.first}';
+      return '同考法';
     }
 
-    // 同考点关联
     final keyPoints1 = _extractKeyPointsFromNodeData(node1);
     final keyPoints2 = _extractKeyPointsFromNodeData(node2);
-    final commonKeyPoints = keyPoints1.where((kp) => keyPoints2.contains(kp)).toList();
+    final commonKeyPoints =
+        keyPoints1.where((kp) => keyPoints2.contains(kp)).toList();
     if (commonKeyPoints.isNotEmpty) {
-      return '同考点: ${commonKeyPoints.first}';
+      return '同考点';
     }
 
     return null;
@@ -963,76 +787,40 @@ class MindMapService {
   double _calculateRelationStrength(MindMapNode node1, MindMapNode node2) {
     double strength = 0.0;
 
-    // 同主题 +0.3
-    final subject1 = _extractSubjectFromNodeData(node1);
-    final subject2 = _extractSubjectFromNodeData(node2);
-    if (subject1 != null && subject2 != null && subject1 == subject2) {
+    // 同章节 +0.5
+    if (node1.chapter != null &&
+        node2.chapter != null &&
+        node1.chapter == node2.chapter) {
+      strength += 0.5;
+    }
+
+    // 同学科 +0.3
+    if (node1.subject == node2.subject) {
       strength += 0.3;
     }
 
-    // 同标签 +0.2 * 共同标签数
-    final tags1 = _extractTagsFromNodeData(node1);
-    final tags2 = _extractTagsFromNodeData(node2);
-    final commonTags = tags1.where((t) => tags2.contains(t)).length;
-    strength += 0.2 * commonTags;
-
-    // 同考法 +0.25 * 共同考法数
+    // 同考法 +0.2
     final examMethods1 = _extractExamMethodsFromNodeData(node1);
     final examMethods2 = _extractExamMethodsFromNodeData(node2);
-    final commonExamMethods = examMethods1.where((em) => examMethods2.contains(em)).length;
-    strength += 0.25 * commonExamMethods;
+    final commonExamMethods =
+        examMethods1.where((em) => examMethods2.contains(em)).length;
+    strength += 0.2 * commonExamMethods;
 
-    // 同考点 +0.25 * 共同考点数
+    // 同考点 +0.2
     final keyPoints1 = _extractKeyPointsFromNodeData(node1);
     final keyPoints2 = _extractKeyPointsFromNodeData(node2);
-    final commonKeyPoints = keyPoints1.where((kp) => keyPoints2.contains(kp)).length;
-    strength += 0.25 * commonKeyPoints;
+    final commonKeyPoints =
+        keyPoints1.where((kp) => keyPoints2.contains(kp)).length;
+    strength += 0.2 * commonKeyPoints;
 
     return strength.clamp(0.0, 1.0);
-  }
-
-  /// 从节点数据中提取学科
-  String? _extractSubjectFromNodeData(MindMapNode node) {
-    final data = node.data;
-    if (data == null) return null;
-    
-    if (data.containsKey('knowledgePoint')) {
-      return data['knowledgePoint']['subject'] as String?;
-    } else if (data.containsKey('wrongQuestion')) {
-      return data['wrongQuestion']['subject'] as String?;
-    } else if (data.containsKey('note')) {
-      return data['note']['subject'] as String?;
-    } else if (data.containsKey('mustRemember')) {
-      return data['mustRemember']['subject'] as String?;
-    }
-    return null;
-  }
-
-  /// 从节点数据中提取标签
-  List<String> _extractTagsFromNodeData(MindMapNode node) {
-    final data = node.data;
-    if (data == null) return [];
-    
-    List<dynamic>? tags;
-    if (data.containsKey('knowledgePoint')) {
-      tags = data['knowledgePoint']['tags'] as List<dynamic>?;
-    } else if (data.containsKey('wrongQuestion')) {
-      // 错题没有标签字段
-      return [];
-    } else if (data.containsKey('note')) {
-      tags = data['note']['tags'] as List<dynamic>?;
-    } else if (data.containsKey('mustRemember')) {
-      // 必记必背没有标签字段
-      return [];
-    }
-    return tags?.map((t) => t.toString()).toList() ?? [];
   }
 
   /// 从节点数据中提取考法
   List<String> _extractExamMethodsFromNodeData(MindMapNode node) {
     final data = node.data;
     if (data == null) return [];
-    
+
     List<dynamic>? examMethods;
     if (data.containsKey('knowledgePoint')) {
       examMethods = data['knowledgePoint']['examMethods'] as List<dynamic>?;
@@ -1050,7 +838,7 @@ class MindMapService {
   List<String> _extractKeyPointsFromNodeData(MindMapNode node) {
     final data = node.data;
     if (data == null) return [];
-    
+
     List<dynamic>? keyPoints;
     if (data.containsKey('knowledgePoint')) {
       keyPoints = data['knowledgePoint']['keyPoints'] as List<dynamic>?;
@@ -1064,214 +852,11 @@ class MindMapService {
     return keyPoints?.map((k) => k.toString()).toList() ?? [];
   }
 
-  /// 按学科分组
-  Map<String, Map<String, List<dynamic>>> _groupBySubject(
-    List<KnowledgePoint> knowledgePoints,
-    List<WrongQuestion> wrongQuestions,
-    List<Note> notes,
-    List<MustRemember> mustRemember,
-  ) {
-    final Map<String, Map<String, List<dynamic>>> result = {};
-
-    for (final kp in knowledgePoints) {
-      result.putIfAbsent(kp.subject, () => {});
-      result[kp.subject]!.putIfAbsent('knowledgePoints', () => []);
-      result[kp.subject]!['knowledgePoints']!.add(kp);
-    }
-
-    for (final wq in wrongQuestions) {
-      result.putIfAbsent(wq.subject, () => {});
-      result[wq.subject]!.putIfAbsent('wrongQuestions', () => []);
-      result[wq.subject]!['wrongQuestions']!.add(wq);
-    }
-
-    for (final note in notes) {
-      result.putIfAbsent(note.subject, () => {});
-      result[note.subject]!.putIfAbsent('notes', () => []);
-      result[note.subject]!['notes']!.add(note);
-    }
-
-    for (final mr in mustRemember) {
-      result.putIfAbsent(mr.subject, () => {});
-      result[mr.subject]!.putIfAbsent('mustRemember', () => []);
-      result[mr.subject]!['mustRemember']!.add(mr);
-    }
-
-    return result;
-  }
-
-  /// 按学科过滤
-  Map<String, List<dynamic>> _filterBySubject(
-    List<KnowledgePoint> knowledgePoints,
-    List<WrongQuestion> wrongQuestions,
-    List<Note> notes,
-    List<MustRemember> mustRemember,
-    String subject,
-  ) {
-    return {
-      'knowledgePoints': knowledgePoints.where((kp) => kp.subject == subject).toList(),
-      'wrongQuestions': wrongQuestions.where((wq) => wq.subject == subject).toList(),
-      'notes': notes.where((n) => n.subject == subject).toList(),
-      'mustRemember': mustRemember.where((mr) => mr.subject == subject).toList(),
-    };
-  }
-
-  /// 按标签过滤
-  Map<String, List<dynamic>> _filterByTag(
-    List<KnowledgePoint> knowledgePoints,
-    List<WrongQuestion> wrongQuestions,
-    List<Note> notes,
-    List<MustRemember> mustRemember,
-    String tag,
-  ) {
-    return {
-      'knowledgePoints': knowledgePoints.where((kp) => kp.tags.contains(tag)).toList(),
-      'wrongQuestions': [], // 错题没有标签
-      'notes': notes.where((n) => n.tags.contains(tag)).toList(),
-      'mustRemember': [], // 必记必背没有标签
-    };
-  }
-
-  /// 按考法过滤
-  Map<String, List<dynamic>> _filterByExamMethod(
-    List<KnowledgePoint> knowledgePoints,
-    List<WrongQuestion> wrongQuestions,
-    List<Note> notes,
-    List<MustRemember> mustRemember,
-    String examMethod,
-  ) {
-    final Map<String, List<dynamic>> result = {};
-
-    for (final kp in knowledgePoints.where((kp) => kp.examMethods.contains(examMethod))) {
-      result.putIfAbsent(kp.subject, () => []);
-      result[kp.subject]!.add(kp);
-    }
-
-    for (final wq in wrongQuestions.where((wq) => wq.examMethods.contains(examMethod))) {
-      result.putIfAbsent(wq.subject, () => []);
-      result[wq.subject]!.add(wq);
-    }
-
-    for (final note in notes.where((n) => n.examMethods.contains(examMethod))) {
-      result.putIfAbsent(note.subject, () => []);
-      result[note.subject]!.add(note);
-    }
-
-    for (final mr in mustRemember.where((mr) => mr.examMethods.contains(examMethod))) {
-      result.putIfAbsent(mr.subject, () => []);
-      result[mr.subject]!.add(mr);
-    }
-
-    return result;
-  }
-
-  /// 按考点过滤
-  Map<String, List<dynamic>> _filterByKeyPoint(
-    List<KnowledgePoint> knowledgePoints,
-    List<WrongQuestion> wrongQuestions,
-    List<Note> notes,
-    List<MustRemember> mustRemember,
-    String keyPoint,
-  ) {
-    final Map<String, List<dynamic>> result = {};
-
-    for (final kp in knowledgePoints.where((kp) => kp.keyPoints.contains(keyPoint))) {
-      result.putIfAbsent(kp.subject, () => []);
-      result[kp.subject]!.add(kp);
-    }
-
-    for (final wq in wrongQuestions.where((wq) => wq.keyPoints.contains(keyPoint))) {
-      result.putIfAbsent(wq.subject, () => []);
-      result[wq.subject]!.add(wq);
-    }
-
-    for (final note in notes.where((n) => n.keyPoints.contains(keyPoint))) {
-      result.putIfAbsent(note.subject, () => []);
-      result[note.subject]!.add(note);
-    }
-
-    for (final mr in mustRemember.where((mr) => mr.keyPoints.contains(keyPoint))) {
-      result.putIfAbsent(mr.subject, () => []);
-      result[mr.subject]!.add(mr);
-    }
-
-    return result;
-  }
-
-  /// 提取所有标签
-  List<String> _extractAllTags(
-    List<KnowledgePoint> knowledgePoints,
-    List<WrongQuestion> wrongQuestions,
-    List<Note> notes,
-    List<MustRemember> mustRemember,
-  ) {
-    final Set<String> tags = {};
-    for (final kp in knowledgePoints) {
-      tags.addAll(kp.tags);
-    }
-    for (final note in notes) {
-      tags.addAll(note.tags);
-    }
-    return tags.toList()..sort();
-  }
-
-  /// 提取所有考法
-  List<String> _extractAllExamMethods(
-    List<KnowledgePoint> knowledgePoints,
-    List<WrongQuestion> wrongQuestions,
-    List<Note> notes,
-    List<MustRemember> mustRemember,
-  ) {
-    final Set<String> examMethods = {};
-    for (final kp in knowledgePoints) {
-      examMethods.addAll(kp.examMethods);
-    }
-    for (final wq in wrongQuestions) {
-      examMethods.addAll(wq.examMethods);
-    }
-    for (final note in notes) {
-      examMethods.addAll(note.examMethods);
-    }
-    for (final mr in mustRemember) {
-      examMethods.addAll(mr.examMethods);
-    }
-    return examMethods.toList()..sort();
-  }
-
-  /// 提取所有考点
-  List<String> _extractAllKeyPoints(
-    List<KnowledgePoint> knowledgePoints,
-    List<WrongQuestion> wrongQuestions,
-    List<Note> notes,
-    List<MustRemember> mustRemember,
-  ) {
-    final Set<String> keyPoints = {};
-    for (final kp in knowledgePoints) {
-      keyPoints.addAll(kp.keyPoints);
-    }
-    for (final wq in wrongQuestions) {
-      keyPoints.addAll(wq.keyPoints);
-    }
-    for (final note in notes) {
-      keyPoints.addAll(note.keyPoints);
-    }
-    for (final mr in mustRemember) {
-      keyPoints.addAll(mr.keyPoints);
-    }
-    return keyPoints.toList()..sort();
-  }
-
   /// 获取思维导图标题
   String _getMindMapTitle(String type, String? filterValue) {
     switch (type) {
       case 'subject':
         return filterValue != null ? '$filterValue 知识图谱' : '学科知识图谱';
-      case 'tag':
-        return filterValue != null ? '标签: $filterValue' : '标签分类图谱';
-      case 'exam_method':
-        return filterValue != null ? '考法: $filterValue' : '考法分类图谱';
-      case 'key_point':
-        return filterValue != null ? '考点: $filterValue' : '考点分类图谱';
       default:
         return '学习知识图谱';
     }
@@ -1293,6 +878,30 @@ class MindMapService {
     return subjects.toList()..sort();
   }
 
+  /// 获取所有章节列表
+  Future<List<String>> getAllChapters(String subject) async {
+    final knowledgePoints = await _loadKnowledgePoints();
+    final wrongQuestions = await _loadWrongQuestions();
+    final notes = await _loadNotes();
+    final mustRemember = await _loadMustRemember();
+
+    final Set<String> chapters = {};
+    for (final kp in knowledgePoints.where((kp) => kp.subject == subject)) {
+      if (kp.chapter != null) chapters.add(kp.chapter!);
+    }
+    for (final wq in wrongQuestions.where((wq) => wq.subject == subject)) {
+      if (wq.chapter != null) chapters.add(wq.chapter!);
+    }
+    for (final note in notes.where((n) => n.subject == subject)) {
+      if (note.chapter != null) chapters.add(note.chapter!);
+    }
+    for (final mr in mustRemember.where((mr) => mr.subject == subject)) {
+      if (mr.chapter != null) chapters.add(mr.chapter!);
+    }
+
+    return chapters.toList()..sort();
+  }
+
   /// 获取所有考法列表
   Future<List<String>> getAllExamMethods() async {
     final knowledgePoints = await _loadKnowledgePoints();
@@ -1300,12 +909,21 @@ class MindMapService {
     final notes = await _loadNotes();
     final mustRemember = await _loadMustRemember();
 
-    return _extractAllExamMethods(
-      knowledgePoints,
-      wrongQuestions,
-      notes,
-      mustRemember,
-    );
+    final Set<String> examMethods = {};
+    for (final kp in knowledgePoints) {
+      examMethods.addAll(kp.examMethods);
+    }
+    for (final wq in wrongQuestions) {
+      examMethods.addAll(wq.examMethods);
+    }
+    for (final note in notes) {
+      examMethods.addAll(note.examMethods);
+    }
+    for (final mr in mustRemember) {
+      examMethods.addAll(mr.examMethods);
+    }
+
+    return examMethods.toList()..sort();
   }
 
   /// 获取所有考点列表
@@ -1315,12 +933,21 @@ class MindMapService {
     final notes = await _loadNotes();
     final mustRemember = await _loadMustRemember();
 
-    return _extractAllKeyPoints(
-      knowledgePoints,
-      wrongQuestions,
-      notes,
-      mustRemember,
-    );
+    final Set<String> keyPoints = {};
+    for (final kp in knowledgePoints) {
+      keyPoints.addAll(kp.keyPoints);
+    }
+    for (final wq in wrongQuestions) {
+      keyPoints.addAll(wq.keyPoints);
+    }
+    for (final note in notes) {
+      keyPoints.addAll(note.keyPoints);
+    }
+    for (final mr in mustRemember) {
+      keyPoints.addAll(mr.keyPoints);
+    }
+
+    return keyPoints.toList()..sort();
   }
 
   /// 获取所有标签列表
@@ -1338,7 +965,30 @@ class MindMapService {
     return tags.toList()..sort();
   }
 
-  /// 手动添加关联
+  /// 手动创建节点
+  Future<MindMapNode> createManualNode({
+    required String title,
+    required String content,
+    required NodeType type,
+    required String subject,
+    String? chapter,
+    String? parentId,
+    double? x,
+    double? y,
+  }) async {
+    return MindMapNode(
+      title: title,
+      content: content,
+      type: type,
+      subject: subject,
+      chapter: chapter,
+      parentId: parentId,
+      x: x ?? 0,
+      y: y ?? 0,
+    );
+  }
+
+  /// 添加手动关联
   Future<void> addManualConnection(
     MindMapData mindMapData,
     String sourceId,
@@ -1346,24 +996,25 @@ class MindMapService {
     String relation,
   ) async {
     // 检查节点是否存在
-    final sourceExists = mindMapData.nodes.any((n) => n.id == sourceId);
-    final targetExists = mindMapData.nodes.any((n) => n.id == targetId);
-    
-    if (!sourceExists || !targetExists) {
+    final sourceNode = mindMapData.findNodeById(sourceId);
+    final targetNode = mindMapData.findNodeById(targetId);
+
+    if (sourceNode == null || targetNode == null) {
       throw Exception('节点不存在');
     }
 
     // 检查是否已存在连接
     final existingConn = mindMapData.connections.any(
-      (c) => (c.sourceId == sourceId && c.targetId == targetId) ||
-             (c.sourceId == targetId && c.targetId == sourceId),
+      (c) =>
+          (c.sourceId == sourceId && c.targetId == targetId) ||
+          (c.sourceId == targetId && c.targetId == sourceId),
     );
 
     if (existingConn) {
       throw Exception('关联已存在');
     }
 
-    mindMapData.connections.add(MindMapConnection(
+    mindMapData.addConnection(MindMapConnection(
       sourceId: sourceId,
       targetId: targetId,
       relation: relation,
@@ -1378,9 +1029,62 @@ class MindMapService {
     String sourceId,
     String targetId,
   ) async {
-    mindMapData.connections.removeWhere(
-      (c) => (c.sourceId == sourceId && c.targetId == targetId) ||
-             (c.sourceId == targetId && c.targetId == sourceId),
+    mindMapData.removeConnection(sourceId, targetId);
+  }
+
+  /// 保存思维导图到数据库
+  Future<void> saveMindMap(MindMapData mindMapData) async {
+    final db = await _dbService.database;
+    await db.insert(
+      DatabaseService.tableMindMapData,
+      {
+        'uuid': mindMapData.id,
+        'title': mindMapData.title,
+        'data': jsonEncode(mindMapData.toJson()),
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  /// 从数据库加载思维导图
+  Future<MindMapData?> loadMindMap(String id) async {
+    final db = await _dbService.database;
+    final rows = await db.query(
+      DatabaseService.tableMindMapData,
+      where: 'uuid = ?',
+      whereArgs: [id],
+    );
+
+    if (rows.isEmpty) return null;
+
+    final data = jsonDecode(rows.first['data'] as String)
+        as Map<String, dynamic>;
+    return MindMapData.fromJson(data);
+  }
+
+  /// 获取所有保存的思维导图
+  Future<List<MindMapData>> getAllSavedMindMaps() async {
+    final db = await _dbService.database;
+    final rows = await db.query(
+      DatabaseService.tableMindMapData,
+      orderBy: 'updated_at DESC',
+    );
+
+    return rows.map((row) {
+      final data = jsonDecode(row['data'] as String) as Map<String, dynamic>;
+      return MindMapData.fromJson(data);
+    }).toList();
+  }
+
+  /// 删除保存的思维导图
+  Future<void> deleteSavedMindMap(String id) async {
+    final db = await _dbService.database;
+    await db.delete(
+      DatabaseService.tableMindMapData,
+      where: 'uuid = ?',
+      whereArgs: [id],
     );
   }
 }

@@ -336,42 +336,127 @@ class PrintService {
   ) async {
     _log('使用系统打印命令打印...');
 
+    File? tempFile;
     try {
       // 创建临时文件
       final tempDir = await getTemporaryDirectory();
-      final tempFile = File('${tempDir.path}/$fileName.pdf');
+      final sanitizedFileName = fileName.replaceAll(RegExp(r'[^\w\-\.]'), '_');
+      tempFile = File('${tempDir.path}/$sanitizedFileName.pdf');
       await tempFile.writeAsBytes(pdfBytes);
 
       _log('临时文件: ${tempFile.path}');
 
+      // 首先检查 lp 命令是否可用
+      final whichResult = await Process.run('which', ['lp']);
+      if (whichResult.exitCode != 0) {
+        _log('lp 命令不可用，尝试使用备用方案...');
+        // 使用系统默认应用打开 PDF
+        return await _openPdfWithDefaultApp(tempFile.path);
+      }
+
       // 尝试使用 lp 命令打印
       // lp 是CUPS打印系统的标准命令
-      final result = await Process.run('lp', [tempFile.path]);
+      final result = await Process.run('lp', ['-d', 'any', tempFile.path]);
 
       if (result.exitCode == 0) {
         _log('打印任务已提交: ${result.stdout}');
 
-        // 清理临时文件
-        try {
-          await tempFile.delete();
-        } catch (_) {}
+        // 清理临时文件（延迟删除，确保打印任务已接收）
+        Future.delayed(const Duration(seconds: 30), () async {
+          try {
+            if (await tempFile!.exists()) {
+              await tempFile.delete();
+              _log('临时文件已清理');
+            }
+          } catch (_) {}
+        });
 
         return const PrintResult(success: true);
       } else {
         final error = result.stderr.toString();
-        _log('打印失败: $error');
-        return PrintResult(
-          success: false,
-          errorMessage: '打印失败: $error',
-        );
+        _log('lp 命令失败: $error，尝试备用方案...');
+        // 尝试使用备用方案
+        return await _openPdfWithDefaultApp(tempFile.path);
       }
     } catch (e) {
       _log('系统打印失败: $e');
+      // 如果临时文件存在，尝试用默认应用打开
+      if (tempFile != null && await tempFile.exists()) {
+        return await _openPdfWithDefaultApp(tempFile.path);
+      }
       return PrintResult(
         success: false,
         errorMessage: '系统打印失败: $e',
       );
     }
+  }
+
+  /// 使用系统默认应用打开 PDF（备用方案）
+  static Future<PrintResult> _openPdfWithDefaultApp(String pdfPath) async {
+    _log('使用系统默认应用打开 PDF...');
+
+    try {
+      // 尝试使用 xdg-open（大多数 Linux 桌面环境支持）
+      final result = await Process.run('xdg-open', [pdfPath]);
+
+      if (result.exitCode == 0) {
+        _log('已使用默认应用打开 PDF: $pdfPath');
+        return PrintResult(
+          success: true,
+          filePath: pdfPath,
+        );
+      }
+    } catch (e) {
+      _log('xdg-open 失败: $e');
+    }
+
+    // 尝试使用 evince（GNOME 文档查看器）
+    try {
+      final result = await Process.run('evince', [pdfPath]);
+      if (result.exitCode == 0 || result.exitCode == null) {
+        _log('已使用 evince 打开 PDF');
+        return PrintResult(
+          success: true,
+          filePath: pdfPath,
+        );
+      }
+    } catch (e) {
+      _log('evince 失败: $e');
+    }
+
+    // 尝试使用 okular（KDE 文档查看器）
+    try {
+      final result = await Process.run('okular', [pdfPath]);
+      if (result.exitCode == 0 || result.exitCode == null) {
+        _log('已使用 okular 打开 PDF');
+        return PrintResult(
+          success: true,
+          filePath: pdfPath,
+        );
+      }
+    } catch (e) {
+      _log('okular 失败: $e');
+    }
+
+    // 尝试使用 firefox/chromium 浏览器打开
+    try {
+      final result = await Process.run('firefox', [pdfPath]);
+      if (result.exitCode == 0 || result.exitCode == null) {
+        _log('已使用 firefox 打开 PDF');
+        return PrintResult(
+          success: true,
+          filePath: pdfPath,
+        );
+      }
+    } catch (e) {
+      _log('firefox 失败: $e');
+    }
+
+    return PrintResult(
+      success: false,
+      errorMessage: '无法打开 PDF，请手动打开文件: $pdfPath',
+      filePath: pdfPath,
+    );
   }
 
   /// 打印知识点详情
