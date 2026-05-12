@@ -553,20 +553,15 @@ class _QuestionCardState extends State<QuestionCard> {
           // 简答题/证明题/论述题输入框（用于需要文字作答的题型，带特殊符号按钮）
           if ((widget.type == QuestionType.shortAnswer ||
                widget.type == QuestionType.proof ||
-               widget.type == QuestionType.essay ||
-               (widget.options == null &&
-                widget.type != QuestionType.singleChoice &&
-                widget.type != QuestionType.multipleChoice &&
-                widget.type != QuestionType.trueFalse &&
-                widget.type != QuestionType.fillBlank)) &&
+               widget.type == QuestionType.essay) &&
               !widget.showResult) ...[
             const SizedBox(height: 16),
             _buildAnswerAreaWithSymbols(
               hintText: widget.type == QuestionType.proof
-                  ? '请输入证明过程，点击右侧 ƒ 按钮插入数学符号...'
+                  ? '请输入证明过程，点击右侧按钮插入数学符号...'
                   : widget.type == QuestionType.essay
-                      ? '请输入论述内容，点击右侧 ƒ 按钮插入特殊符号...'
-                      : '请输入您的答案，点击右侧 ƒ 按钮插入特殊符号...',
+                      ? '请输入论述内容，点击右侧按钮插入特殊符号...'
+                      : '请输入您的答案，点击右侧按钮插入特殊符号...',
               maxLines: widget.type == QuestionType.proof || widget.type == QuestionType.essay ? 8 : 5,
               maxLength: widget.type == QuestionType.proof || widget.type == QuestionType.essay ? 2000 : 1000,
               onChanged: (value) {

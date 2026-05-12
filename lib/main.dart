@@ -108,17 +108,12 @@ class SmartLearningApp extends StatelessWidget {
       title: '智慧学习',
       debugShowCheckedModeBanner: false,
       themeMode: themeProvider.themeMode,
+      // 使用系统默认字体，不依赖打包字体，确保中文正常显示
       theme: themeProvider.lightTheme.copyWith(
-        // 确保全局字体设置正确应用
-        textTheme: themeProvider.lightTheme.textTheme.apply(
-          fontFamily: themeProvider.fontFamilyName,
-        ),
+        textTheme: themeProvider.lightTheme.textTheme,
       ),
       darkTheme: themeProvider.darkTheme.copyWith(
-        // 确保全局字体设置正确应用
-        textTheme: themeProvider.darkTheme.textTheme.apply(
-          fontFamily: themeProvider.fontFamilyName,
-        ),
+        textTheme: themeProvider.darkTheme.textTheme,
       ),
       // 设置全局默认字体
       themeAnimationDuration: const Duration(milliseconds: 300),
