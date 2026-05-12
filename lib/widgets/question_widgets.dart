@@ -233,8 +233,8 @@ class _QuestionCardState extends State<QuestionCard> {
       return content;
     }
 
-    // 尝试匹配其他可能的格式，如 {"label": "A", "content": "xxx"}
-    final jsonPattern = RegExp(r'["\']?label["\']?\s*:\s*["\']?([^,]+)["\']?\s*,\s*["\']?content["\']?\s*:\s*["\']?(.+?)["\']?\s*}', caseSensitive: false);
+    // 尝试匹配 {"label": "A", "content": "xxx"} 格式
+    final jsonPattern = RegExp(r"""["']?label["']?\s*:\s*["']?([^,]+)["']?\s*,\s*["']?content["']?\s*:\s*["']?(.+?)["']?\s*}""", caseSensitive: false);
     final jsonMatch = jsonPattern.firstMatch(trimmedText);
     if (jsonMatch != null && jsonMatch.groupCount >= 2) {
       return jsonMatch.group(2)?.trim() ?? trimmedText;
@@ -251,7 +251,7 @@ class _QuestionCardState extends State<QuestionCard> {
     // 处理 {label: ..., content: ...} 格式的题目内容
     if (content.trim().startsWith('{') && content.trim().endsWith('}')) {
       // 尝试提取 content 字段
-      final contentPattern = RegExp(r'["\']?content["\']?\s*:\s*["\']?(.+?)["\']?\s*[,}]', caseSensitive: false);
+      final contentPattern = RegExp(r"""["']?content["']?\s*:\s*["']?(.+?)["']?\s*[,}]""", caseSensitive: false);
       final match = contentPattern.firstMatch(content);
       if (match != null && match.group(1) != null) {
         return match.group(1)!.trim();
