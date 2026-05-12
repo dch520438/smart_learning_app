@@ -1295,7 +1295,7 @@ class AppAppBar extends StatelessWidget implements PreferredSizeWidget {
     }
 
     return AppBar(
-      title: Text(title),
+      title: Text(title, style: const TextStyle(fontSize: AppFontSize.xl)),
       leading: effectiveLeading,
       actions: actions,
       bottom: bottom,

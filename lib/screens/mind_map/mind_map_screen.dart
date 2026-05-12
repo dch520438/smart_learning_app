@@ -1423,9 +1423,9 @@ class MindMapPainter extends CustomPainter {
     if (viewState.showLabels) {
       final textStyle = TextStyle(
         color: Colors.black87,
-        fontSize: node.type == NodeType.root ? 14 : 11,
+        fontSize: node.type == NodeType.root ? 20 : 16,
         fontWeight:
-            node.type == NodeType.root ? FontWeight.bold : FontWeight.normal,
+            node.type == NodeType.root ? FontWeight.bold : FontWeight.w600,
       );
       final textSpan = TextSpan(text: node.title, style: textStyle);
       final textPainter = TextPainter(
@@ -1433,7 +1433,7 @@ class MindMapPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
         textAlign: TextAlign.center,
       );
-      textPainter.layout(maxWidth: 100);
+      textPainter.layout(maxWidth: 200);
 
       final labelY = position.dy + node.size / 2 + 4;
       textPainter.paint(

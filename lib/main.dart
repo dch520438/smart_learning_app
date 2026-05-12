@@ -111,9 +111,23 @@ class SmartLearningApp extends StatelessWidget {
       // 使用系统默认字体，不依赖打包字体，确保中文正常显示
       theme: themeProvider.lightTheme.copyWith(
         textTheme: themeProvider.lightTheme.textTheme,
+        appBarTheme: const AppBarTheme(
+          titleTextStyle: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
       ),
       darkTheme: themeProvider.darkTheme.copyWith(
         textTheme: themeProvider.darkTheme.textTheme,
+        appBarTheme: AppBarTheme(
+          titleTextStyle: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
       ),
       // 设置全局默认字体
       themeAnimationDuration: const Duration(milliseconds: 300),
