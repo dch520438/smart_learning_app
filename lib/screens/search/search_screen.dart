@@ -14,7 +14,6 @@ import '../wrong_questions/wrong_questions_screen.dart';
 import '../knowledge/knowledge_screen.dart';
 import '../mother_questions/mother_questions_screen.dart';
 import '../must_remember/must_remember_screen.dart';
-import '../../app.dart';
 
 // ============================================================
 // SearchScreen - 全局搜索页面

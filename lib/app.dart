@@ -102,19 +102,29 @@ class _AppContentState extends State<AppContent> with SingleTickerProviderStateM
       duration: const Duration(milliseconds: 300),
     );
     _slideAnimation = Tween<Offset>(
-      begin: Offset.zero,
-      end: const Offset(0, 1),
+      begin: const Offset(0, 1),
+      end: Offset.zero,
     ).animate(CurvedAnimation(
       parent: _animationController,
       curve: Curves.easeInOut,
     ));
     _fadeAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.0,
+      begin: 0.0,
+      end: 1.0,
     ).animate(CurvedAnimation(
       parent: _animationController,
       curve: Curves.easeInOut,
     ));
+    
+    // 根据导航状态初始化动画控制器
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final navProvider = context.read<NavigationProvider>();
+      if (navProvider.isNavVisible) {
+        _animationController.value = 1.0; // 显示导航栏
+      } else {
+        _animationController.value = 0.0; // 隐藏导航栏
+      }
+    });
   }
 
   @override
@@ -131,12 +141,14 @@ class _AppContentState extends State<AppContent> with SingleTickerProviderStateM
     _currentY = details.globalPosition.dy;
     final delta = _currentY - _startY;
     final navProvider = context.read<NavigationProvider>();
+    // 向下滑动超过30像素且导航栏隐藏时，显示导航栏
     if (delta > 30 && !navProvider.isNavVisible) {
       navProvider.showNavigation();
-      _animationController.reverse();
-    } else if (delta < -30 && navProvider.isNavVisible) {
-      navProvider.hideNavigation();
       _animationController.forward();
+    } else if (delta < -30 && navProvider.isNavVisible) {
+      // 向上滑动超过30像素且导航栏显示时，隐藏导航栏
+      navProvider.hideNavigation();
+      _animationController.reverse();
     }
   }
 
@@ -145,7 +157,7 @@ class _AppContentState extends State<AppContent> with SingleTickerProviderStateM
     navProvider.setIndex(index);
     if (!navProvider.isNavVisible) {
       navProvider.showNavigation();
-      _animationController.reverse();
+      _animationController.forward();
     }
   }
 
