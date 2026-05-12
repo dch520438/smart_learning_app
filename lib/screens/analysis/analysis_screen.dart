@@ -6,6 +6,9 @@ import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 
+/// 时间段筛选枚举
+enum TimeFilter { thisWeek, thisMonth, threeMonths, all }
+
 /// 学习分析页面
 class AnalysisScreen extends StatefulWidget {
   const AnalysisScreen({super.key});
@@ -25,8 +28,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   List<String> _selectedSubjects = [];
 
   // 时间段筛选
-  enum _TimeFilter { thisWeek, thisMonth, threeMonths, all }
-  _TimeFilter _timeFilter = _TimeFilter.thisMonth;
+  TimeFilter _timeFilter = TimeFilter.thisMonth;
 
   // 所有学科列表
   static const List<String> _allSubjects = ['数学', '语文', '英语', '物理', '化学', '生物', '历史', '地理', '政治'];
@@ -58,40 +60,40 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   DateTime? get _startDate {
     final now = DateTime.now();
     switch (_timeFilter) {
-      case _TimeFilter.thisWeek:
+      case TimeFilter.thisWeek:
         final monday = now.subtract(Duration(days: now.weekday - 1));
         return DateTime(monday.year, monday.month, monday.day);
-      case _TimeFilter.thisMonth:
+      case TimeFilter.thisMonth:
         return DateTime(now.year, now.month, 1);
-      case _TimeFilter.threeMonths:
+      case TimeFilter.threeMonths:
         final threeMonthsAgo = DateTime(now.year, now.month - 3, now.day);
         return threeMonthsAgo;
-      case _TimeFilter.all:
+      case TimeFilter.all:
         return null;
     }
   }
 
   DateTime? get _endDate {
-    if (_timeFilter == _TimeFilter.all) return null;
+    if (_timeFilter == TimeFilter.all) return null;
     final now = DateTime.now();
     return DateTime(now.year, now.month, now.day, 23, 59, 59);
   }
 
   String get _timeFilterLabel {
     switch (_timeFilter) {
-      case _TimeFilter.thisWeek: return '本周';
-      case _TimeFilter.thisMonth: return '本月';
-      case _TimeFilter.threeMonths: return '近三月';
-      case _TimeFilter.all: return '全部';
+      case TimeFilter.thisWeek: return '本周';
+      case TimeFilter.thisMonth: return '本月';
+      case TimeFilter.threeMonths: return '近三月';
+      case TimeFilter.all: return '全部';
     }
   }
 
-  String _getTimeFilterLabel(_TimeFilter filter) {
+  String _getTimeFilterLabel(TimeFilter filter) {
     switch (filter) {
-      case _TimeFilter.thisWeek: return '本周';
-      case _TimeFilter.thisMonth: return '本月';
-      case _TimeFilter.threeMonths: return '近三月';
-      case _TimeFilter.all: return '全部时间';
+      case TimeFilter.thisWeek: return '本周';
+      case TimeFilter.thisMonth: return '本月';
+      case TimeFilter.threeMonths: return '近三月';
+      case TimeFilter.all: return '全部时间';
     }
   }
 
@@ -126,7 +128,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
           endDate: _endDate,
         ),
         _analysisService.getLearningTrend(
-          days: _timeFilter == _TimeFilter.thisWeek ? 7 : _timeFilter == _TimeFilter.thisMonth ? 30 : 90,
+          days: _timeFilter == TimeFilter.thisWeek ? 7 : _timeFilter == TimeFilter.thisMonth ? 30 : 90,
           subjects: subjects,
           startDate: _startDate,
           endDate: _endDate,
@@ -222,7 +224,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
-              children: _TimeFilter.values.map((filter) {
+              children: TimeFilter.values.map((filter) {
                 final isSelected = _timeFilter == filter;
                 return Padding(
                   padding: const EdgeInsets.only(right: 8),

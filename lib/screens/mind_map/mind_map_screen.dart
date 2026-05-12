@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -730,10 +731,10 @@ class _MindMapScreenState extends State<MindMapScreen> {
     double x = 0, y = 0;
     if (parentNode != null) {
       final random = DateTime.now().millisecond;
-      final angle = (random / 1000) * 2 * pi;
+      final angle = (random / 1000) * 2 * math.pi;
       const distance = 150.0;
-      x = parentNode.x + cos(angle) * distance;
-      y = parentNode.y + sin(angle) * distance;
+      x = parentNode.x + math.cos(angle) * distance;
+      y = parentNode.y + math.sin(angle) * distance;
     }
 
     final newNode = MindMapNode(
