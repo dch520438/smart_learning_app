@@ -247,7 +247,7 @@ class ThemeProvider extends ChangeNotifier {
         labelMedium: TextStyle(fontSize: 12 * scale, fontWeight: FontWeight.w600),
         labelSmall: TextStyle(fontSize: 11 * scale, fontWeight: FontWeight.w600),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radius),
@@ -317,7 +317,7 @@ class ThemeProvider extends ChangeNotifier {
           color: const Color(0xFF1A1A1A),
         ),
       ),
-      tabBarTheme: TabBarThemeData(
+      tabBarTheme: TabBarTheme(
         labelColor: color,
         unselectedLabelColor: const Color(0xFF666666),
         indicatorColor: color,
@@ -398,7 +398,7 @@ class ThemeProvider extends ChangeNotifier {
         labelMedium: TextStyle(fontSize: 12 * scale, fontWeight: FontWeight.w600, color: Colors.white),
         labelSmall: TextStyle(fontSize: 11 * scale, fontWeight: FontWeight.w600, color: Colors.white70),
       ),
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         elevation: 0,
         color: const Color(0xFF1E1E1E),
         shape: RoundedRectangleBorder(
@@ -469,7 +469,7 @@ class ThemeProvider extends ChangeNotifier {
           color: Colors.white,
         ),
       ),
-      tabBarTheme: TabBarThemeData(
+      tabBarTheme: TabBarTheme(
         labelColor: color,
         unselectedLabelColor: const Color(0xFFB0B0B0),
         indicatorColor: color,
