@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:google_ml_kit/google_ml_kit.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 
 /// OCR 识别服务
 /// 使用 Google ML Kit 的 TextRecognizer 进行文字识别
@@ -16,7 +16,7 @@ class OcrService {
   /// 初始化识别器
   Future<void> _ensureInitialized() async {
     if (!_isInitialized || _textRecognizer == null) {
-      _textRecognizer = GoogleMlKit.vision.textRecognizer();
+      _textRecognizer = TextRecognizer(script: TextRecognitionScript.chinese);
       _isInitialized = true;
     }
   }
