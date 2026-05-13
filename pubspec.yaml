@@ -21,7 +21,7 @@ dependencies:
   camera: ^0.10.5+5
 
   # 语音相关
-  speech_to_text: ^6.6.0
+  speech_to_text: ^7.0.0
   flutter_tts: ^3.8.5
 
   # AI/ML 相关
