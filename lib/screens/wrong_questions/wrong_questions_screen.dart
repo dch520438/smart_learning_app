@@ -7,6 +7,7 @@ import '../../services/database_service.dart';
 import '../../services/export_service.dart';
 import '../../services/ocr_service.dart';
 import '../../services/print_service.dart';
+import '../../services/attachment_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -14,6 +15,7 @@ import '../../widgets/question_widgets.dart';
 import '../../widgets/exam_method_keypoint_input.dart';
 import '../../widgets/input_method_selector.dart';
 import '../../widgets/symbol_picker.dart';
+import '../../widgets/image_attachment_widget.dart';
 
 // ============================================================
 // WrongQuestionsScreen - 错题本主页面
@@ -1599,6 +1601,7 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
   final DatabaseService _db = DatabaseService();
   final OcrService _ocrService = OcrService();
   final ImagePicker _imagePicker = ImagePicker();
+  final AttachmentService _attachmentService = AttachmentService();
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _contentController = TextEditingController();
@@ -1640,8 +1643,10 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
     TextEditingController(),
   ];
 
-  // 附件图片路径
+  // 附件图片路径（用于兼容旧数据）
   final List<String> _attachmentPaths = [];
+  // 父记录ID（用于新附件系统）
+  late String _parentId;
 
   bool _isSaving = false;
   bool _isOcrLoading = false;
@@ -1653,6 +1658,9 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
   @override
   void initState() {
     super.initState();
+    // 设置父记录ID
+    _parentId = widget.question?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+
     if (widget.question != null) {
       _titleController.text = widget.question!.title;
       _contentController.text = widget.question!.content;
@@ -1696,6 +1704,7 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
             opt['text'] as String? ?? opt['content'] as String? ?? '';
       }
 
+      // 兼容旧数据：将旧附件路径添加到新系统
       for (final att in widget.question!.attachments) {
         final path = att['path'] as String? ?? '';
         if (path.isNotEmpty) _attachmentPaths.add(path);
@@ -2050,86 +2059,6 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
     ];
   }
 
-  Future<void> _pickImageFromGallery() async {
-    try {
-      final picked = await _imagePicker.pickImage(
-        source: ImageSource.gallery,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
-      );
-      if (picked != null) {
-        setState(() => _attachmentPaths.add(picked.path));
-        showSnackBar(context, '已添加图片');
-      }
-    } catch (e) {
-      if (mounted) showSnackBar(context, '选择图片失败: $e', isError: true);
-    }
-  }
-
-  Future<void> _pickImageFromCamera() async {
-    try {
-      final picked = await _imagePicker.pickImage(
-        source: ImageSource.camera,
-        maxWidth: 1920,
-        maxHeight: 1080,
-        imageQuality: 85,
-      );
-      if (picked != null) {
-        setState(() => _attachmentPaths.add(picked.path));
-        showSnackBar(context, '已添加图片');
-      }
-    } catch (e) {
-      if (mounted) showSnackBar(context, '拍照失败: $e', isError: true);
-    }
-  }
-
-  void _showImagePickerOptions() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.only(top: 12, bottom: 16),
-              decoration: BoxDecoration(
-                color: AppColors.divider,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            // Linux平台不支持相机功能，只显示相册选项
-            if (!Platform.isLinux)
-              ListTile(
-                leading: const Icon(Icons.camera_alt),
-                title: const Text('拍照'),
-                subtitle: const Text('使用相机拍摄题目'),
-                onTap: () {
-                  Navigator.pop(context);
-                  _pickImageFromCamera();
-                },
-              ),
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('从相册选择'),
-              subtitle: const Text('选择已有图片'),
-              onTap: () {
-                Navigator.pop(context);
-                _pickImageFromGallery();
-              },
-            ),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _pickImageForOcr() async {
     try {
       // Linux平台不支持相机功能，使用相册选择
@@ -2220,7 +2149,7 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
       }
 
       final data = <String, dynamic>{
-        'uuid': widget.question?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        'uuid': _parentId,
         'question_content':
             _titleController.text.trim().isEmpty
                 ? _contentController.text.trim()
@@ -2236,10 +2165,6 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
         'error_type': _errorType,
         'error_count': widget.question?.errorCount ?? 1,
         'is_mastered': widget.question?.isResolved == true ? 1 : 0,
-        'attachment_paths':
-            _attachmentPaths.isNotEmpty
-                ? jsonEncode(_attachmentPaths)
-                : null,
         'exam_methods': jsonEncode(_examMethods),
         'key_points': jsonEncode(_keyPoints),
         'tags': _tags.isNotEmpty ? _tags.join(',') : null,
@@ -2254,6 +2179,19 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
       } else {
         // 新增
         await _db.insertWrongQuestion(data);
+      }
+
+      // 迁移旧附件到新系统（如果是编辑模式且还有旧附件）
+      if (_attachmentPaths.isNotEmpty) {
+        for (final path in _attachmentPaths) {
+          if (await _attachmentService.fileExists(path)) {
+            await _attachmentService.addAttachment(
+              parentId: _parentId,
+              parentType: 'wrong_question',
+              filePath: path,
+            );
+          }
+        }
       }
 
       if (mounted) {
@@ -2359,70 +2297,21 @@ class _WrongQuestionAddScreenState extends State<WrongQuestionAddScreen> {
                   icon: const Icon(Icons.document_scanner, size: 18),
                   label: const Text('OCR识别'),
                 ),
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  onPressed: _showImagePickerOptions,
-                  icon: const Icon(Icons.image, size: 18),
-                  label: const Text('添加附件'),
-                ),
               ],
             ),
 
-            // 附件预览
-            if (_attachmentPaths.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              SizedBox(
-                height: 80,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _attachmentPaths.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    return Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.asset(
-                            _attachmentPaths[index],
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 80,
-                              height: 80,
-                              color: AppColors.divider,
-                              child: const Icon(Icons.broken_image),
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 2,
-                          right: 2,
-                          child: GestureDetector(
-                            onTap: () {
-                              setState(() {
-                                _attachmentPaths.removeAt(index);
-                              });
-                            },
-                            child: Container(
-                              decoration: const BoxDecoration(
-                                color: Colors.black54,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.close,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ],
+            // 图片附件组件
+            const SizedBox(height: 16),
+            ImageAttachmentWidget(
+              parentId: _parentId,
+              parentType: 'wrong_question',
+              existingImages: _attachmentPaths,
+              onImagesChanged: (paths) {
+                // 更新本地附件路径列表
+                _attachmentPaths.clear();
+                _attachmentPaths.addAll(paths);
+              },
+            ),
 
             const SizedBox(height: 16),
 

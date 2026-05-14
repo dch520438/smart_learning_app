@@ -8,11 +8,13 @@ import '../../services/export_service.dart';
 import '../../services/ocr_service.dart';
 import '../../services/print_service.dart';
 import '../../services/voice_service.dart';
+import '../../services/attachment_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/input_method_selector.dart';
 import '../../widgets/symbol_picker.dart';
+import '../../widgets/image_attachment_widget.dart';
 
 // ============================================================
 // MotherQuestionsScreen - 母题集主页面
@@ -1358,17 +1360,26 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
   // OCR 和语音服务
   final OcrService _ocrService = OcrService();
   final VoiceService _voiceService = VoiceService();
+  final AttachmentService _attachmentService = AttachmentService();
   bool _isListening = false;
   String _voiceText = '';
 
   // 附件
   final List<String> _imagePaths = [];
   final ImagePicker _imagePicker = ImagePicker();
+  // 父记录ID（用于新附件系统）
+  late String _parentId;
 
   @override
   void initState() {
     super.initState();
-    
+
+    // 设置父记录ID
+    _parentId = widget.existingQuestion?['uuid'] as String? ??
+        (widget.isVariant && widget.motherQuestionId != null
+            ? 'mq_variant_${widget.motherQuestionId}_${DateTime.now().millisecondsSinceEpoch}'
+            : 'mq_${DateTime.now().millisecondsSinceEpoch}');
+
     // 编辑模式：加载现有数据
     if (widget.existingQuestion != null) {
       _isEditing = true;
@@ -1396,7 +1407,7 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
           _trueFalseCorrectAnswer = (correctAnswer == '对' || correctAnswer == '正确') ? '对' : '错';
         }
       }
-      
+
       // 解析选项
       final options = q['options'];
       if (options != null && options.toString().isNotEmpty) {
@@ -1417,20 +1428,20 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
           }
         } catch (_) {}
       }
-      
+
       // 解析正确答案
       if (correctAnswer != null && correctAnswer.isNotEmpty && _questionType == 'single_choice') {
         _selectedCorrectAnswer = correctAnswer.codeUnitAt(0) - 65; // A=0, B=1, etc.
       }
-      
+
       // 初始化填空题/简答题控制器
       if (_questionType == 'fill_blank') {
         _fillCorrectAnswerController.text = correctAnswer ?? '';
       } else if (_questionType == 'short_answer') {
         _shortCorrectAnswerController.text = correctAnswer ?? '';
       }
-      
-      // 解析附件
+
+      // 兼容旧数据：解析附件
       final attachments = q['attachment_paths'];
       if (attachments != null && attachments.toString().isNotEmpty) {
         try {
@@ -1612,6 +1623,7 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
       }
 
       final data = {
+        'uuid': _parentId,
         'title': _titleController.text.trim(),
         'question_content': _contentController.text.trim(),
         'question_type': _questionType,
@@ -1623,9 +1635,6 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
         'category': '',
         'tags': _tags.isNotEmpty ? _tags.join(',') : null,
         'difficulty': _selectedDifficulty,
-        'attachment_paths': _imagePaths.isNotEmpty
-            ? jsonEncode(_imagePaths)
-            : null,
       };
 
       if (_isEditing && widget.existingQuestion != null) {
@@ -1636,7 +1645,6 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
         }
       } else {
         // 添加模式：插入新记录
-        data['uuid'] = generateId();
         data['variant_count'] = 0;
         data['mastery_level'] = 0;
         data['practice_count'] = 0;
@@ -1653,6 +1661,19 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
             await db.updateMotherQuestion(widget.motherQuestionId!, {
               'variant_count': currentVariantCount + 1,
             });
+          }
+        }
+      }
+
+      // 迁移旧附件到新系统（如果是编辑模式且还有旧附件）
+      if (_imagePaths.isNotEmpty) {
+        for (final path in _imagePaths) {
+          if (await _attachmentService.fileExists(path)) {
+            await _attachmentService.addAttachment(
+              parentId: _parentId,
+              parentType: 'mother_question',
+              filePath: path,
+            );
           }
         }
       }
@@ -1842,58 +1863,18 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
                     (v == null || v.isEmpty) ? '请输入题目内容' : null,
               ),
 
-              // 已添加的图片
-              if (_imagePaths.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 80,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: _imagePaths.length,
-                    separatorBuilder: (_, __) =>
-                        const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      return Stack(
-                        children: [
-                          Container(
-                            width: 80,
-                            height: 80,
-                            decoration: BoxDecoration(
-                              color: AppColors.background,
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.md),
-                              border: Border.all(color: AppColors.divider),
-                            ),
-                            child: const Icon(Icons.image,
-                                color: AppColors.textHint),
-                          ),
-                          Positioned(
-                            top: -4,
-                            right: -4,
-                            child: GestureDetector(
-                              onTap: () {
-                                setState(() {
-                                  _imagePaths.removeAt(index);
-                                });
-                              },
-                              child: Container(
-                                width: 20,
-                                height: 20,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.error,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(Icons.close,
-                                    size: 14, color: Colors.white),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ),
-              ],
+              // 图片附件组件
+              const SizedBox(height: 16),
+              ImageAttachmentWidget(
+                parentId: _parentId,
+                parentType: 'mother_question',
+                existingImages: _imagePaths,
+                onImagesChanged: (paths) {
+                  // 更新本地附件路径列表
+                  _imagePaths.clear();
+                  _imagePaths.addAll(paths);
+                },
+              ),
               const SizedBox(height: 16),
 
               // 根据题目类型显示不同的表单

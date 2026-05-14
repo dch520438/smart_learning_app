@@ -24,7 +24,7 @@ class UsageRecord {
   /// 从JSON创建
   factory UsageRecord.fromJson(Map<String, dynamic> json) {
     return UsageRecord(
-      id: json['id'] as String?,
+      id: json['uuid'] as String? ?? json['id'] as String?,
       startTime: json['start_time'] as int,
       endTime: json['end_time'] as int?,
       duration: json['duration'] as int?,

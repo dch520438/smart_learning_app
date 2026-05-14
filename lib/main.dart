@@ -36,8 +36,13 @@ void main() async {
     if (Platform.isLinux) {
       try {
         final candidates = [
+          // x86_64 架构
+          '/usr/lib/x86_64-linux-gnu/libsqlite3.so.0',
+          '/usr/lib/x86_64-linux-gnu/libsqlite3.so',
+          // aarch64 架构
           '/usr/lib/aarch64-linux-gnu/libsqlite3.so.0',
           '/usr/lib/aarch64-linux-gnu/libsqlite3.so',
+          // 通用路径
           '/usr/lib/libsqlite3.so.0',
           '/usr/lib/libsqlite3.so',
           '/usr/lib64/libsqlite3.so.0',

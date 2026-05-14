@@ -14,7 +14,7 @@ class DatabaseService {
 
   // 数据库名称和版本
   static const String _databaseName = 'smart_learning.db';
-  static const int _databaseVersion = 6;
+  static const int _databaseVersion = 7;
 
   // 表名常量
   static const String tableKnowledgePoints = 'knowledge_points';
@@ -31,6 +31,7 @@ class DatabaseService {
   static const String tableHabitCheckIns = 'habit_check_ins';
   static const String tableExamPapers = 'exam_papers';
   static const String tableUsageRecords = 'usage_records';
+  static const String tableAttachments = 'attachments';
 
   /// 获取数据库实例，如果不存在则创建
   Future<Database> get database async {
@@ -358,6 +359,20 @@ class DatabaseService {
       )
     ''');
 
+    // 附件表（图片附件）
+    await db.execute('''
+      CREATE TABLE $tableAttachments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uuid TEXT NOT NULL UNIQUE,
+        parent_id TEXT NOT NULL,
+        parent_type TEXT NOT NULL,
+        file_path TEXT NOT NULL,
+        file_name TEXT,
+        file_size INTEGER,
+        created_at TEXT NOT NULL
+      )
+    ''');
+
     // 创建索引
     await _createIndexes(db);
     
@@ -446,7 +461,9 @@ class DatabaseService {
         'analysis': '使用因式分解法：x² - 5x + 6 = (x-2)(x-3) = 0，所以 x=2 或 x=3。答案选A。',
         'subject': '数学',
         'chapter': '方程与不等式',
-        'error_type': '方法错误',
+        'error_type': 'method_error',
+        'knowledge_point': '一元二次方程的解法',
+        'difficulty': 2,
         'error_count': 2,
         'is_mastered': 0,
         'created_at': nowStr,
@@ -462,7 +479,9 @@ class DatabaseService {
         'analysis': '根据牛顿第二定律 F = ma，所以 a = F/m = 10/2 = 5 m/s²。计算时注意单位。',
         'subject': '物理',
         'chapter': '力学',
-        'error_type': '计算错误',
+        'error_type': 'careless',
+        'knowledge_point': '牛顿第二定律',
+        'difficulty': 2,
         'error_count': 1,
         'is_mastered': 0,
         'created_at': nowStr,
@@ -479,7 +498,9 @@ class DatabaseService {
         'analysis': '氧化还原反应的特征是元素化合价发生变化。B选项中Na从0价变为+1价，Cl从0价变为-1价，发生了电子转移，是氧化还原反应。',
         'subject': '化学',
         'chapter': '化学反应原理',
-        'error_type': '概念错误',
+        'error_type': 'knowledge_gap',
+        'knowledge_point': '氧化还原反应',
+        'difficulty': 3,
         'error_count': 1,
         'is_mastered': 0,
         'created_at': nowStr,
@@ -644,6 +665,195 @@ class DatabaseService {
     for (final note in testNotes) {
       await db.insert(tableNotes, note);
     }
+
+    // 测试学习记录数据
+    final today = DateTime.now();
+    final testStudyRecords = [
+      {
+        'uuid': 'sr_test_1',
+        'record_type': 'study',
+        'title': '数学学习',
+        'description': '学习一元二次方程',
+        'subject': '数学',
+        'duration': 3600, // 60分钟
+        'related_id': null,
+        'related_type': null,
+        'score': null,
+        'is_completed': 1,
+        'created_at': today.subtract(Duration(days: 1)).toIso8601String(),
+      },
+      {
+        'uuid': 'sr_test_2',
+        'record_type': 'study',
+        'title': '物理学习',
+        'description': '学习牛顿第二定律',
+        'subject': '物理',
+        'duration': 2700, // 45分钟
+        'related_id': null,
+        'related_type': null,
+        'score': null,
+        'is_completed': 1,
+        'created_at': today.subtract(Duration(days: 2)).toIso8601String(),
+      },
+      {
+        'uuid': 'sr_test_3',
+        'record_type': 'study',
+        'title': '英语学习',
+        'description': '学习定语从句',
+        'subject': '英语',
+        'duration': 1800, // 30分钟
+        'related_id': null,
+        'related_type': null,
+        'score': null,
+        'is_completed': 1,
+        'created_at': today.subtract(Duration(days: 3)).toIso8601String(),
+      },
+      {
+        'uuid': 'sr_test_4',
+        'record_type': 'study',
+        'title': '化学学习',
+        'description': '学习氧化还原反应',
+        'subject': '化学',
+        'duration': 2400, // 40分钟
+        'related_id': null,
+        'related_type': null,
+        'score': null,
+        'is_completed': 1,
+        'created_at': today.subtract(Duration(days: 4)).toIso8601String(),
+      },
+      {
+        'uuid': 'sr_test_5',
+        'record_type': 'study',
+        'title': '语文学习',
+        'description': '古诗词鉴赏',
+        'subject': '语文',
+        'duration': 3000, // 50分钟
+        'related_id': null,
+        'related_type': null,
+        'score': null,
+        'is_completed': 1,
+        'created_at': today.toIso8601String(),
+      },
+    ];
+
+    for (final sr in testStudyRecords) {
+      await db.insert(tableStudyRecords, sr);
+    }
+
+    // 测试APP使用记录数据
+    final todayStr = '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    final yesterdayStr = '${today.subtract(Duration(days: 1)).year}-${today.subtract(Duration(days: 1)).month.toString().padLeft(2, '0')}-${today.subtract(Duration(days: 1)).day.toString().padLeft(2, '0')}';
+
+    final testUsageRecords = [
+      {
+        'uuid': 'ur_test_1',
+        'start_time': today.subtract(Duration(hours: 2)).millisecondsSinceEpoch,
+        'end_time': today.subtract(Duration(hours: 1)).millisecondsSinceEpoch,
+        'duration': 3600,
+        'date': todayStr,
+        'device_info': 'Test Device',
+        'app_version': '1.0.0',
+        'created_at': today.toIso8601String(),
+      },
+      {
+        'uuid': 'ur_test_2',
+        'start_time': today.subtract(Duration(hours: 5)).millisecondsSinceEpoch,
+        'end_time': today.subtract(Duration(hours: 4)).millisecondsSinceEpoch,
+        'duration': 3600,
+        'date': todayStr,
+        'device_info': 'Test Device',
+        'app_version': '1.0.0',
+        'created_at': today.toIso8601String(),
+      },
+      {
+        'uuid': 'ur_test_3',
+        'start_time': yesterdayStr + ' 10:00:00',
+        'end_time': yesterdayStr + ' 11:30:00',
+        'duration': 5400,
+        'date': yesterdayStr,
+        'device_info': 'Test Device',
+        'app_version': '1.0.0',
+        'created_at': yesterdayStr,
+      },
+    ];
+
+    for (final ur in testUsageRecords) {
+      await db.insert(tableUsageRecords, ur);
+    }
+
+    // 测试考试结果数据
+    final testExamResults = [
+      {
+        'uuid': 'er_test_1',
+        'exam_id': 1,
+        'score': 85.0,
+        'correct_count': 17,
+        'wrong_count': 3,
+        'total_count': 20,
+        'time_spent': 1800,
+        'accuracy': 85.0,
+        'answers': '{}',
+        'is_passed': 1,
+        'created_at': today.subtract(Duration(days: 2)).toIso8601String(),
+      },
+      {
+        'uuid': 'er_test_2',
+        'exam_id': 2,
+        'score': 72.0,
+        'correct_count': 18,
+        'wrong_count': 7,
+        'total_count': 25,
+        'time_spent': 2400,
+        'accuracy': 72.0,
+        'answers': '{}',
+        'is_passed': 1,
+        'created_at': today.subtract(Duration(days: 5)).toIso8601String(),
+      },
+    ];
+
+    for (final er in testExamResults) {
+      await db.insert(tableExamResults, er);
+    }
+
+    // 测试试卷数据
+    final testExamPapers = [
+      {
+        'uuid': 'ep_test_1',
+        'name': '数学期中考试',
+        'subject': '数学',
+        'exam_date': today.subtract(Duration(days: 7)).millisecondsSinceEpoch,
+        'total_score': 100,
+        'obtained_score': 85,
+        'questions': '[]',
+        'images': '[]',
+        'notes': '需要加强几何部分',
+        'tags': '期中,数学',
+        'source': 'school',
+        'attachment_paths': null,
+        'created_at': today.subtract(Duration(days: 7)).millisecondsSinceEpoch,
+        'updated_at': today.subtract(Duration(days: 7)).millisecondsSinceEpoch,
+      },
+      {
+        'uuid': 'ep_test_2',
+        'name': '物理单元测试',
+        'subject': '物理',
+        'exam_date': today.subtract(Duration(days: 3)).millisecondsSinceEpoch,
+        'total_score': 100,
+        'obtained_score': 78,
+        'questions': '[]',
+        'images': '[]',
+        'notes': '力学部分掌握不牢',
+        'tags': '单元测试,物理',
+        'source': 'mock',
+        'attachment_paths': null,
+        'created_at': today.subtract(Duration(days: 3)).millisecondsSinceEpoch,
+        'updated_at': today.subtract(Duration(days: 3)).millisecondsSinceEpoch,
+      },
+    ];
+
+    for (final ep in testExamPapers) {
+      await db.insert(tableExamPapers, ep);
+    }
   }
 
   /// 创建索引以提高查询性能
@@ -708,6 +918,12 @@ class DatabaseService {
     await db.execute(
       'CREATE INDEX idx_usage_records_start_time ON $tableUsageRecords (start_time)',
     );
+    await db.execute(
+      'CREATE INDEX idx_attachments_parent ON $tableAttachments (parent_id)',
+    );
+    await db.execute(
+      'CREATE INDEX idx_attachments_type ON $tableAttachments (parent_type)',
+    );
   }
 
   /// 数据库升级
@@ -763,6 +979,28 @@ class DatabaseService {
     // 版本5 -> 版本6：插入测试数据
     if (oldVersion < 6) {
       await _insertTestData(db);
+    }
+
+    // 版本6 -> 版本7：添加附件表
+    if (oldVersion < 7) {
+      await db.execute('''
+        CREATE TABLE $tableAttachments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          uuid TEXT NOT NULL UNIQUE,
+          parent_id TEXT NOT NULL,
+          parent_type TEXT NOT NULL,
+          file_path TEXT NOT NULL,
+          file_name TEXT,
+          file_size INTEGER,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      await db.execute(
+        'CREATE INDEX idx_attachments_parent ON $tableAttachments (parent_id)',
+      );
+      await db.execute(
+        'CREATE INDEX idx_attachments_type ON $tableAttachments (parent_type)',
+      );
     }
   }
 
@@ -3358,5 +3596,133 @@ class DatabaseService {
       where: 'date < ?',
       whereArgs: [date],
     );
+  }
+
+  // ==================== 附件 CRUD ====================
+
+  /// 插入附件
+  Future<int> insertAttachment(Map<String, dynamic> data) async {
+    final db = await database;
+    final now = DateTime.now().toIso8601String();
+    data['created_at'] = now;
+    return await db.insert(tableAttachments, data);
+  }
+
+  /// 更新附件
+  Future<int> updateAttachment(int id, Map<String, dynamic> data) async {
+    final db = await database;
+    return await db.update(
+      tableAttachments,
+      data,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 删除附件
+  Future<int> deleteAttachment(int id) async {
+    final db = await database;
+    return await db.delete(
+      tableAttachments,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
+  /// 根据ID查询附件
+  Future<Map<String, dynamic>?> queryAttachmentById(int id) async {
+    final db = await database;
+    final results = await db.query(
+      tableAttachments,
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// 根据UUID查询附件
+  Future<Map<String, dynamic>?> queryAttachmentByUuid(String uuid) async {
+    final db = await database;
+    final results = await db.query(
+      tableAttachments,
+      where: 'uuid = ?',
+      whereArgs: [uuid],
+    );
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  /// 根据父记录ID查询所有附件
+  Future<List<Map<String, dynamic>>> queryAttachmentsByParentId(String parentId) async {
+    final db = await database;
+    return await db.query(
+      tableAttachments,
+      where: 'parent_id = ?',
+      whereArgs: [parentId],
+      orderBy: 'created_at ASC',
+    );
+  }
+
+  /// 根据父记录类型查询所有附件
+  Future<List<Map<String, dynamic>>> queryAttachmentsByParentType(String parentType) async {
+    final db = await database;
+    return await db.query(
+      tableAttachments,
+      where: 'parent_type = ?',
+      whereArgs: [parentType],
+      orderBy: 'created_at ASC',
+    );
+  }
+
+  /// 查询所有附件
+  Future<List<Map<String, dynamic>>> queryAllAttachments({
+    String? orderBy,
+    int? limit,
+    int? offset,
+  }) async {
+    final db = await database;
+    return await db.query(
+      tableAttachments,
+      orderBy: orderBy ?? 'created_at DESC',
+      limit: limit,
+      offset: offset,
+    );
+  }
+
+  /// 删除父记录的所有附件
+  Future<int> deleteAttachmentsByParentId(String parentId) async {
+    final db = await database;
+    return await db.delete(
+      tableAttachments,
+      where: 'parent_id = ?',
+      whereArgs: [parentId],
+    );
+  }
+
+  /// 获取附件数量
+  Future<int> countAttachments({String? parentId, String? parentType}) async {
+    final db = await database;
+    String whereClause = '';
+    List<dynamic> whereArgs = [];
+
+    if (parentId != null) {
+      whereClause += 'parent_id = ?';
+      whereArgs.add(parentId);
+    }
+    if (parentType != null) {
+      if (whereClause.isNotEmpty) whereClause += ' AND ';
+      whereClause += 'parent_type = ?';
+      whereArgs.add(parentType);
+    }
+
+    if (whereClause.isNotEmpty) {
+      final results = await db.rawQuery(
+        'SELECT COUNT(*) as count FROM $tableAttachments WHERE $whereClause',
+        whereArgs,
+      );
+      return Sqflite.firstIntValue(results) ?? 0;
+    }
+    return Sqflite.firstIntValue(
+      await db.rawQuery('SELECT COUNT(*) as count FROM $tableAttachments'),
+    ) ?? 0;
   }
 }

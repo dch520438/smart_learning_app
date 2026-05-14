@@ -162,8 +162,21 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
         _radarData = results[8] as Map<String, double>;
         _isLoading = false;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('加载分析数据失败: $e');
+      debugPrint('堆栈跟踪: $stackTrace');
       setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('加载数据失败: $e'),
+            action: SnackBarAction(
+              label: '重试',
+              onPressed: _loadData,
+            ),
+          ),
+        );
+      }
     }
   }
 

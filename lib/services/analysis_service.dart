@@ -152,9 +152,11 @@ class AnalysisService {
     final durationByDate = <String, int>{};
 
     for (final r in studyRecords) {
-      final duration = (r['duration'] as int?) ?? 0;
+      // 支持两种字段名：duration（新）或 studyDuration（旧模型）
+      final duration = (r['duration'] as int?) ?? (r['studyDuration'] as int?) ?? 0;
       final subject = r['subject'] as String? ?? '其他';
-      final dateStr = (r['created_at'] as String?)?.substring(0, 10) ?? '';
+      final dateStr = (r['created_at'] as String?)?.substring(0, 10) ?? 
+                      (r['date'] as String?) ?? '';
 
       totalDuration += duration;
       durationBySubject[subject] = (durationBySubject[subject] ?? 0) + duration;
@@ -350,7 +352,8 @@ class AnalysisService {
       }
       int totalDuration = 0;
       for (final r in studyRecords) {
-        totalDuration += (r['duration'] as int?) ?? 0;
+        // 支持两种字段名：duration（新）或 studyDuration（旧模型）
+        totalDuration += (r['duration'] as int?) ?? (r['studyDuration'] as int?) ?? 0;
       }
 
       // 试卷得分率
@@ -440,10 +443,11 @@ class AnalysisService {
     };
 
     for (final r in studyRecords) {
-      final createdAt = r['created_at'] as String?;
-      final duration = (r['duration'] as int?) ?? 0;
+      // 支持两种字段名
+      final createdAt = r['created_at'] as String? ?? r['date'] as String?;
+      final duration = (r['duration'] as int?) ?? (r['studyDuration'] as int?) ?? 0;
 
-      if (createdAt != null) {
+      if (createdAt != null && createdAt.isNotEmpty) {
         try {
           final date = DateTime.parse(createdAt);
           final hour = date.hour;
@@ -524,9 +528,46 @@ class AnalysisService {
     final knowledgePointFreq = <String, int>{};
 
     for (final q in wrongQuestions) {
-      final errorType = q['error_type'] as String? ?? 'other';
-      final difficulty = q['difficulty'] as String? ?? 'medium';
-      final knowledgePoint = q['knowledge_point'] as String?;
+      // 将中文错误类型映射为英文键
+      final rawErrorType = q['error_type'] as String? ?? 'other';
+      String errorType;
+      switch (rawErrorType) {
+        case '粗心大意':
+        case 'careless':
+          errorType = 'careless';
+          break;
+        case '知识盲区':
+        case '概念错误':
+        case 'knowledge_gap':
+          errorType = 'knowledge_gap';
+          break;
+        case '方法错误':
+        case '计算错误':
+        case 'method_error':
+          errorType = 'method_error';
+          break;
+        case '其他':
+        case 'other':
+        default:
+          errorType = 'other';
+          break;
+      }
+
+      // 处理难度字段（可能是字符串或整数）
+      final rawDifficulty = q['difficulty'];
+      String difficulty;
+      if (rawDifficulty is String) {
+        difficulty = rawDifficulty;
+      } else if (rawDifficulty is int) {
+        difficulty = rawDifficulty <= 1 ? 'easy' : rawDifficulty >= 3 ? 'hard' : 'medium';
+      } else {
+        difficulty = 'medium';
+      }
+
+      // 获取知识点（可能存储在不同字段）
+      final knowledgePoint = q['knowledge_point'] as String? ?? 
+                             q['knowledgePoint'] as String? ??
+                             q['title'] as String?;
 
       if (errorTypes.containsKey(errorType)) {
         errorTypes[errorType]!['count'] = (errorTypes[errorType]!['count'] as int) + 1;
@@ -605,12 +646,15 @@ class AnalysisService {
     }
 
     for (final r in studyRecords) {
-      final createdAt = r['created_at'] as String?;
-      if (createdAt != null) {
-        final dateStr = createdAt.substring(0, 10);
+      // 支持两种字段名
+      final createdAt = r['created_at'] as String? ?? r['date'] as String?;
+      if (createdAt != null && createdAt.isNotEmpty) {
+        final dateStr = createdAt.length >= 10 ? createdAt.substring(0, 10) : createdAt;
         if (dailyData.containsKey(dateStr)) {
-          dailyData[dateStr]!['duration'] = (dailyData[dateStr]!['duration'] as int) + ((r['duration'] as int?) ?? 0);
-          dailyData[dateStr]!['questions'] = (dailyData[dateStr]!['questions'] as int) + ((r['question_count'] as int?) ?? 0);
+          // 支持两种字段名：duration（新）或 studyDuration（旧模型）
+          final duration = (r['duration'] as int?) ?? (r['studyDuration'] as int?) ?? 0;
+          dailyData[dateStr]!['duration'] = (dailyData[dateStr]!['duration'] as int) + duration;
+          dailyData[dateStr]!['questions'] = (dailyData[dateStr]!['questions'] as int) + ((r['question_count'] as int?) ?? (r['questionsCount'] as int?) ?? 0);
 
           final accuracy = (r['accuracy'] as num?)?.toDouble();
           if (accuracy != null && accuracy > 0) {
