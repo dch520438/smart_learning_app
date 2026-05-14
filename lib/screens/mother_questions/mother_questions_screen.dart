@@ -826,17 +826,24 @@ class MotherQuestionDetailScreenState
       if (fresh != null) {
         setState(() => _question = fresh);
       }
-      // 加载关联变式题（模拟数据）
+      // 加载关联变式题（从数据库查询）
       final variantCount = _question['variant_count'] as int? ?? 0;
-      _variantQuestions = List.generate(
-        variantCount.clamp(0, 10),
-        (index) => {
-          'id': index,
-          'title': '变式题 ${index + 1}',
-          'content': '这是母题的第${index + 1}道变式题，基于原题进行了变形和扩展。',
-          'difficulty': (_question['difficulty'] as int? ?? 1),
-        },
-      );
+      if (variantCount > 0) {
+        final variants = await _db.queryVariantQuestionsByMotherId(id);
+        _variantQuestions = variants.map((v) => {
+          'id': v['id'],
+          'title': v['title'] as String? ?? '未命名变式题',
+          'content': v['question_content'] as String? ?? '',
+          'question_type': v['question_type'] as String? ?? 'single_choice',
+          'options': v['options'] as String? ?? '',
+          'correct_answer': v['correct_answer'] as String? ?? '',
+          'analysis': v['analysis'] as String? ?? '',
+          'difficulty': v['difficulty'] as int? ?? 1,
+          'subject': v['subject'] as String? ?? '',
+        }).toList();
+      } else {
+        _variantQuestions = [];
+      }
       setState(() => _isLoading = false);
     } catch (e) {
       setState(() => _isLoading = false);
@@ -883,6 +890,265 @@ class MotherQuestionDetailScreenState
           motherQuestionId: _question['id'] as int?,
           isVariant: true,
           parentTitle: _question['title'] as String?,
+        ),
+      ),
+    );
+    if (result == true) {
+      _loadDetail();
+    }
+  }
+
+  /// 显示变式题详情弹窗
+  void _showVariantDetail(Map<String, dynamic> variant) {
+    final title = variant['title'] as String? ?? '未命名变式题';
+    final content = variant['content'] as String? ?? '';
+    final questionType = variant['question_type'] as String? ?? 'single_choice';
+    final options = variant['options'] as String? ?? '';
+    final correctAnswer = variant['correct_answer'] as String? ?? '';
+    final analysis = variant['analysis'] as String? ?? '';
+    final difficulty = variant['difficulty'] as int? ?? 1;
+
+    // 题目类型标签
+    String typeLabel;
+    switch (questionType) {
+      case 'single_choice':
+        typeLabel = '单选题';
+        break;
+      case 'multi_choice':
+        typeLabel = '多选题';
+        break;
+      case 'fill_blank':
+        typeLabel = '填空题';
+        break;
+      case 'short_answer':
+        typeLabel = '简答题';
+        break;
+      case 'true_false':
+        typeLabel = '判断题';
+        break;
+      default:
+        typeLabel = '单选题';
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.xl)),
+      ),
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.7,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          padding: const EdgeInsets.all(16),
+          child: ListView(
+            controller: scrollController,
+            children: [
+              // 拖动指示器
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.divider,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              // 标题行
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: AppFontSize.xl,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  AppTag(
+                    label: typeLabel,
+                    color: AppColors.info,
+                    dense: true,
+                    fontSize: AppFontSize.xs,
+                  ),
+                  const SizedBox(width: 8),
+                  DifficultyStars(difficulty: difficulty, iconSize: 14),
+                ],
+              ),
+              const SizedBox(height: 16),
+
+              // 题目内容
+              AppCard(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.quiz, size: 20, color: AppColors.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          '题目内容',
+                          style: TextStyle(
+                            fontSize: AppFontSize.md,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      content,
+                      style: TextStyle(
+                        fontSize: AppFontSize.md,
+                        color: AppColors.textPrimary,
+                        height: 1.6,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // 选项（选择题/多选题）
+              if ((questionType == 'single_choice' || questionType == 'multi_choice') &&
+                  options.isNotEmpty) ...[
+                AppCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.list, size: 20, color: AppColors.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            '选项',
+                            style: TextStyle(
+                              fontSize: AppFontSize.md,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      _buildOptions(options, correctAnswer),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // 正确答案
+              if (correctAnswer.isNotEmpty) ...[
+                AppCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.check_circle_outline, size: 20, color: AppColors.success),
+                          const SizedBox(width: 8),
+                          Text(
+                            '正确答案',
+                            style: TextStyle(
+                              fontSize: AppFontSize.md,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.success,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        correctAnswer,
+                        style: TextStyle(
+                          fontSize: AppFontSize.md,
+                          color: AppColors.textPrimary,
+                          height: 1.6,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // 解析
+              if (analysis.isNotEmpty) ...[
+                AppCard(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.lightbulb_outline, size: 20, color: AppColors.warning),
+                          const SizedBox(width: 8),
+                          Text(
+                            '解析',
+                            style: TextStyle(
+                              fontSize: AppFontSize.md,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        analysis,
+                        style: TextStyle(
+                          fontSize: AppFontSize.md,
+                          color: AppColors.textPrimary,
+                          height: 1.8,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // 编辑按钮
+              AppButton(
+                text: '编辑变式题',
+                icon: Icons.edit_outlined,
+                style: AppButtonStyle.outlined,
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _editVariant(variant);
+                },
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 编辑变式题
+  Future<void> _editVariant(Map<String, dynamic> variant) async {
+    final variantId = variant['id'] as int?;
+    if (variantId == null) return;
+    // 从数据库加载完整数据
+    final fullData = await _db.queryMotherQuestionById(variantId);
+    if (fullData == null) return;
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => _AddMotherQuestionScreen(
+          existingQuestion: fullData,
         ),
       ),
     );
@@ -1153,51 +1419,96 @@ class MotherQuestionDetailScreenState
                       ],
                     ),
                     const SizedBox(height: 12),
-                    ..._variantQuestions.map((variant) => AppCard(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          onTap: () {
-                            // 可以跳转到变式题详情
-                          },
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  color: AppColors.info.withOpacity(0.1),
-                                  borderRadius:
-                                      BorderRadius.circular(AppRadius.sm),
+                    ..._variantQuestions.asMap().entries.map((entry) {
+                      final index = entry.key;
+                      final variant = entry.value;
+                      // 题目类型标签
+                      final qType = variant['question_type'] as String? ?? 'single_choice';
+                      String typeLabel;
+                      switch (qType) {
+                        case 'single_choice':
+                          typeLabel = '单选';
+                          break;
+                        case 'multi_choice':
+                          typeLabel = '多选';
+                          break;
+                        case 'fill_blank':
+                          typeLabel = '填空';
+                          break;
+                        case 'short_answer':
+                          typeLabel = '简答';
+                          break;
+                        case 'true_false':
+                          typeLabel = '判断';
+                          break;
+                        default:
+                          typeLabel = '单选';
+                      }
+                      return AppCard(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        onTap: () {
+                          _showVariantDetail(variant);
+                        },
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: AppColors.info.withOpacity(0.1),
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.sm),
+                              ),
+                              alignment: Alignment.center,
+                              child: Text(
+                                '${index + 1}',
+                                style: TextStyle(
+                                  fontSize: AppFontSize.sm,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.info,
                                 ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  '${variant['id']! + 1}',
-                                  style: TextStyle(
-                                    fontSize: AppFontSize.sm,
-                                    fontWeight: FontWeight.w700,
-                                    color: AppColors.info,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    variant['title'] as String,
+                                    style: TextStyle(
+                                      fontSize: AppFontSize.md,
+                                      fontWeight: FontWeight.w500,
+                                      color: AppColors.textPrimary,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  variant['title'] as String,
-                                  style: TextStyle(
-                                    fontSize: AppFontSize.md,
-                                    color: AppColors.textPrimary,
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      AppTag(
+                                        label: typeLabel,
+                                        color: AppColors.info,
+                                        dense: true,
+                                        fontSize: 10,
+                                      ),
+                                    ],
                                   ),
-                                ),
+                                ],
                               ),
-                              DifficultyStars(
-                                difficulty: variant['difficulty'] as int,
-                                iconSize: 14,
-                              ),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.chevron_right,
-                                  color: AppColors.textHint, size: 20),
-                            ],
-                          ),
-                        )),
+                            ),
+                            DifficultyStars(
+                              difficulty: variant['difficulty'] as int,
+                              iconSize: 14,
+                            ),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.chevron_right,
+                                color: AppColors.textHint, size: 20),
+                          ],
+                        ),
+                      );
+                    }),
                   ],
 
                   const SizedBox(height: 24),
@@ -1649,6 +1960,10 @@ class _AddMotherQuestionScreenState extends State<_AddMotherQuestionScreen> {
         data['mastery_level'] = 0;
         data['practice_count'] = 0;
         data['is_favorite'] = 0;
+        // 如果是变式题，将母题ID存入 knowledge_point_id 以便关联查询
+        if (widget.isVariant && widget.motherQuestionId != null) {
+          data['knowledge_point_id'] = widget.motherQuestionId;
+        }
         await db.insertMotherQuestion(data);
 
         // 如果是变式题，更新母题的变式题数量

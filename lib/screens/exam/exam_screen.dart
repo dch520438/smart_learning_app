@@ -1485,14 +1485,19 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
   QuestionType _parseQuestionType(String? type) {
     switch (type) {
       case 'singleChoice':
+      case 'single_choice':
         return QuestionType.singleChoice;
       case 'trueFalse':
+      case 'true_false':
         return QuestionType.trueFalse;
       case 'fillBlank':
+      case 'fill_blank':
         return QuestionType.fillBlank;
       case 'multipleChoice':
+      case 'multi_choice':
         return QuestionType.multipleChoice;
       case 'shortAnswer':
+      case 'short_answer':
         return QuestionType.shortAnswer;
       case 'proof':
         return QuestionType.proof;
@@ -1649,9 +1654,9 @@ class _PracticeTabState extends State<_PracticeTab> {
         );
         for (final wq in wrongQuestions) {
           final qType = wq['question_type'] as String? ?? 'singleChoice';
-          // 支持多选题目类型
+          // 支持多选题目类型（兼容下划线和驼峰格式）
           if (_selectedTypeFilters.isNotEmpty &&
-              !_selectedTypeFilters.any((filter) => filter.name == qType)) continue;
+              !_selectedTypeFilters.any((filter) => _typeMatches(filter.name, qType))) continue;
           // 安全获取 question_content
           final questionContent = wq['question_content'] as String?;
           if (questionContent != null && questionContent.trim().isNotEmpty) {
@@ -1668,9 +1673,9 @@ class _PracticeTabState extends State<_PracticeTab> {
         );
         for (final mq in motherQuestions) {
           final qType = mq['question_type'] as String? ?? 'singleChoice';
-          // 支持多选题目类型
+          // 支持多选题目类型（兼容下划线和驼峰格式）
           if (_selectedTypeFilters.isNotEmpty &&
-              !_selectedTypeFilters.any((filter) => filter.name == qType)) continue;
+              !_selectedTypeFilters.any((filter) => _typeMatches(filter.name, qType))) continue;
           // 安全获取 question_content
           final questionContent = mq['question_content'] as String?;
           if (questionContent != null && questionContent.trim().isNotEmpty) {
@@ -1755,6 +1760,20 @@ class _PracticeTabState extends State<_PracticeTab> {
       debugPrint('解析 options 失败: $e');
     }
     return null;
+  }
+
+  /// 题目类型匹配（兼容下划线格式和驼峰格式）
+  static bool _typeMatches(String filterName, String qType) {
+    // 下划线格式到驼峰格式的映射
+    const underscoreToCamel = {
+      'single_choice': 'singleChoice',
+      'multi_choice': 'multipleChoice',
+      'fill_blank': 'fillBlank',
+      'short_answer': 'shortAnswer',
+      'true_false': 'trueFalse',
+    };
+    final normalizedType = underscoreToCamel[qType] ?? qType;
+    return filterName == normalizedType;
   }
 
   Map<String, dynamic> _convertWrongQuestion(Map<String, dynamic> wq) {
@@ -2972,15 +2991,24 @@ class _PracticeTabState extends State<_PracticeTab> {
   QuestionType _parseQuestionType(String? type) {
     switch (type) {
       case 'singleChoice':
+      case 'single_choice':
         return QuestionType.singleChoice;
       case 'trueFalse':
+      case 'true_false':
         return QuestionType.trueFalse;
       case 'fillBlank':
+      case 'fill_blank':
         return QuestionType.fillBlank;
       case 'multipleChoice':
+      case 'multi_choice':
         return QuestionType.multipleChoice;
       case 'shortAnswer':
+      case 'short_answer':
         return QuestionType.shortAnswer;
+      case 'proof':
+        return QuestionType.proof;
+      case 'essay':
+        return QuestionType.essay;
       default:
         return QuestionType.singleChoice;
     }

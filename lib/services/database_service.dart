@@ -1850,6 +1850,17 @@ class DatabaseService {
     );
   }
 
+  /// 根据母题ID查询其变式题（通过 knowledge_point_id 关联）
+  Future<List<Map<String, dynamic>>> queryVariantQuestionsByMotherId(int motherId) async {
+    final db = await database;
+    return await db.query(
+      tableMotherQuestions,
+      where: 'knowledge_point_id = ?',
+      whereArgs: [motherId],
+      orderBy: 'created_at ASC',
+    );
+  }
+
   /// 获取母题的分类/章节列表（按科目）
   Future<List<String>> queryMotherQuestionCategoriesBySubject(String subject) async {
     final db = await database;
