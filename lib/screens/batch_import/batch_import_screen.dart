@@ -97,7 +97,9 @@ class _BatchImportScreenState extends State<BatchImportScreen>
 
   Future<void> _validateData() async {
     if (_dataController.text.trim().isEmpty) {
-      showSnackBar(context, '请输入要导入的数据', isError: true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请输入要导入的数据')),
+      );
       return;
     }
 
@@ -124,7 +126,9 @@ class _BatchImportScreenState extends State<BatchImportScreen>
       });
 
       if (result.isValid) {
-        showSnackBar(context, '数据验证通过，共 ${result.validCount} 条记录');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('数据验证通过，共 ${result.validCount} 条记录')),
+        );
       } else {
         showSnackBar(
           context,
@@ -134,13 +138,17 @@ class _BatchImportScreenState extends State<BatchImportScreen>
       }
     } catch (e) {
       setState(() => _isValidating = false);
-      showSnackBar(context, '验证失败: $e', isError: true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('验证失败: $e')),
+      );
     }
   }
 
   Future<void> _importData() async {
     if (_validationResult == null || _validationResult!.validData.isEmpty) {
-      showSnackBar(context, '请先验证数据', isError: true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('请先验证数据')),
+      );
       return;
     }
 
@@ -181,7 +189,9 @@ class _BatchImportScreenState extends State<BatchImportScreen>
       });
 
       if (result.isSuccess) {
-        showSnackBar(context, '导入成功！共导入 ${result.successCount} 条数据');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('导入成功！共导入 ${result.successCount} 条数据')),
+        );
       } else {
         showSnackBar(
           context,
@@ -191,7 +201,9 @@ class _BatchImportScreenState extends State<BatchImportScreen>
       }
     } catch (e) {
       setState(() => _isImporting = false);
-      showSnackBar(context, '导入失败: $e', isError: true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('导入失败: $e')),
+      );
     }
   }
 
@@ -201,14 +213,18 @@ class _BatchImportScreenState extends State<BatchImportScreen>
         : _importService.getCsvTemplate(_selectedType);
 
     Clipboard.setData(ClipboardData(text: template));
-    showSnackBar(context, '模板已复制到剪贴板');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('模板已复制到剪贴板')),
+    );
   }
 
   void _pasteData() async {
     final clipboardData = await Clipboard.getData(Clipboard.kTextPlain);
     if (clipboardData?.text != null) {
       _dataController.text = clipboardData!.text!;
-      showSnackBar(context, '数据已粘贴');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('数据已粘贴')),
+      );
     }
   }
 
@@ -537,7 +553,9 @@ class _BatchImportScreenState extends State<BatchImportScreen>
             onPressed: () {
               Clipboard.setData(ClipboardData(text: template));
               Navigator.pop(context);
-              showSnackBar(context, '模板已复制到剪贴板');
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('模板已复制到剪贴板')),
+              );
             },
             child: const Text('复制'),
           ),

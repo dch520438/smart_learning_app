@@ -44,8 +44,6 @@ class QuestionTransferService {
           ...wrongQuestion.tags,
           if (additionalData?['tags'] != null) ...additionalData!['tags'] as List<String>,
         ],
-        examMethods: wrongQuestion.examMethods,
-        keyPoints: wrongQuestion.keyPoints,
         attachments: wrongQuestion.attachments,
       );
 
@@ -110,8 +108,6 @@ class QuestionTransferService {
           ...motherQuestion.tags,
           if (additionalData?['tags'] != null) ...additionalData!['tags'] as List<String>,
         ],
-        examMethods: motherQuestion.examMethods,
-        keyPoints: motherQuestion.keyPoints,
         attachments: motherQuestion.attachments,
         errorCount: additionalData?['errorCount'] ?? 1,
         isResolved: additionalData?['isResolved'] ?? false,
@@ -246,8 +242,6 @@ class QuestionTransferService {
       options: _parseOptions(data['options']),
       attachments: _parseAttachments(data['attachment_paths']),
       tags: _parseTags(data['tags']),
-      examMethods: _parseList(data['exam_methods']),
-      keyPoints: _parseList(data['key_points']),
     );
   }
 
