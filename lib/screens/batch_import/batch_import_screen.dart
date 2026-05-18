@@ -130,10 +130,11 @@ class _BatchImportScreenState extends State<BatchImportScreen>
           SnackBar(content: Text('数据验证通过，共 ${result.validCount} 条记录')),
         );
       } else {
-        showSnackBar(
-          context,
-          '数据验证完成，有效: ${result.validCount} 条，错误: ${result.errorCount} 条',
-          isError: result.validCount == 0,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('数据验证完成，有效: ${result.validCount} 条，错误: ${result.errorCount} 条'),
+            backgroundColor: result.validCount == 0 ? Colors.red : null,
+          ),
         );
       }
     } catch (e) {
@@ -193,10 +194,11 @@ class _BatchImportScreenState extends State<BatchImportScreen>
           SnackBar(content: Text('导入成功！共导入 ${result.successCount} 条数据')),
         );
       } else {
-        showSnackBar(
-          context,
-          '导入完成：成功 ${result.successCount} 条，失败 ${result.failCount} 条',
-          isError: result.successCount == 0,
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('导入完成：成功 ${result.successCount} 条，失败 ${result.failCount} 条'),
+            backgroundColor: result.successCount == 0 ? Colors.red : null,
+          ),
         );
       }
     } catch (e) {
