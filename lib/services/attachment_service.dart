@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
@@ -116,5 +117,62 @@ class AttachmentService {
   Future<bool> fileExists(String filePath) async {
     final file = File(filePath);
     return await file.exists();
+  }
+
+  /// 获取实际可用的图片路径
+  /// 如果原始路径不存在，尝试在应用附件目录中查找同名文件
+  Future<String> getValidImagePath(String originalPath) async {
+    final file = File(originalPath);
+    if (await file.exists()) {
+      return originalPath;
+    }
+
+    // 原始路径不存在，尝试从应用附件目录中查找
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final attachmentsDir = Directory('${appDir.path}/attachments');
+      if (await attachmentsDir.exists()) {
+        final fileName = originalPath.split('/').last;
+        // 递归搜索附件目录
+        final found = await _findFileInDirectory(attachmentsDir, fileName);
+        if (found != null) {
+          return found;
+        }
+      }
+    } catch (e) {
+      debugPrint('搜索附件目录失败: $e');
+    }
+
+    // 都找不到，返回原始路径（由调用方处理错误）
+    return originalPath;
+  }
+
+  /// 递归在目录中查找指定文件名的文件
+  Future<String?> _findFileInDirectory(Directory dir, String fileName) async {
+    try {
+      final entities = await dir.list().toList();
+      for (final entity in entities) {
+        if (entity is File && entity.path.split('/').last == fileName) {
+          return entity.path;
+        } else if (entity is Directory) {
+          final found = await _findFileInDirectory(entity, fileName);
+          if (found != null) return found;
+        }
+      }
+    } catch (e) {
+      debugPrint('搜索目录失败: ${dir.path}, $e');
+    }
+    return null;
+  }
+
+  /// 构建图片 Widget，自动处理路径问题
+  /// 返回一个 Future<ImageProvider>，如果文件不存在则返回 null
+  Future<FileImage?> resolveImageProvider(String filePath) async {
+    final validPath = await getValidImagePath(filePath);
+    final file = File(validPath);
+    if (await file.exists()) {
+      return FileImage(file);
+    }
+    return null;
   }
 }

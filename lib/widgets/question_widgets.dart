@@ -187,12 +187,16 @@ class QuestionCard extends StatefulWidget {
 class _QuestionCardState extends State<QuestionCard> {
   String? _selectedAnswer;
   bool _showAnalysis = false;
+  late TextEditingController _fillBlankController;
+  late TextEditingController _textAnswerController;
 
   @override
   void initState() {
     super.initState();
     _selectedAnswer = widget.userAnswer;
     _showAnalysis = widget.showAnalysis;
+    _fillBlankController = TextEditingController(text: widget.userAnswer ?? '');
+    _textAnswerController = TextEditingController(text: widget.userAnswer ?? '');
   }
 
   @override
@@ -200,10 +204,25 @@ class _QuestionCardState extends State<QuestionCard> {
     super.didUpdateWidget(oldWidget);
     if (widget.userAnswer != oldWidget.userAnswer) {
       _selectedAnswer = widget.userAnswer;
+      // 同步更新控制器内容
+      final newText = widget.userAnswer ?? '';
+      if (_fillBlankController.text != newText) {
+        _fillBlankController.text = newText;
+      }
+      if (_textAnswerController.text != newText) {
+        _textAnswerController.text = newText;
+      }
     }
     if (widget.showAnalysis != oldWidget.showAnalysis) {
       _showAnalysis = widget.showAnalysis;
     }
+  }
+
+  @override
+  void dispose() {
+    _fillBlankController.dispose();
+    _textAnswerController.dispose();
+    super.dispose();
   }
 
   static const List<String> _optionLabels = ['A', 'B', 'C', 'D', 'E', 'F'];
@@ -220,24 +239,36 @@ class _QuestionCardState extends State<QuestionCard> {
     final trimmedText = optionText.trim();
 
     // 尝试匹配 {label: A, content: xxx} 格式
-    // 使用非贪婪匹配来正确处理 content 中的内容
-    final pattern = RegExp(r'\{label:\s*([^,]+?),\s*content:\s*(.+?)\s*\}$', caseSensitive: false);
+    // 使用贪婪匹配 content 部分，从最后一个 } 倒推
+    final pattern = RegExp(r'^\{label:\s*([^,]+?),\s*content:\s*(.+)\}$', caseSensitive: false);
     final match = pattern.firstMatch(trimmedText);
     if (match != null && match.groupCount >= 2) {
-      final content = match.group(2)?.trim() ?? '';
+      var content = match.group(2)?.trim() ?? '';
       // 移除 content 值两端可能存在的引号
       if ((content.startsWith('"') && content.endsWith('"')) ||
           (content.startsWith("'") && content.endsWith("'"))) {
-        return content.substring(1, content.length - 1);
+        content = content.substring(1, content.length - 1);
       }
       return content;
     }
 
     // 尝试匹配 {"label": "A", "content": "xxx"} 格式
-    final jsonPattern = RegExp(r"""["']?label["']?\s*:\s*["']?([^,]+)["']?\s*,\s*["']?content["']?\s*:\s*["']?(.+?)["']?\s*}""", caseSensitive: false);
+    final jsonPattern = RegExp(r"""^["']?\{["']?label["']?\s*:\s*["']([^"']+)["']\s*,\s*["']content["']\s*:\s*["'](.+)["']\s*\}""", caseSensitive: false);
     final jsonMatch = jsonPattern.firstMatch(trimmedText);
     if (jsonMatch != null && jsonMatch.groupCount >= 2) {
       return jsonMatch.group(2)?.trim() ?? trimmedText;
+    }
+
+    // 尝试匹配无花括号格式: label: A, content: xxx
+    final noBracePattern = RegExp(r'^label:\s*([^,]+?),\s*content:\s*(.+)$', caseSensitive: false);
+    final noBraceMatch = noBracePattern.firstMatch(trimmedText);
+    if (noBraceMatch != null && noBraceMatch.groupCount >= 2) {
+      var content = noBraceMatch.group(2)?.trim() ?? '';
+      if ((content.startsWith('"') && content.endsWith('"')) ||
+          (content.startsWith("'") && content.endsWith("'"))) {
+        content = content.substring(1, content.length - 1);
+      }
+      return content;
     }
 
     // 如果不是特殊格式，直接返回原文本
@@ -656,18 +687,17 @@ class _QuestionCardState extends State<QuestionCard> {
     required String hintText,
     required ValueChanged<String> onChanged,
   }) {
-    final controller = TextEditingController();
     return Row(
       children: [
         Expanded(
           child: AppInput(
             hintText: hintText,
-            controller: controller,
+            controller: _fillBlankController,
             onChanged: onChanged,
           ),
         ),
         const SizedBox(width: 8),
-        _buildSymbolButton(controller, onChanged),
+        _buildSymbolButton(_fillBlankController, onChanged),
       ],
     );
   }
@@ -679,11 +709,10 @@ class _QuestionCardState extends State<QuestionCard> {
     required int? maxLength,
     required ValueChanged<String> onChanged,
   }) {
-    final controller = TextEditingController();
     return StatefulBuilder(
       builder: (context, setState) {
         return TextField(
-          controller: controller,
+          controller: _textAnswerController,
           maxLines: maxLines,
           maxLength: maxLength,
           decoration: InputDecoration(
@@ -693,7 +722,7 @@ class _QuestionCardState extends State<QuestionCard> {
             ),
             filled: true,
             fillColor: AppColors.background,
-            suffixIcon: _buildSymbolButton(controller, onChanged, isCompact: true),
+            suffixIcon: _buildSymbolButton(_textAnswerController, onChanged, isCompact: true),
             counterText: '', // 隐藏默认计数器
           ),
           style: TextStyle(
@@ -716,7 +745,6 @@ class _QuestionCardState extends State<QuestionCard> {
     required int maxLength,
     required ValueChanged<String> onChanged,
   }) {
-    final controller = TextEditingController();
     final theme = Theme.of(context);
 
     return StatefulBuilder(
@@ -753,10 +781,10 @@ class _QuestionCardState extends State<QuestionCard> {
                   const Spacer(),
                   // 字数统计
                   Text(
-                    '${controller.text.length}/$maxLength',
+                    '${_textAnswerController.text.length}/$maxLength',
                     style: TextStyle(
                       fontSize: AppFontSize.xs,
-                      color: controller.text.length > maxLength * 0.9
+                      color: _textAnswerController.text.length > maxLength * 0.9
                           ? AppColors.error
                           : AppColors.textSecondary,
                     ),
@@ -766,7 +794,7 @@ class _QuestionCardState extends State<QuestionCard> {
               const SizedBox(height: 12),
               // 文本输入框
               TextField(
-                controller: controller,
+                controller: _textAnswerController,
                 maxLines: maxLines,
                 maxLength: maxLength,
                 decoration: InputDecoration(
@@ -776,7 +804,7 @@ class _QuestionCardState extends State<QuestionCard> {
                   ),
                   filled: true,
                   fillColor: AppColors.background,
-                  suffixIcon: _buildSymbolButton(controller, onChanged, isCompact: true),
+                  suffixIcon: _buildSymbolButton(_textAnswerController, onChanged, isCompact: true),
                   counterText: '', // 隐藏默认计数器
                 ),
                 style: TextStyle(

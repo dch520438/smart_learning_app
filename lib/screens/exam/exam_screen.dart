@@ -763,7 +763,42 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
     for (int i = 0; i < _questions.length; i++) {
       final q = _questions[i];
       final userAnswer = _answers[i + 1];
-      if (userAnswer != null && userAnswer == q['correctAnswer']) {
+      final correctAnswer = (q['correctAnswer'] as String?) ?? '';
+      final type = q['type'] as String? ?? 'singleChoice';
+
+      if (userAnswer == null || userAnswer.isEmpty) {
+        wrong++;
+        continue;
+      }
+
+      bool isCorrect = false;
+      switch (type) {
+        case 'singleChoice':
+        case 'trueFalse':
+          // 选择题/判断题：精确比较
+          isCorrect = userAnswer.trim() == correctAnswer.trim();
+          break;
+        case 'multipleChoice':
+          // 多选题：比较选项集合
+          final userSet = userAnswer.split(',').map((s) => s.trim()).toSet();
+          final correctSet = correctAnswer.split(',').map((s) => s.trim()).toSet();
+          isCorrect = userSet.length == correctSet.length && userSet.containsAll(correctSet);
+          break;
+        case 'fillBlank':
+          // 填空题：忽略空格和大小写比较
+          isCorrect = userAnswer.trim().toLowerCase() == correctAnswer.trim().toLowerCase();
+          break;
+        case 'shortAnswer':
+        case 'proof':
+        case 'essay':
+          // 简答题/证明题/论述题：标记为需人工批改，默认不计分
+          // 这里不判对也不判错，单独计数
+          continue;
+        default:
+          isCorrect = userAnswer.trim() == correctAnswer.trim();
+      }
+
+      if (isCorrect) {
         correct++;
       } else {
         wrong++;
@@ -1977,8 +2012,8 @@ class _PracticeTabState extends State<_PracticeTab> {
           }
           break;
         case 'fillBlank':
-          // 填空题：完全匹配得分
-          if (userAnswer.trim() == correctAnswer.trim()) {
+          // 填空题：忽略空格和大小写比较
+          if (userAnswer.trim().toLowerCase() == correctAnswer.trim().toLowerCase()) {
             correct++;
             totalScore += _scorePerQuestion;
           } else {
@@ -1986,7 +2021,9 @@ class _PracticeTabState extends State<_PracticeTab> {
           }
           break;
         case 'shortAnswer':
-          // 简答题：用户自评
+        case 'proof':
+        case 'essay':
+          // 简答题/证明题/论述题：标记为需人工批改
           selfEval++;
           if (_selfEvalScores[i + 1] == true) {
             correct++;
@@ -2061,8 +2098,11 @@ class _PracticeTabState extends State<_PracticeTab> {
           switch (type) {
             case 'singleChoice':
             case 'trueFalse':
-            case 'fillBlank':
               isWrong = userAnswer.trim() != correctAnswer.trim();
+              break;
+            case 'fillBlank':
+              // 填空题：忽略空格和大小写比较
+              isWrong = userAnswer.trim().toLowerCase() != correctAnswer.trim().toLowerCase();
               break;
             case 'multipleChoice':
               final userSet = userAnswer.split(',').map((s) => s.trim()).toSet();
@@ -2071,6 +2111,8 @@ class _PracticeTabState extends State<_PracticeTab> {
                   !(userSet.every((e) => correctSet.contains(e)) && userSet.isNotEmpty);
               break;
             case 'shortAnswer':
+            case 'proof':
+            case 'essay':
               isWrong = _selfEvalScores[i + 1] != true;
               break;
           }

@@ -28,6 +28,7 @@ class _ImageAttachmentWidgetState extends State<ImageAttachmentWidget> {
   final AttachmentService _attachmentService = AttachmentService();
   List<Map<String, dynamic>> _attachments = [];
   bool _isLoading = false;
+  Map<int, String> _validPaths = {}; // 缓存验证后的有效路径
 
   @override
   void initState() {
@@ -39,8 +40,15 @@ class _ImageAttachmentWidgetState extends State<ImageAttachmentWidget> {
     setState(() => _isLoading = true);
     try {
       final attachments = await _attachmentService.getAttachments(widget.parentId);
+      // 预验证所有图片路径
+      final Map<int, String> validPaths = {};
+      for (int i = 0; i < attachments.length; i++) {
+        final filePath = attachments[i]['file_path'] as String;
+        validPaths[i] = await _attachmentService.getValidImagePath(filePath);
+      }
       setState(() {
         _attachments = attachments;
+        _validPaths = validPaths;
         _isLoading = false;
       });
       widget.onImagesChanged(_attachments.map((a) => a['file_path'] as String).toList());
@@ -147,7 +155,7 @@ class _ImageAttachmentWidgetState extends State<ImageAttachmentWidget> {
   void _viewImage(int index) {
     if (index < 0 || index >= _attachments.length) return;
 
-    final filePath = _attachments[index]['file_path'] as String;
+    final filePath = _validPaths[index] ?? _attachments[index]['file_path'] as String;
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => Scaffold(
@@ -172,6 +180,21 @@ class _ImageAttachmentWidgetState extends State<ImageAttachmentWidget> {
               child: Image.file(
                 File(filePath),
                 fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.broken_image, color: Colors.white54, size: 64),
+                        const SizedBox(height: 8),
+                        Text(
+                          '图片加载失败',
+                          style: TextStyle(color: Colors.white54, fontSize: AppFontSize.md),
+                        ),
+                      ],
+                    ),
+                  );
+                },
               ),
             ),
           ),
@@ -267,7 +290,7 @@ class _ImageAttachmentWidgetState extends State<ImageAttachmentWidget> {
               ..._attachments.asMap().entries.map((entry) {
                 final index = entry.key;
                 final attachment = entry.value;
-                final filePath = attachment['file_path'] as String;
+                final filePath = _validPaths[index] ?? (attachment['file_path'] as String);
 
                 return Stack(
                   children: [
@@ -326,7 +349,7 @@ class _ImageAttachmentWidgetState extends State<ImageAttachmentWidget> {
 }
 
 /// 图片附件展示组件（只读模式）
-class ImageAttachmentViewer extends StatelessWidget {
+class ImageAttachmentViewer extends StatefulWidget {
   final List<String> imagePaths;
   final Function(int)? onImageTap;
   final Function(int)? onImageDelete;
@@ -339,8 +362,40 @@ class ImageAttachmentViewer extends StatelessWidget {
   });
 
   @override
+  State<ImageAttachmentViewer> createState() => _ImageAttachmentViewerState();
+}
+
+class _ImageAttachmentViewerState extends State<ImageAttachmentViewer> {
+  final AttachmentService _attachmentService = AttachmentService();
+  Map<int, String> _validPaths = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _validatePaths();
+  }
+
+  @override
+  void didUpdateWidget(ImageAttachmentViewer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.imagePaths != oldWidget.imagePaths) {
+      _validatePaths();
+    }
+  }
+
+  Future<void> _validatePaths() async {
+    final Map<int, String> validPaths = {};
+    for (int i = 0; i < widget.imagePaths.length; i++) {
+      validPaths[i] = await _attachmentService.getValidImagePath(widget.imagePaths[i]);
+    }
+    if (mounted) {
+      setState(() => _validPaths = validPaths);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (imagePaths.isEmpty) return const SizedBox.shrink();
+    if (widget.imagePaths.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -365,7 +420,7 @@ class ImageAttachmentViewer extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
-                '${imagePaths.length}',
+                '${widget.imagePaths.length}',
                 style: TextStyle(
                   fontSize: AppFontSize.xs,
                   color: AppColors.primary,
@@ -379,14 +434,14 @@ class ImageAttachmentViewer extends StatelessWidget {
         Wrap(
           spacing: 12,
           runSpacing: 12,
-          children: imagePaths.asMap().entries.map((entry) {
+          children: widget.imagePaths.asMap().entries.map((entry) {
             final index = entry.key;
-            final path = entry.value;
+            final path = _validPaths[index] ?? entry.value;
 
             return Stack(
               children: [
                 InkWell(
-                  onTap: () => onImageTap?.call(index),
+                  onTap: () => widget.onImageTap?.call(index),
                   borderRadius: BorderRadius.circular(AppRadius.md),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(AppRadius.md),
@@ -409,12 +464,12 @@ class ImageAttachmentViewer extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (onImageDelete != null)
+                if (widget.onImageDelete != null)
                   Positioned(
                     top: 4,
                     right: 4,
                     child: GestureDetector(
-                      onTap: () => onImageDelete?.call(index),
+                      onTap: () => widget.onImageDelete?.call(index),
                       child: Container(
                         width: 20,
                         height: 20,
