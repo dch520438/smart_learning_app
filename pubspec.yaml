@@ -52,6 +52,7 @@ dependencies:
   uuid: ^4.2.1
   shared_preferences: ^2.2.2
   http: ^1.1.2
+  csv: ^6.0.0
 
   # UI 辅助
   cupertino_icons: ^1.0.6

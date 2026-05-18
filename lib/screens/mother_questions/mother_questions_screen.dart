@@ -15,6 +15,9 @@ import '../../widgets/common_widgets.dart';
 import '../../widgets/input_method_selector.dart';
 import '../../widgets/symbol_picker.dart';
 import '../../widgets/image_attachment_widget.dart';
+import '../batch_import/batch_import_screen.dart';
+import '../../services/batch_import_service.dart';
+import '../../services/question_transfer_service.dart';
 
 // ============================================================
 // MotherQuestionsScreen - 母题集主页面
@@ -300,6 +303,32 @@ class _MotherQuestionsScreenState extends State<MotherQuestionsScreen> {
               onPressed: _exitSelectionMode,
               tooltip: '取消选择',
             ),
+          PopupMenuButton<String>(
+            onSelected: (value) {
+              if (value == 'batch_import') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BatchImportScreen(
+                      initialType: BatchImportService.typeMotherQuestion,
+                    ),
+                  ),
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'batch_import',
+                child: Row(
+                  children: [
+                    Icon(Icons.file_upload, size: 18),
+                    SizedBox(width: 8),
+                    Text('批量导入'),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
       body: Column(
@@ -1157,6 +1186,67 @@ class MotherQuestionDetailScreenState
     }
   }
 
+  Future<void> _convertToWrongQuestion() async {
+    final transferService = QuestionTransferService();
+    final uuid = _question['uuid'] as String? ?? _question['id'].toString();
+
+    // 显示确认对话框
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('转为错题'),
+        content: const Text('确定要将这道母题转为错题吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('确认'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+
+    // 显示选项对话框
+    final keepOriginal = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('保留原母题'),
+        content: const Text('是否保留原母题？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('不保留'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('保留'),
+          ),
+        ],
+      ),
+    );
+
+    AppLoading.show(context, message: '转换中...');
+
+    final transferResult = await transferService.convertMotherToWrong(
+      uuid,
+      keepOriginal: keepOriginal ?? false,
+    );
+
+    AppLoading.hide(context);
+
+    if (transferResult.success) {
+      showSnackBar(context, transferResult.message);
+      if (mounted) Navigator.of(context).pop(true);
+    } else {
+      showSnackBar(context, transferResult.message, isError: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final subject = _question['subject'] as String? ?? '未分类';
@@ -1199,6 +1289,25 @@ class MotherQuestionDetailScreenState
             icon: const Icon(Icons.delete_outline),
             onPressed: _deleteQuestion,
             tooltip: '删除',
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == 'convert_to_wrong') {
+                await _convertToWrongQuestion();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'convert_to_wrong',
+                child: Row(
+                  children: [
+                    Icon(Icons.swap_horiz, size: 18),
+                    SizedBox(width: 8),
+                    Text('转为错题'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

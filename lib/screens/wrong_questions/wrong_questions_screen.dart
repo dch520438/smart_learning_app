@@ -16,6 +16,9 @@ import '../../widgets/exam_method_keypoint_input.dart';
 import '../../widgets/input_method_selector.dart';
 import '../../widgets/symbol_picker.dart';
 import '../../widgets/image_attachment_widget.dart';
+import '../batch_import/batch_import_screen.dart';
+import '../../services/batch_import_service.dart';
+import '../../services/question_transfer_service.dart';
 
 // ============================================================
 // WrongQuestionsScreen - 错题本主页面
@@ -414,6 +417,15 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
                   _filterErrorType = null;
                   _searchQuery = '';
                 });
+              } else if (value == 'batch_import') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BatchImportScreen(
+                      initialType: BatchImportService.typeWrongQuestion,
+                    ),
+                  ),
+                );
               }
               _applyFilters();
             },
@@ -429,6 +441,17 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
               const PopupMenuItem(
                 value: 'resolved',
                 child: Text('已解决'),
+              ),
+              const PopupMenuDivider(),
+              const PopupMenuItem(
+                value: 'batch_import',
+                child: Row(
+                  children: [
+                    Icon(Icons.file_upload, size: 18),
+                    SizedBox(width: 8),
+                    Text('批量导入'),
+                  ],
+                ),
               ),
             ],
           ),
@@ -1109,6 +1132,67 @@ class _WrongQuestionDetailScreenState extends State<WrongQuestionDetailScreen> {
     );
   }
 
+  Future<void> _convertToMotherQuestion() async {
+    final transferService = QuestionTransferService();
+
+    // 显示确认对话框
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('转为母题'),
+        content: const Text('确定要将这道错题转为母题吗？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('确认'),
+          ),
+        ],
+      ),
+    );
+
+    if (result != true) return;
+
+    // 显示选项对话框
+    final keepOriginal = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('保留原错题'),
+        content: const Text('是否保留原错题？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('不保留'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('保留'),
+          ),
+        ],
+      ),
+    );
+
+    AppLoading.show(context, message: '转换中...');
+
+    final transferResult = await transferService.convertWrongToMother(
+      _question.id,
+      keepOriginal: keepOriginal ?? false,
+    );
+
+    AppLoading.hide(context);
+
+    if (transferResult.success) {
+      showSnackBar(context, transferResult.message);
+      widget.onUpdated?.call();
+      if (mounted) Navigator.of(context).pop();
+    } else {
+      showSnackBar(context, transferResult.message, isError: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -1155,6 +1239,25 @@ class _WrongQuestionDetailScreenState extends State<WrongQuestionDetailScreen> {
             icon: const Icon(Icons.delete_outline),
             onPressed: _deleteQuestion,
             tooltip: '删除',
+          ),
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == 'convert_to_mother') {
+                await _convertToMotherQuestion();
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'convert_to_mother',
+                child: Row(
+                  children: [
+                    Icon(Icons.swap_horiz, size: 18),
+                    SizedBox(width: 8),
+                    Text('转为母题'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

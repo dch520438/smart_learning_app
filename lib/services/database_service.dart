@@ -1545,6 +1545,16 @@ class DatabaseService {
     return results.isNotEmpty ? results.first : null;
   }
 
+  /// 根据UUID删除错题
+  Future<int> deleteWrongQuestionByUuid(String uuid) async {
+    final db = await database;
+    return await db.delete(
+      tableWrongQuestions,
+      where: 'uuid = ?',
+      whereArgs: [uuid],
+    );
+  }
+
   /// 查询所有错题
   Future<List<Map<String, dynamic>>> queryAllWrongQuestions({
     String? orderBy,
@@ -1749,6 +1759,16 @@ class DatabaseService {
       whereArgs: [uuid],
     );
     return results.isNotEmpty ? results.first : null;
+  }
+
+  /// 根据UUID删除母题
+  Future<int> deleteMotherQuestionByUuid(String uuid) async {
+    final db = await database;
+    return await db.delete(
+      tableMotherQuestions,
+      where: 'uuid = ?',
+      whereArgs: [uuid],
+    );
   }
 
   /// 查询所有母题

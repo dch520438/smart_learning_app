@@ -13,6 +13,8 @@ import '../../widgets/input_method_selector.dart';
 import '../../widgets/symbol_picker.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
+import '../batch_import/batch_import_screen.dart';
+import '../../services/batch_import_service.dart';
 
 // ============================================================
 // NotesScreen - 学习笔记页面
@@ -484,6 +486,22 @@ class _NotesScreenState extends State<NotesScreen> {
               icon: const Icon(Icons.select_all),
               onPressed: _selectAll,
               tooltip: '全选',
+            ),
+          // 批量导入
+          if (!_isSelectionMode)
+            IconButton(
+              icon: const Icon(Icons.file_upload),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BatchImportScreen(
+                      initialType: BatchImportService.typeNote,
+                    ),
+                  ),
+                );
+              },
+              tooltip: '批量导入',
             ),
         ],
       ),

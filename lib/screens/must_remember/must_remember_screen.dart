@@ -10,6 +10,8 @@ import '../../services/print_service.dart';
 import '../../services/voice_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
+import '../batch_import/batch_import_screen.dart';
+import '../../services/batch_import_service.dart';
 import '../../widgets/common_widgets.dart';
 import '../../widgets/exam_method_keypoint_input.dart';
 import '../../widgets/input_method_selector.dart';
@@ -362,6 +364,20 @@ class _MustRememberScreenState extends State<MustRememberScreen> {
               onPressed: _toggleSelectionMode,
               tooltip: '多选',
             ),
+          IconButton(
+            icon: const Icon(Icons.file_upload),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const BatchImportScreen(
+                    initialType: BatchImportService.typeMustRemember,
+                  ),
+                ),
+              );
+            },
+            tooltip: '批量导入',
+          ),
         ],
       ),
       body: Column(

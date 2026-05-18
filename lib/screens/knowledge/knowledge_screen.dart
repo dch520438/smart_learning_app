@@ -16,6 +16,8 @@ import '../../widgets/symbol_picker.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../exam/exam_screen.dart';
+import '../batch_import/batch_import_screen.dart';
+import '../../services/batch_import_service.dart';
 
 // ============================================================
 // KnowledgeScreen - 知识点积累页面
@@ -662,6 +664,20 @@ class _KnowledgeScreenState extends State<KnowledgeScreen> {
               },
               tooltip: '筛选',
             ),
+          IconButton(
+            icon: const Icon(Icons.file_upload),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const BatchImportScreen(
+                    initialType: BatchImportService.typeKnowledgePoint,
+                  ),
+                ),
+              );
+            },
+            tooltip: '批量导入',
+          ),
         ],
       ),
       body: Column(
