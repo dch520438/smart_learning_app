@@ -20,6 +20,8 @@ import 'screens/settings/settings_screen.dart';
 import 'screens/habits/habits_screen.dart';
 import 'screens/exam_papers/exam_papers_screen.dart';
 import 'screens/exam_papers/exam_paper_detail_screen.dart';
+import 'screens/ai/ai_settings_screen.dart';
+import 'screens/ai/ai_service_screen.dart';
 
 /// 全局路由名称常量
 class AppRoutes {
@@ -46,6 +48,10 @@ class AppRoutes {
   // 试卷相关
   static const String examPapers = '/exam_papers';
   static const String examPaperDetail = '/exam_papers/detail';
+
+  // AI相关
+  static const String aiSettings = '/ai/settings';
+  static const String aiService = '/ai/service';
 }
 
 /// 路由表配置
@@ -67,6 +73,8 @@ class AppRouter {
         AppRoutes.settings: (context) => const SettingsScreen(),
         AppRoutes.habits: (context) => const HabitsScreen(),
         AppRoutes.examPapers: (context) => const ExamPapersScreen(),
+        AppRoutes.aiSettings: (context) => const AISettingsScreen(),
+        AppRoutes.aiService: (context) => const AIServiceScreen(),
       };
 }
 
@@ -214,6 +222,12 @@ class _AppContentState extends State<AppContent> with SingleTickerProviderStateM
       case AppRoutes.examPapers:
       case '/exam_papers':
         return const ExamPapersScreen();
+      case AppRoutes.aiSettings:
+      case '/ai/settings':
+        return const AISettingsScreen();
+      case AppRoutes.aiService:
+      case '/ai/service':
+        return const AIServiceScreen();
       default:
         return const HomeScreen();
     }

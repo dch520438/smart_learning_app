@@ -4,6 +4,8 @@ import '../../providers/theme_provider.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
+import '../ai/ai_settings_screen.dart';
+import '../ai/ai_service_screen.dart';
 
 // ============================================================
 // SettingsScreen - 设置主页面
@@ -32,6 +34,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionTitle('主题风格'),
           const SizedBox(height: 12),
           _buildThemeSettingsCard(),
+
+          const SizedBox(height: 24),
+
+          // AI设置
+          _buildSectionTitle('AI助手'),
+          const SizedBox(height: 12),
+          _buildAISettingsCard(),
 
           const SizedBox(height: 24),
 
@@ -248,6 +257,64 @@ class _SettingsScreenState extends State<SettingsScreen> {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               showSnackBar(context, '功能开发中...');
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAISettingsCard() {
+    return AppCard(
+      child: Column(
+        children: [
+          ListTile(
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF7B68EE).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: const Icon(
+                Icons.psychology,
+                color: Color(0xFF7B68EE),
+              ),
+            ),
+            title: const Text('AI助手'),
+            subtitle: const Text('AI出题、判卷、思维导图等'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AIServiceScreen(),
+                ),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: const Color(0xFF4CAF50).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: const Icon(
+                Icons.settings,
+                color: Color(0xFF4CAF50),
+              ),
+            ),
+            title: const Text('AI模型配置'),
+            subtitle: const Text('配置API Key和模型'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const AISettingsScreen(),
+                ),
+              );
             },
           ),
         ],
