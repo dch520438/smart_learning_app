@@ -100,7 +100,7 @@ class ParsedQuestion {
   factory ParsedQuestion.fromJson(Map<String, dynamic> json) {
     return ParsedQuestion(
       number: json['number'] as int? ?? 1,
-      type: QuestionTypeExtension.fromString(json['type'] as String?),
+      type: QuestionTypeParserExtension.parseFromString(json['type'] as String?),
       content: json['content'] as String? ?? '',
       options: (json['options'] as List<dynamic>?)
           ?.map((e) => e.toString())
@@ -119,7 +119,7 @@ class ParsedQuestion {
   Map<String, dynamic> toJson() {
     return {
       'number': number,
-      'type': type.value,
+      'type': type.parseValue,
       'content': content,
       'options': options,
       'answer': answer,
@@ -226,7 +226,7 @@ class ParsedQuestion {
 
   @override
   String toString() {
-    return 'ParsedQuestion(number: $number, type: ${type.displayName}, '
+    return 'ParsedQuestion(number: $number, type: ${type.parseDisplayName}, '
         'content: ${content.substring(0, content.length > 30 ? 30 : content.length)}..., '
         'subject: $subject)';
   }

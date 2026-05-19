@@ -646,7 +646,7 @@ class _AIDocumentParserScreenState extends State<AIDocumentParserScreen>
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
                 child: Text(
-                  question.type.displayName,
+                  question.type.label,
                   style: TextStyle(
                     fontSize: AppFontSize.xs,
                     color: _getTypeColor(question.type),
