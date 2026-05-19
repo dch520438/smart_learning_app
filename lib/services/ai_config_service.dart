@@ -458,6 +458,11 @@ class AIService {
     }
 
     try {
+      // Google Gemini 使用不同的API格式
+      if (_currentConfig!.id == 'gemini') {
+        return await _chatGemini(prompt, model);
+      }
+
       final headers = {
         'Authorization': 'Bearer ${_currentConfig!.apiKey}',
         'Content-Type': 'application/json',
@@ -482,6 +487,52 @@ class AIService {
         final choices = data['choices'] as List<dynamic>?;
         if (choices != null && choices.isNotEmpty) {
           return choices[0]['message']?['content'] as String? ?? '';
+        }
+        return '';
+      } else {
+        throw Exception('请求失败: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  /// Google Gemini 对话
+  Future<String> _chatGemini(String prompt, String model) async {
+    try {
+      final headers = {
+        'Content-Type': 'application/json',
+      };
+
+      final body = {
+        'contents': [
+          {
+            'parts': [
+              {'text': prompt}
+            ]
+          }
+        ],
+        'generationConfig': {
+          'maxOutputTokens': 2048,
+          'temperature': 0.7,
+        },
+      };
+
+      final response = await http.post(
+        Uri.parse('${_currentConfig!.baseUrl}/models/$model:generateContent?key=${_currentConfig!.apiKey}'),
+        headers: headers,
+        body: json.encode(body),
+      ).timeout(const Duration(seconds: 60));
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body) as Map<String, dynamic>;
+        final candidates = data['candidates'] as List<dynamic>?;
+        if (candidates != null && candidates.isNotEmpty) {
+          final content = candidates[0]['content'] as Map<String, dynamic>?;
+          final parts = content?['parts'] as List<dynamic>?;
+          if (parts != null && parts.isNotEmpty) {
+            return parts[0]['text'] as String? ?? '';
+          }
         }
         return '';
       } else {

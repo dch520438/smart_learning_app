@@ -7,6 +7,7 @@ import '../../models/exam_result.dart';
 import '../../models/wrong_question.dart';
 import '../../models/mother_question.dart';
 import '../../services/database_service.dart';
+import '../../services/ai_config_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
 import '../../widgets/common_widgets.dart';
@@ -296,16 +297,27 @@ class _CreateExamDialog extends StatefulWidget {
 class _CreateExamDialogState extends State<_CreateExamDialog> {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
+  final _chapterController = TextEditingController();
+  final AIService _aiService = AIService();
   String _selectedSubject = kSubjectNames.first;
-  String _questionSource = 'all'; // all, wrong, mother
+  String _questionSource = 'all'; // all, wrong, mother, ai
+  String _selectedDifficulty = 'medium'; // easy, medium, hard
   int _questionCount = 10;
   int _timeLimit = 30;
   int _totalScore = 100;
   bool _isCreating = false;
+  bool _isAiGenerating = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _aiService.loadConfig();
+  }
 
   @override
   void dispose() {
     _titleController.dispose();
+    _chapterController.dispose();
     super.dispose();
   }
 
@@ -375,9 +387,54 @@ class _CreateExamDialogState extends State<_CreateExamDialog> {
                     _buildSourceTag('全部题目', 'all'),
                     _buildSourceTag('错题本', 'wrong'),
                     _buildSourceTag('母题集', 'mother'),
+                    _buildSourceTag('AI生成', 'ai'),
                   ],
                 ),
                 const SizedBox(height: 16),
+
+                // AI生成选项
+                if (_questionSource == 'ai') ...[
+                  Text(
+                    'AI生成设置',
+                    style: TextStyle(
+                      fontSize: AppFontSize.md,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  // 章节/知识点输入
+                  TextField(
+                    controller: _chapterController,
+                    decoration: InputDecoration(
+                      labelText: '章节或知识点（可选）',
+                      hintText: '例如：函数、几何、代数',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  // 难度选择
+                  Text(
+                    '难度设置',
+                    style: TextStyle(
+                      fontSize: AppFontSize.sm,
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      _buildDifficultyTag('简单', 'easy', AppColors.success),
+                      _buildDifficultyTag('中等', 'medium', AppColors.warning),
+                      _buildDifficultyTag('困难', 'hard', AppColors.error),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
                 // 题目数量
                 _buildNumberSetting(
@@ -440,9 +497,18 @@ class _CreateExamDialogState extends State<_CreateExamDialog> {
   Widget _buildSourceTag(String label, String value) {
     return AppTag(
       label: label,
-      color: AppColors.info,
+      color: value == 'ai' ? AppColors.primary : AppColors.info,
       selected: _questionSource == value,
       onTap: () => setState(() => _questionSource = value),
+    );
+  }
+
+  Widget _buildDifficultyTag(String label, String value, Color color) {
+    return AppTag(
+      label: label,
+      color: color,
+      selected: _selectedDifficulty == value,
+      onTap: () => setState(() => _selectedDifficulty = value),
     );
   }
 
@@ -497,6 +563,15 @@ class _CreateExamDialogState extends State<_CreateExamDialog> {
 
   void _createExam() {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_questionSource == 'ai') {
+      _generateAiExam();
+    } else {
+      _createNormalExam();
+    }
+  }
+
+  void _createNormalExam() {
     setState(() => _isCreating = true);
 
     // 生成模拟题目数据
@@ -520,6 +595,146 @@ class _CreateExamDialogState extends State<_CreateExamDialog> {
     };
 
     Navigator.of(context).pop(examData);
+  }
+
+  Future<void> _generateAiExam() async {
+    if (!_aiService.isConfigured) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('AI未配置'),
+          content: const Text('请先配置AI模型以使用AI生成功能。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pushNamed('/ai/settings');
+              },
+              child: const Text('去配置'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isAiGenerating = true);
+
+    try {
+      final chapter = _chapterController.text.trim();
+      final difficultyText = _selectedDifficulty == 'easy'
+          ? '简单'
+          : _selectedDifficulty == 'hard'
+              ? '困难'
+              : '中等';
+
+      final prompt = '''
+请为${_selectedSubject}学科生成${_questionCount}道${difficultyText}难度的选择题。
+${chapter.isNotEmpty ? '重点考查知识点：$chapter' : ''}
+
+请以JSON格式返回，包含以下字段：
+{
+  "questions": [
+    {
+      "content": "题目内容",
+      "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"],
+      "correctAnswer": "A",
+      "analysis": "解析内容",
+      "knowledgePoint": "相关知识点"
+    }
+  ]
+}
+
+要求：
+1. 题目内容要符合${_selectedSubject}学科特点
+2. 选项要有一定迷惑性
+3. 解析要详细说明解题思路
+4. 难度为${difficultyText}级别
+''';      
+
+      final response = await _aiService.chat(prompt);
+
+      // 解析AI返回的JSON
+      final jsonStr = _extractJson(response);
+      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final questions = data['questions'] as List<dynamic>?;
+
+      if (questions == null || questions.isEmpty) {
+        throw Exception('AI未生成有效题目');
+      }
+
+      // 生成题目ID列表
+      final questionIds = <String>[];
+      final questionDataList = <Map<String, dynamic>>[];
+
+      for (int i = 0; i < questions.length && i < _questionCount; i++) {
+        final q = questions[i] as Map<String, dynamic>;
+        final questionId = 'ai_${DateTime.now().millisecondsSinceEpoch}_$i';
+        questionIds.add(questionId);
+
+        questionDataList.add({
+          'id': questionId,
+          'content': q['content'] ?? '第${i + 1}题',
+          'type': 'singleChoice',
+          'subject': _selectedSubject,
+          'options': q['options'] ?? ['A. 选项A', 'B. 选项B', 'C. 选项C', 'D. 选项D'],
+          'correctAnswer': q['correctAnswer'] ?? 'A',
+          'analysis': q['analysis'] ?? '暂无解析',
+          'knowledgePoint': q['knowledgePoint'] ?? '',
+          'difficulty': _selectedDifficulty == 'easy' ? 1 : _selectedDifficulty == 'hard' ? 3 : 2,
+          'source': 'ai',
+          'sourceLabel': 'AI生成',
+        });
+      }
+
+      final examData = {
+        'uuid': generateId(),
+        'title': _titleController.text.trim(),
+        'description': '来源: AI生成 | 难度: $difficultyText${chapter.isNotEmpty ? ' | 知识点: $chapter' : ''}',
+        'subject': _selectedSubject,
+        'exam_type': 'mock',
+        'total_questions': questionDataList.length,
+        'total_score': _totalScore.toDouble(),
+        'time_limit': _timeLimit,
+        'passing_score': (_totalScore * 0.6).toDouble(),
+        'question_ids': jsonEncode(questionIds),
+        'ai_questions': jsonEncode(questionDataList),
+        'is_completed': 0,
+      };
+
+      if (mounted) {
+        Navigator.of(context).pop(examData);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('AI生成题目失败: $e'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isAiGenerating = false);
+      }
+    }
+  }
+
+  String _extractJson(String response) {
+    // 尝试找到JSON对象的开始和结束
+    var start = response.indexOf('{');
+    var end = response.lastIndexOf('}');
+
+    if (start != -1 && end != -1 && end > start) {
+      return response.substring(start, end + 1);
+    }
+
+    throw FormatException('无法从响应中提取JSON');
   }
 }
 
@@ -592,7 +807,7 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
     return null;
   }
 
-  /// 从数据库加载题目（母题、错题、系统题库）
+  /// 从数据库加载题目（母题、错题、系统题库、AI生成）
   Future<void> _loadQuestions() async {
     final subject = widget.examData['subject'] as String? ?? '数学';
     final description = widget.examData['description'] as String? ?? '';
@@ -603,13 +818,32 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
       questionSource = 'wrong';
     } else if (description.contains('母题集')) {
       questionSource = 'mother';
+    } else if (description.contains('AI生成')) {
+      questionSource = 'ai';
     }
 
     final random = Random();
     final List<Map<String, dynamic>> loadedQuestions = [];
 
     try {
-      // 1. 加载错题
+      // 1. 如果是AI生成的题目，直接解析
+      if (questionSource == 'ai') {
+        final aiQuestionsJson = widget.examData['ai_questions'] as String?;
+        if (aiQuestionsJson != null && aiQuestionsJson.isNotEmpty) {
+          final aiQuestions = jsonDecode(aiQuestionsJson) as List<dynamic>;
+          for (final q in aiQuestions) {
+            loadedQuestions.add(q as Map<String, dynamic>);
+          }
+          setState(() {
+            _questions = loadedQuestions;
+            _totalQuestions = _questions.length;
+            _isLoadingQuestions = false;
+          });
+          return;
+        }
+      }
+
+      // 2. 加载错题
       if (questionSource == 'all' || questionSource == 'wrong') {
         final wrongQuestions = await _db.queryWrongQuestionsBySubject(subject);
         for (final wq in wrongQuestions) {
@@ -633,7 +867,7 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
         _wrongQuestionCount = wrongQuestions.length;
       }
 
-      // 2. 加载母题
+      // 3. 加载母题
       if (questionSource == 'all' || questionSource == 'mother') {
         final motherQuestions = await _db.queryMotherQuestionsBySubject(subject);
         for (final mq in motherQuestions) {
@@ -657,7 +891,7 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
         _motherQuestionCount = motherQuestions.length;
       }
 
-      // 3. 如果没有用户录入的题目，提示用户
+      // 4. 如果没有用户录入的题目，提示用户
       if (loadedQuestions.isEmpty) {
         setState(() {
           _questions = [];

@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../services/analysis_service.dart';
+import '../../services/ai_config_service.dart';
 import '../../services/database_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
@@ -20,9 +21,12 @@ class AnalysisScreen extends StatefulWidget {
 class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProviderStateMixin {
   final AnalysisService _analysisService = AnalysisService();
   final DatabaseService _db = DatabaseService();
+  final AIService _aiService = AIService();
 
   late TabController _tabController;
   bool _isLoading = true;
+  bool _isAiAnalyzing = false;
+  String? _aiAnalysisResult;
 
   // 学科筛选
   List<String> _selectedSubjects = [];
@@ -47,8 +51,9 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _loadData();
+    _aiService.loadConfig();
   }
 
   @override
@@ -202,6 +207,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
             Tab(text: '学科分析', icon: Icon(Icons.school)),
             Tab(text: '错题分析', icon: Icon(Icons.error_outline)),
             Tab(text: '学习建议', icon: Icon(Icons.lightbulb)),
+            Tab(text: 'AI深度分析', icon: Icon(Icons.psychology)),
           ],
         ),
       ),
@@ -218,6 +224,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
                       _buildSubjectAnalysisTab(theme),
                       _buildWrongQuestionTab(theme),
                       _buildSuggestionsTab(theme),
+                      _buildAiAnalysisTab(theme),
                     ],
                   ),
                 ),
@@ -1208,6 +1215,361 @@ class _AnalysisScreenState extends State<AnalysisScreen> with SingleTickerProvid
       default:
         return Icons.lightbulb;
     }
+  }
+
+  // ==================== AI深度分析标签页 ====================
+  Widget _buildAiAnalysisTab(ThemeData theme) {
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // AI分析介绍卡片
+            _buildAiIntroCard(theme),
+            const SizedBox(height: 16),
+
+            // AI分析按钮
+            if (_aiAnalysisResult == null && !_isAiAnalyzing)
+              _buildAiAnalysisButton(theme),
+
+            // 加载中
+            if (_isAiAnalyzing) _buildAiLoadingCard(),
+
+            // AI分析结果
+            if (_aiAnalysisResult != null) _buildAiResultCard(theme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiIntroCard(ThemeData theme) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppColors.primary, AppColors.secondary],
+                    ),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: const Icon(Icons.psychology, color: Colors.white),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'AI深度学情分析',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '基于您的学习数据，AI将生成个性化的深度分析报告',
+                        style: TextStyle(
+                          fontSize: AppFontSize.sm,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiAnalysisButton(ThemeData theme) {
+    final isConfigured = _aiService.isConfigured;
+
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          children: [
+            if (!isConfigured) ...[
+              Icon(
+                Icons.warning_amber,
+                size: 48,
+                color: AppColors.warning,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'AI未配置',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '请先配置AI模型以使用深度分析功能',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: AppFontSize.sm,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => _openAISettings(),
+                icon: const Icon(Icons.settings),
+                label: const Text('配置AI'),
+              ),
+            ] else ...[
+              Icon(
+                Icons.auto_awesome,
+                size: 64,
+                color: AppColors.primary.withOpacity(0.5),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                '开始AI深度分析',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'AI将分析您的学习数据，生成个性化的学习建议和改进方案',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: AppFontSize.sm,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _startAiAnalysis,
+                  icon: const Icon(Icons.analytics),
+                  label: const Text('开始分析'),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiLoadingCard() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          children: [
+            const CircularProgressIndicator(),
+            const SizedBox(height: 16),
+            Text(
+              'AI正在分析您的学习数据...',
+              style: TextStyle(
+                fontSize: AppFontSize.md,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              '这可能需要几秒钟时间',
+              style: TextStyle(
+                fontSize: AppFontSize.sm,
+                color: AppColors.textHint,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAiResultCard(ThemeData theme) {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.psychology, color: AppColors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'AI分析报告',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _aiAnalysisResult = null;
+                    });
+                  },
+                  icon: const Icon(Icons.refresh, size: 18),
+                  label: const Text('重新分析'),
+                ),
+              ],
+            ),
+            const Divider(),
+            const SizedBox(height: 8),
+            Text(
+              _aiAnalysisResult!,
+              style: TextStyle(
+                fontSize: AppFontSize.md,
+                height: 1.6,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openAISettings() {
+    Navigator.of(context).pushNamed('/ai/settings');
+  }
+
+  Future<void> _startAiAnalysis() async {
+    if (!_aiService.isConfigured) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('请先配置AI模型'),
+          backgroundColor: AppColors.warning,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isAiAnalyzing = true;
+      _aiAnalysisResult = null;
+    });
+
+    try {
+      // 准备分析数据
+      final analysisData = _prepareAnalysisData();
+
+      final prompt = '''
+请作为一位专业的学习分析师，基于以下学习数据进行深度分析，并提供个性化的学习建议。
+
+学习数据：
+$analysisData
+
+请从以下几个方面进行分析：
+1. 学习概况总结
+2. 优势学科和薄弱环节分析
+3. 学习时间分配评估
+4. 错题类型分析
+5. 具体的学习改进建议
+6. 下一阶段的学习计划建议
+
+请以Markdown格式输出，结构清晰，语言亲切专业。
+''';      
+
+      final result = await _aiService.chat(prompt);
+
+      setState(() {
+        _aiAnalysisResult = result;
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('AI分析失败: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    } finally {
+      setState(() {
+        _isAiAnalyzing = false;
+      });
+    }
+  }
+
+  String _prepareAnalysisData() {
+    final buffer = StringBuffer();
+
+    // 时间范围
+    buffer.writeln('分析时间范围: ${_timeFilterLabel}');
+    buffer.writeln();
+
+    // 学科筛选
+    if (_selectedSubjects.isNotEmpty) {
+      buffer.writeln('分析学科: ${_selectedSubjects.join('、')}');
+    } else {
+      buffer.writeln('分析学科: 全部学科');
+    }
+    buffer.writeln();
+
+    // 整体数据
+    final examResults = _overallAnalysis['examResults'] as Map<String, dynamic>?;
+    final studyTime = _overallAnalysis['studyTime'] as Map<String, dynamic>?;
+    final wrongQuestions = _overallAnalysis['wrongQuestions'] as Map<String, dynamic>?;
+
+    buffer.writeln('=== 整体学习数据 ===');
+    buffer.writeln('平均成绩: ${(examResults?['averageAccuracy'] as num? ?? 0).toStringAsFixed(1)}%');
+    buffer.writeln('学习时长: ${studyTime?['totalMinutes'] ?? 0}分钟');
+    buffer.writeln('错题数量: ${wrongQuestions?['total'] ?? 0}道');
+    buffer.writeln();
+
+    // 学科强弱
+    if (_subjectStrength.isNotEmpty) {
+      buffer.writeln('=== 学科强弱分析 ===');
+      _subjectStrength.forEach((subject, data) {
+        final d = data as Map<String, dynamic>;
+        final strength = d['strength'] as String;
+        final strengthText = strength == 'strong' ? '强' : strength == 'medium' ? '中' : '弱';
+        buffer.writeln('$subject: 综合得分 ${(d['compositeScore'] as num).toStringAsFixed(1)}分 (等级: $strengthText)');
+      });
+      buffer.writeln();
+    }
+
+    // 错题分析
+    final byErrorType = _wrongQuestionAnalysis['byErrorType'] as Map<String, dynamic>?;
+    if (byErrorType != null && byErrorType.isNotEmpty) {
+      buffer.writeln('=== 错题类型分布 ===');
+      byErrorType.forEach((type, data) {
+        final d = data as Map<String, dynamic>;
+        buffer.writeln('${d['label']}: ${d['count']}道');
+      });
+      buffer.writeln();
+    }
+
+    // 高频错题知识点
+    final topKnowledgePoints = _wrongQuestionAnalysis['topKnowledgePoints'] as List<dynamic>?;
+    if (topKnowledgePoints != null && topKnowledgePoints.isNotEmpty) {
+      buffer.writeln('=== 高频错题知识点 ===');
+      for (final point in topKnowledgePoints.take(5)) {
+        buffer.writeln('${point['name']}: ${point['count']}次错误');
+      }
+      buffer.writeln();
+    }
+
+    return buffer.toString();
   }
 }
 

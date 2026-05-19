@@ -14,6 +14,7 @@ import '../../models/wrong_question.dart';
 import '../../models/note.dart';
 import '../../models/must_remember.dart';
 import '../../services/mind_map_service.dart';
+import '../../services/ai_config_service.dart';
 import '../../services/database_service.dart';
 import '../../utils/constants.dart';
 import '../../utils/helpers.dart';
@@ -38,6 +39,7 @@ class MindMapScreen extends StatefulWidget {
 class _MindMapScreenState extends State<MindMapScreen> {
   final MindMapService _mindMapService = MindMapService();
   final DatabaseService _dbService = DatabaseService();
+  final AIService _aiService = AIService();
   final GlobalKey _mindMapKey = GlobalKey();
   final TransformationController _transformationController =
       TransformationController();
@@ -45,6 +47,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
   MindMapData? _mindMapData;
   MindMapViewState _viewState = MindMapViewState();
   bool _isLoading = true;
+  bool _isAiGenerating = false;
   String _currentType = 'all';
   String? _currentFilter;
 
@@ -57,6 +60,7 @@ class _MindMapScreenState extends State<MindMapScreen> {
     super.initState();
     _loadOptions();
     _generateMindMap();
+    _aiService.loadConfig();
   }
 
   Future<void> _loadOptions() async {
@@ -846,6 +850,11 @@ class _MindMapScreenState extends State<MindMapScreen> {
         centerTitle: true,
         actions: [
           IconButton(
+            onPressed: _showAiGenerateDialog,
+            icon: const Icon(Icons.auto_awesome),
+            tooltip: 'AI生成导图',
+          ),
+          IconButton(
             onPressed: _showFilterDialog,
             icon: const Icon(Icons.filter_list),
             tooltip: '筛选',
@@ -1097,6 +1106,273 @@ class _MindMapScreenState extends State<MindMapScreen> {
         showSnackBar(context, '创建示例失败: $e', isError: true);
       }
     }
+  }
+
+  /// 显示AI生成思维导图对话框
+  void _showAiGenerateDialog() {
+    if (!_aiService.isConfigured) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('AI未配置'),
+          content: const Text('请先配置AI模型以使用AI生成功能。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pushNamed('/ai/settings');
+              },
+              child: const Text('去配置'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final topicController = TextEditingController();
+    String selectedSubject = _subjects.isNotEmpty ? _subjects.first : '数学';
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                Icon(Icons.auto_awesome, color: AppColors.primary),
+                const SizedBox(width: 8),
+                const Text('AI生成思维导图'),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '输入主题',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: topicController,
+                    decoration: InputDecoration(
+                      hintText: '例如：高中数学、物理力学、英语语法...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(AppRadius.md),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '选择学科',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: _subjects.isEmpty
+                        ? [
+                            const Chip(label: Text('数学')),
+                            const Chip(label: Text('物理')),
+                            const Chip(label: Text('化学')),
+                          ]
+                        : _subjects.map((s) {
+                            final isSelected = selectedSubject == s;
+                            return ChoiceChip(
+                              label: Text(s),
+                              selected: isSelected,
+                              onSelected: (selected) {
+                                if (selected) {
+                                  setDialogState(() {
+                                    selectedSubject = s;
+                                  });
+                                }
+                              },
+                            );
+                          }).toList(),
+                  ),
+                  if (_isAiGenerating) ...[
+                    const SizedBox(height: 24),
+                    const Center(
+                      child: Column(
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 16),
+                          Text('AI正在生成思维导图...'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: _isAiGenerating ? null : () => Navigator.of(context).pop(),
+                child: const Text('取消'),
+              ),
+              FilledButton(
+                onPressed: _isAiGenerating
+                    ? null
+                    : () async {
+                        if (topicController.text.trim().isEmpty) {
+                          showSnackBar(context, '请输入主题', isError: true);
+                          return;
+                        }
+                        Navigator.of(context).pop();
+                        await _generateAiMindMap(
+                          topicController.text.trim(),
+                          selectedSubject,
+                        );
+                      },
+                child: const Text('生成'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// AI生成思维导图
+  Future<void> _generateAiMindMap(String topic, String subject) async {
+    setState(() => _isAiGenerating = true);
+
+    try {
+      final prompt = '''
+请为"$topic"生成一个思维导图结构。
+
+请以JSON格式返回，包含以下字段：
+{
+  "rootTitle": "根节点标题",
+  "nodes": [
+    {
+      "title": "节点标题",
+      "type": "subject|chapter|knowledgePoint|keyPoint",
+      "children": [
+        {
+          "title": "子节点标题",
+          "type": "knowledgePoint",
+          "children": []
+        }
+      ]
+    }
+  ]
+}
+
+要求：
+1. 根节点为"$topic"
+2. 包含3-5个主要分支
+3. 每个分支下包含2-4个子节点
+4. 节点类型：subject(学科)、chapter(章节)、knowledgePoint(知识点)、keyPoint(考点)
+5. 内容要符合$subject学科特点
+6. 结构清晰，层次分明
+''';      
+
+      final response = await _aiService.chat(prompt);
+
+      // 解析JSON
+      final jsonStr = _extractJson(response);
+      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+
+      // 构建思维导图数据
+      final rootTitle = data['rootTitle'] as String? ?? topic;
+      final nodes = data['nodes'] as List<dynamic>? ?? [];
+
+      final rootNode = MindMapNode(
+        id: 'root',
+        title: rootTitle,
+        content: 'AI生成的思维导图',
+        type: NodeType.root,
+        subject: subject,
+        x: 0,
+        y: 0,
+      );
+
+      // 递归构建节点
+      void buildNodes(MindMapNode parent, List<dynamic> children, int depth) {
+        final angleStep = 2 * math.pi / children.length;
+        for (int i = 0; i < children.length; i++) {
+          final nodeData = children[i] as Map<String, dynamic>;
+          final angle = angleStep * i - math.pi / 2;
+          final distance = 150.0 + depth * 100;
+          final x = parent.x + math.cos(angle) * distance;
+          final y = parent.y + math.sin(angle) * distance;
+
+          final nodeType = _parseNodeType(nodeData['type'] as String?);
+          final node = MindMapNode(
+            title: nodeData['title'] as String? ?? '未命名',
+            content: '',
+            type: nodeType,
+            subject: subject,
+            x: x,
+            y: y,
+            parentId: parent.id,
+          );
+          parent.addChild(node);
+
+          // 递归处理子节点
+          final grandchildren = nodeData['children'] as List<dynamic>?;
+          if (grandchildren != null && grandchildren.isNotEmpty) {
+            buildNodes(node, grandchildren, depth + 1);
+          }
+        }
+      }
+
+      buildNodes(rootNode, nodes, 1);
+
+      setState(() {
+        _mindMapData = MindMapData(
+          rootNode: rootNode,
+          title: 'AI: $rootTitle',
+          createdAt: DateTime.now().millisecondsSinceEpoch,
+        );
+        _isAiGenerating = false;
+      });
+
+      _resetView();
+
+      if (mounted) {
+        showSnackBar(context, 'AI思维导图已生成');
+      }
+    } catch (e) {
+      setState(() => _isAiGenerating = false);
+      if (mounted) {
+        showSnackBar(context, 'AI生成失败: $e', isError: true);
+      }
+    }
+  }
+
+  NodeType _parseNodeType(String? type) {
+    switch (type) {
+      case 'subject':
+        return NodeType.subject;
+      case 'chapter':
+        return NodeType.chapter;
+      case 'knowledgePoint':
+        return NodeType.knowledgePoint;
+      case 'keyPoint':
+        return NodeType.keyPoint;
+      default:
+        return NodeType.custom;
+    }
+  }
+
+  String _extractJson(String response) {
+    var start = response.indexOf('{');
+    var end = response.lastIndexOf('}');
+
+    if (start != -1 && end != -1 && end > start) {
+      return response.substring(start, end + 1);
+    }
+
+    throw FormatException('无法从响应中提取JSON');
   }
 
   Widget _buildMindMap() {
