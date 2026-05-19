@@ -332,7 +332,7 @@ class _AIServiceScreenState extends State<AIServiceScreen> {
   void _openSettings() async {
     final result = await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => const AISettingsScreen(),
+        builder: (context) => AISettingsScreen(),
       ),
     );
 
@@ -702,7 +702,7 @@ class AIAnswerCheckerScreen extends StatefulWidget {
   const AIAnswerCheckerScreen({super.key});
 
   @override
-  State<AIAnswerCheckerScreen> create State() => _AIAnswerCheckerScreenState();
+  State<AIAnswerCheckerScreen> createState() => _AIAnswerCheckerScreenState();
 }
 
 class _AIAnswerCheckerScreenState extends State<AIAnswerCheckerScreen> {
@@ -2163,6 +2163,3 @@ class _AIChatScreenState extends State<AIChatScreen> {
     }
   }
 }
-
-// 导出设置页面
-export 'ai_settings_screen.dart';
