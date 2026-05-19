@@ -2,27 +2,19 @@ import 'dart:convert';
 import 'dart:io';
 import 'ai_config_service.dart';
 import 'ocr_service.dart';
+import '../utils/constants.dart' show QuestionType;
 
 // ============================================================
 // AI 文档解析服务 - 自动拆分试卷/文档题目
 // ============================================================
 
-/// 题目类型枚举
-enum QuestionType {
-  singleChoice,   // 单选题
-  multiChoice,    // 多选题
-  fillBlank,      // 填空题
-  shortAnswer,    // 简答题
-  trueFalse,      // 判断题
-}
-
-/// 题目类型扩展
-extension QuestionTypeExtension on QuestionType {
-  String get value {
+/// 题目类型扩展（兼容 constants.dart 中的 QuestionType）
+extension QuestionTypeParserExtension on QuestionType {
+  String get parseValue {
     switch (this) {
       case QuestionType.singleChoice:
         return 'single_choice';
-      case QuestionType.multiChoice:
+      case QuestionType.multipleChoice:
         return 'multi_choice';
       case QuestionType.fillBlank:
         return 'fill_blank';
@@ -30,14 +22,18 @@ extension QuestionTypeExtension on QuestionType {
         return 'short_answer';
       case QuestionType.trueFalse:
         return 'true_false';
+      case QuestionType.proof:
+        return 'proof';
+      case QuestionType.essay:
+        return 'essay';
     }
   }
 
-  String get displayName {
+  String get parseDisplayName {
     switch (this) {
       case QuestionType.singleChoice:
         return '单选题';
-      case QuestionType.multiChoice:
+      case QuestionType.multipleChoice:
         return '多选题';
       case QuestionType.fillBlank:
         return '填空题';
@@ -45,21 +41,29 @@ extension QuestionTypeExtension on QuestionType {
         return '简答题';
       case QuestionType.trueFalse:
         return '判断题';
+      case QuestionType.proof:
+        return '证明题';
+      case QuestionType.essay:
+        return '论述题';
     }
   }
 
-  static QuestionType fromString(String? value) {
+  static QuestionType parseFromString(String? value) {
     switch (value) {
       case 'single_choice':
         return QuestionType.singleChoice;
       case 'multi_choice':
-        return QuestionType.multiChoice;
+        return QuestionType.multipleChoice;
       case 'fill_blank':
         return QuestionType.fillBlank;
       case 'short_answer':
         return QuestionType.shortAnswer;
       case 'true_false':
         return QuestionType.trueFalse;
+      case 'proof':
+        return QuestionType.proof;
+      case 'essay':
+        return QuestionType.essay;
       default:
         return QuestionType.singleChoice;
     }
@@ -268,7 +272,7 @@ class AIDocumentParserService {
   AIDocumentParserService._internal();
 
   final AIService _aiService = AIService();
-  final OCRService _ocrService = OCRService();
+  final OcrService _ocrService = OcrService();
 
   // ============================================================
   // 文档解析方法

@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../models/wrong_question.dart';
 import '../../models/mother_question.dart';
-import '../../services/ai_document_parser_service.dart';
+import '../../services/ai_document_parser_service.dart' hide QuestionType;
 import '../../services/database_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common_widgets.dart';
@@ -763,7 +763,7 @@ class _AIDocumentParserScreenState extends State<AIDocumentParserScreen>
     switch (type) {
       case QuestionType.singleChoice:
         return const Color(0xFF4CAF50);
-      case QuestionType.multiChoice:
+      case QuestionType.multipleChoice:
         return const Color(0xFF2196F3);
       case QuestionType.fillBlank:
         return const Color(0xFFFF9800);
@@ -771,6 +771,10 @@ class _AIDocumentParserScreenState extends State<AIDocumentParserScreen>
         return const Color(0xFF9C27B0);
       case QuestionType.trueFalse:
         return const Color(0xFFE91E63);
+      case QuestionType.proof:
+        return const Color(0xFF00BCD4);
+      case QuestionType.essay:
+        return const Color(0xFF795548);
     }
   }
 
@@ -909,12 +913,10 @@ class _AIDocumentParserScreenState extends State<AIDocumentParserScreen>
         try {
           if (_importTarget == ImportTarget.wrongQuestionBook) {
             // 导入到错题本
-            final wrongQuestion = WrongQuestion.fromJson(question.toWrongQuestionJson());
-            await _databaseService.insertWrongQuestion(wrongQuestion);
+            await _databaseService.insertWrongQuestion(question.toWrongQuestionJson());
           } else {
             // 导入到母题库
-            final motherQuestion = MotherQuestion.fromJson(question.toMotherQuestionJson());
-            await _databaseService.insertMotherQuestion(motherQuestion);
+            await _databaseService.insertMotherQuestion(question.toMotherQuestionJson());
           }
           successCount++;
         } catch (e) {
