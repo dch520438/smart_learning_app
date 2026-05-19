@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import 'database_service.dart';
 import 'storage_service.dart';
@@ -73,8 +74,12 @@ class ExportService {
 
   /// 导出所有数据为JSON文件
   /// [fileName] 自定义文件名（可选）
+  /// [useFilePicker] 是否使用文件选择器让用户选择保存位置（Android默认为true）
   /// 返回导出文件的路径
-  Future<ExportResult> exportAllToJson({String? fileName}) async {
+  Future<ExportResult> exportAllToJson({
+    String? fileName,
+    bool? useFilePicker,
+  }) async {
     _log('开始导出所有数据...');
     try {
       // 获取所有数据
@@ -89,20 +94,53 @@ class ExportService {
       final jsonString = const JsonEncoder.withIndent('  ').convert(data);
       _log('JSON数据生成完成，大小: ${jsonString.length} 字符');
 
-      // 在 Linux 平台上使用文件选择器
-      if (Platform.isLinux) {
-        _log('Linux平台，使用文件选择器导出');
-        return await _exportOnLinux(jsonString, finalFileName, allModules);
+      // 在 Android 和 Linux 平台上优先使用文件选择器
+      final shouldUseFilePicker = useFilePicker ?? Platform.isAndroid || Platform.isLinux;
+      if (shouldUseFilePicker) {
+        _log('使用文件选择器导出');
+        return await _exportWithFilePicker(jsonString, finalFileName, allModules);
       }
 
       // 其他平台：保存到导出目录
       try {
+        // 请求存储权限（Android）
+        if (Platform.isAndroid) {
+          await _storageService.requestStoragePermission();
+        }
+
+        // 尝试使用公共目录
+        final publicDir = await _storageService.getPublicExportDir();
+        if (publicDir != null) {
+          final filePath = '$publicDir/$finalFileName';
+          final file = File(filePath);
+          await file.writeAsString(jsonString);
+          _log('文件保存到公共目录: $filePath');
+
+          // 计算导出统计
+          final stats = <String, int>{};
+          for (final module in allModules) {
+            if (data.containsKey(module)) {
+              final list = data[module] as List;
+              stats[module] = list.length;
+            }
+          }
+
+          return ExportResult(
+            success: true,
+            filePath: filePath,
+            fileName: finalFileName,
+            stats: stats,
+            totalRecords: stats.values.fold(0, (sum, count) => sum + count),
+          );
+        }
+
+        // 回退到应用私有目录
         final filePath = await _storageService.getExportPath(fileName: finalFileName);
         await _storageService.saveFileFromString(
           jsonString,
           finalFileName,
         );
-        _log('文件保存成功: $filePath');
+        _log('文件保存到应用目录: $filePath');
 
         // 计算导出统计
         final stats = <String, int>{};
@@ -138,10 +176,12 @@ class ExportService {
   /// 选择性导出指定模块的数据
   /// [modules] 要导出的模块列表
   /// [fileName] 自定义文件名（可选）
+  /// [useFilePicker] 是否使用文件选择器让用户选择保存位置（Android默认为true）
   /// 返回导出结果
   Future<ExportResult> exportModulesToJson(
     List<String> modules, {
     String? fileName,
+    bool? useFilePicker,
   }) async {
     _log('开始选择性导出，模块: $modules');
     try {
@@ -171,20 +211,54 @@ class ExportService {
       final jsonString = const JsonEncoder.withIndent('  ').convert(data);
       _log('JSON数据生成完成，大小: ${jsonString.length} 字符');
 
-      // 在 Linux 平台上使用文件选择器
-      if (Platform.isLinux) {
-        _log('Linux平台，使用文件选择器导出');
-        return await _exportOnLinux(jsonString, finalFileName, validModules);
+      // 在 Android 和 Linux 平台上优先使用文件选择器
+      final shouldUseFilePicker = useFilePicker ?? Platform.isAndroid || Platform.isLinux;
+      if (shouldUseFilePicker) {
+        _log('使用文件选择器导出');
+        return await _exportWithFilePicker(jsonString, finalFileName, validModules);
       }
 
       // 其他平台：尝试保存到导出目录，失败则使用文件选择器
       try {
+        // 请求存储权限（Android）
+        if (Platform.isAndroid) {
+          await _storageService.requestStoragePermission();
+        }
+
+        // 尝试使用公共目录
+        final publicDir = await _storageService.getPublicExportDir();
+        if (publicDir != null) {
+          final filePath = '$publicDir/$finalFileName';
+          final file = File(filePath);
+          await file.writeAsString(jsonString);
+          _log('文件保存到公共目录: $filePath');
+
+          // 计算导出统计
+          final stats = <String, int>{};
+          for (final module in validModules) {
+            if (data.containsKey(module)) {
+              final list = data[module] as List;
+              stats[module] = list.length;
+            }
+          }
+
+          return ExportResult(
+            success: true,
+            filePath: filePath,
+            fileName: finalFileName,
+            stats: stats,
+            totalRecords: stats.values.fold(0, (sum, count) => sum + count),
+            exportedModules: validModules,
+          );
+        }
+
+        // 回退到应用私有目录
         final filePath = await _storageService.getExportPath(fileName: finalFileName);
         await _storageService.saveFileFromString(
           jsonString,
           finalFileName,
         );
-        _log('文件保存成功: $filePath');
+        _log('文件保存到应用目录: $filePath');
 
         // 计算导出统计
         final stats = <String, int>{};
@@ -605,10 +679,33 @@ class ExportService {
 
   /// 创建完整备份
   /// [backupName] 备份名称（可选）
+  /// [useFilePicker] 是否使用文件选择器让用户选择保存位置，默认为false
+  /// [usePublicDir] 是否使用公共目录（Downloads），默认为true
   /// 返回备份文件路径
-  Future<String> createBackup({String? backupName}) async {
+  Future<String?> createBackup({
+    String? backupName,
+    bool useFilePicker = false,
+    bool usePublicDir = true,
+  }) async {
     final data = await _dbService.exportAllToJson();
-    return await _storageService.createBackup(data, backupName: backupName);
+
+    if (useFilePicker) {
+      return await _storageService.createBackupWithPicker(data, backupName: backupName);
+    } else {
+      return await _storageService.createBackup(
+        data,
+        backupName: backupName,
+        usePublicDir: usePublicDir,
+      );
+    }
+  }
+
+  /// 使用文件选择器创建备份
+  /// [backupName] 备份名称（可选）
+  /// 返回备份文件路径，用户取消则返回null
+  Future<String?> createBackupWithPicker({String? backupName}) async {
+    final data = await _dbService.exportAllToJson();
+    return await _storageService.createBackupWithPicker(data, backupName: backupName);
   }
 
   /// 列出所有可用备份

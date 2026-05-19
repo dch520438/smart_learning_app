@@ -34,6 +34,10 @@ dependencies:
   file_picker: ^8.0.0
   share_plus: ^7.2.1
 
+  # 权限管理
+  permission_handler: ^11.3.0
+  device_info_plus: ^9.1.2
+
   # 打印与PDF
   printing: ^5.11.1
   pdf: ^3.10.7

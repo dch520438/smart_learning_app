@@ -3,6 +3,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../services/ai_config_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common_widgets.dart';
+import 'ai_settings_screen.dart';
 
 // ============================================================
 // AI 服务页面

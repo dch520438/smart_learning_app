@@ -2,6 +2,9 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 
 /// 文件存储服务
 /// 管理应用附件文件的存储、读取、删除，以及备份文件的创建和恢复
@@ -33,6 +36,159 @@ class StorageService {
 
   // 缓存根目录
   String? _rootDir;
+
+  // 缓存外部存储目录
+  String? _externalStorageDir;
+
+  // 日志输出
+  void _log(String message) {
+    // ignore: avoid_print
+    print('[StorageService] $message');
+  }
+
+  /// 获取Android SDK版本
+  Future<int> _getAndroidSdkVersion() async {
+    if (!Platform.isAndroid) return 0;
+    try {
+      final deviceInfo = DeviceInfoPlugin();
+      final androidInfo = await deviceInfo.androidInfo;
+      return androidInfo.version.sdkInt;
+    } catch (e) {
+      _log('获取Android SDK版本失败: $e');
+      return 0;
+    }
+  }
+
+  /// 请求存储权限
+  /// 返回是否已获得权限
+  Future<bool> requestStoragePermission() async {
+    if (!Platform.isAndroid) return true;
+
+    final sdkVersion = await _getAndroidSdkVersion();
+    _log('Android SDK版本: $sdkVersion');
+
+    // Android 13+ (SDK 33+) 使用新的媒体权限
+    if (sdkVersion >= 33) {
+      // Android 13+ 不需要 WRITE_EXTERNAL_STORAGE 权限来保存到Downloads
+      // 使用 MediaStore API 或文件选择器
+      _log('Android 13+，使用MediaStore或文件选择器');
+      return true;
+    }
+
+    // Android 10-12 (SDK 29-32)
+    if (sdkVersion >= 29) {
+      // 检查是否有存储权限
+      var status = await Permission.storage.status;
+      if (status.isGranted) {
+        _log('存储权限已授予');
+        return true;
+      }
+
+      // 请求权限
+      status = await Permission.storage.request();
+      _log('存储权限请求结果: $status');
+      return status.isGranted;
+    }
+
+    // Android 9及以下 (SDK < 29)
+    var status = await Permission.storage.status;
+    if (status.isGranted) {
+      return true;
+    }
+
+    status = await Permission.storage.request();
+    return status.isGranted;
+  }
+
+  /// 获取外部存储目录（公共目录）
+  /// 在Android上返回外部存储根目录或Downloads目录
+  Future<String?> getPublicStorageDirectory() async {
+    try {
+      if (Platform.isAndroid) {
+        // 尝试获取外部存储目录
+        final externalDir = await getExternalStorageDirectory();
+        if (externalDir != null) {
+          // 返回外部存储的根目录（通常是 /storage/emulated/0）
+          final path = externalDir.path;
+          // 向上导航到外部存储根目录
+          final rootPath = path.substring(0, path.indexOf('/Android'));
+          _log('外部存储根目录: $rootPath');
+          return rootPath;
+        }
+      }
+      return null;
+    } catch (e) {
+      _log('获取公共存储目录失败: $e');
+      return null;
+    }
+  }
+
+  /// 获取Downloads目录路径
+  Future<String?> getDownloadsDirectory() async {
+    try {
+      if (Platform.isAndroid) {
+        final publicDir = await getPublicStorageDirectory();
+        if (publicDir != null) {
+          final downloadsPath = '$publicDir/Download';
+          final dir = Directory(downloadsPath);
+          if (!await dir.exists()) {
+            await dir.create(recursive: true);
+          }
+          return downloadsPath;
+        }
+      } else if (Platform.isLinux) {
+        final home = Platform.environment['HOME'];
+        if (home != null) {
+          return '$home/Downloads';
+        }
+      } else if (Platform.isWindows) {
+        final userProfile = Platform.environment['USERPROFILE'];
+        if (userProfile != null) {
+          return '$userProfile\\Downloads';
+        }
+      } else if (Platform.isMacOS) {
+        final home = Platform.environment['HOME'];
+        if (home != null) {
+          return '$home/Downloads';
+        }
+      }
+      return null;
+    } catch (e) {
+      _log('获取Downloads目录失败: $e');
+      return null;
+    }
+  }
+
+  /// 获取Documents目录路径
+  Future<String?> getDocumentsDirectory() async {
+    try {
+      if (Platform.isAndroid) {
+        final publicDir = await getPublicStorageDirectory();
+        if (publicDir != null) {
+          final documentsPath = '$publicDir/Documents';
+          final dir = Directory(documentsPath);
+          if (!await dir.exists()) {
+            await dir.create(recursive: true);
+          }
+          return documentsPath;
+        }
+      } else if (Platform.isLinux || Platform.isMacOS) {
+        final home = Platform.environment['HOME'];
+        if (home != null) {
+          return '$home/Documents';
+        }
+      } else if (Platform.isWindows) {
+        final userProfile = Platform.environment['USERPROFILE'];
+        if (userProfile != null) {
+          return '$userProfile\\Documents';
+        }
+      }
+      return null;
+    } catch (e) {
+      _log('获取Documents目录失败: $e');
+      return null;
+    }
+  }
 
   /// 获取应用根目录
   Future<String> getRootDir() async {
@@ -91,13 +247,62 @@ class StorageService {
   }
 
   /// 获取导出目录
-  Future<String> getExportDir() async {
+  /// [usePublicDir] 是否使用公共目录，默认为false（使用应用私有目录）
+  Future<String> getExportDir({bool usePublicDir = false}) async {
+    if (usePublicDir && Platform.isAndroid) {
+      // 尝试使用Downloads目录
+      final downloadsDir = await getDownloadsDirectory();
+      if (downloadsDir != null) {
+        final appDir = '$downloadsDir/SmartLearning/Exports';
+        final dir = Directory(appDir);
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+        return appDir;
+      }
+    }
+
+    // 默认使用应用私有目录
     final root = await getRootDir();
     final dir = Directory('$root/$_exportDir');
     if (!await dir.exists()) {
       await dir.create(recursive: true);
     }
     return dir.path;
+  }
+
+  /// 获取公共导出目录（用户可访问）
+  Future<String?> getPublicExportDir() async {
+    if (Platform.isAndroid) {
+      final downloadsDir = await getDownloadsDirectory();
+      if (downloadsDir != null) {
+        final appDir = '$downloadsDir/SmartLearning/Exports';
+        final dir = Directory(appDir);
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+        return appDir;
+      }
+    } else if (Platform.isLinux || Platform.isMacOS) {
+      final home = Platform.environment['HOME'];
+      if (home != null) {
+        final dir = Directory('$home/Downloads/SmartLearning');
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+        return dir.path;
+      }
+    } else if (Platform.isWindows) {
+      final userProfile = Platform.environment['USERPROFILE'];
+      if (userProfile != null) {
+        final dir = Directory('$userProfile\\Downloads\\SmartLearning');
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+        return dir.path;
+      }
+    }
+    return null;
   }
 
   /// 获取导入目录
@@ -398,22 +603,98 @@ class StorageService {
   /// 创建备份
   /// [data] 要备份的JSON数据
   /// [backupName] 备份名称（可选）
+  /// [usePublicDir] 是否使用公共目录（Downloads），默认为true
   /// 返回备份文件路径
   Future<String> createBackup(
     Map<String, dynamic> data, {
     String? backupName,
+    bool usePublicDir = true,
   }) async {
-    final backupDir = await getBackupDir();
+    // 请求存储权限
+    if (Platform.isAndroid && usePublicDir) {
+      await requestStoragePermission();
+    }
+
+    String targetDir;
+    if (usePublicDir) {
+      // 尝试使用公共Downloads目录
+      final publicDir = await getDownloadsDirectory();
+      if (publicDir != null) {
+        // 在Downloads下创建应用专属子目录
+        targetDir = '$publicDir/SmartLearning';
+        final dir = Directory(targetDir);
+        if (!await dir.exists()) {
+          await dir.create(recursive: true);
+        }
+        _log('使用公共Downloads目录: $targetDir');
+      } else {
+        // 回退到应用私有目录
+        targetDir = await getBackupDir();
+        _log('公共目录不可用，使用应用私有目录: $targetDir');
+      }
+    } else {
+      targetDir = await getBackupDir();
+    }
+
     final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
     final fileName = backupName != null
         ? '${backupName}_$timestamp.json'
-        : 'backup_$timestamp.json';
-    final filePath = '$backupDir/$fileName';
+        : 'smart_learning_backup_$timestamp.json';
+    final filePath = '$targetDir/$fileName';
 
     final file = File(filePath);
     await file.writeAsString(jsonEncode(data));
 
+    _log('备份文件创建成功: $filePath');
     return filePath;
+  }
+
+  /// 创建备份到用户选择的目录
+  /// [data] 要备份的JSON数据
+  /// [backupName] 备份名称（可选）
+  /// 返回备份文件路径，用户取消则返回null
+  Future<String?> createBackupWithPicker(
+    Map<String, dynamic> data, {
+    String? backupName,
+  }) async {
+    _log('使用文件选择器创建备份');
+
+    final timestamp = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+    final defaultFileName = backupName != null
+        ? '${backupName}_$timestamp.json'
+        : 'smart_learning_backup_$timestamp.json';
+
+    try {
+      // 使用文件选择器让用户选择保存位置
+      String? result = await FilePicker.platform.saveFile(
+        dialogTitle: '选择备份保存位置',
+        fileName: defaultFileName,
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+      );
+
+      if (result == null) {
+        _log('用户取消了备份操作');
+        return null;
+      }
+
+      // 确保文件扩展名
+      if (!result.endsWith('.json')) {
+        result = '$result.json';
+      }
+
+      _log('用户选择路径: $result');
+
+      // 写入文件
+      final file = File(result);
+      await file.writeAsString(jsonEncode(data));
+
+      _log('备份文件创建成功: $result');
+      return result;
+    } catch (e) {
+      _log('使用文件选择器创建备份失败: $e');
+      return null;
+    }
   }
 
   /// 从备份恢复
