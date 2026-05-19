@@ -3,6 +3,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../services/ai_config_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common_widgets.dart';
+import 'ai_document_parser_screen.dart';
 import 'ai_settings_screen.dart';
 
 // ============================================================
@@ -228,6 +229,13 @@ class _AIServiceScreenState extends State<AIServiceScreen> {
           description: '批量录入内容拆分',
           color: const Color(0xFF795548),
           onTap: () => _showContentSplitter(),
+        ),
+        _buildFeatureCard(
+          icon: Icons.document_scanner,
+          title: '文档题目拆分',
+          description: 'AI识别并拆分试卷/文档',
+          color: const Color(0xFF607D8B),
+          onTap: () => _showDocumentParser(),
           gridSpan: 2,
         ),
       ],
@@ -405,6 +413,15 @@ class _AIServiceScreenState extends State<AIServiceScreen> {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => const AIContentSplitterScreen(),
+      ),
+    );
+  }
+
+  // 文档题目拆分
+  void _showDocumentParser() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const AIDocumentParserScreen(),
       ),
     );
   }

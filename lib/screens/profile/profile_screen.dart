@@ -57,36 +57,50 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadData() async {
-    final db = DatabaseService();
+    try {
+      final db = DatabaseService();
 
-    // 加载用户资料
-    final profile = await db.getCurrentUserProfile();
-    if (profile != null) {
-      setState(() {
-        _userName = profile['nickname'] as String? ?? '学习者';
-        _userGrade = profile['grade'] as String? ?? '';
-        _userSchool = profile['school'] as String? ?? '';
-        _avatarPath = profile['avatar_path'] as String?;
-        _totalStudyDays = profile['total_study_days'] as int? ?? 0;
-        _totalStudyMinutes = profile['total_study_time'] as int? ?? 0;
-      });
+      // 加载用户资料
+      final profile = await db.getCurrentUserProfile();
+      if (profile != null) {
+        setState(() {
+          _userName = profile['nickname'] as String? ?? '学习者';
+          _userGrade = profile['grade'] as String? ?? '';
+          _userSchool = profile['school'] as String? ?? '';
+          _avatarPath = profile['avatar_path'] as String?;
+          _totalStudyDays = profile['total_study_days'] as int? ?? 0;
+          _totalStudyMinutes = profile['total_study_time'] as int? ?? 0;
+        });
+      }
+
+      // 加载统计数据
+      final knowledgeCount = await db.countKnowledgePoints();
+      final noteCount = await db.countNotes();
+      final wrongCount = await db.countWrongQuestions();
+      final examCount = await db.countExams();
+      final totalStudyTime = await db.getTotalStudyTime();
+
+      if (mounted) {
+        setState(() {
+          _knowledgeCount = knowledgeCount;
+          _noteCount = noteCount;
+          _wrongQuestionCount = wrongCount;
+          _examCount = examCount;
+          _totalStudyMinutes = totalStudyTime ~/ 60; // 秒转分钟
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('加载个人中心数据失败: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('加载数据失败: $e')),
+        );
+      }
     }
-
-    // 加载统计数据
-    final knowledgeCount = await db.countKnowledgePoints();
-    final noteCount = await db.countNotes();
-    final wrongCount = await db.countWrongQuestions();
-    final examCount = await db.countExams();
-    final totalStudyTime = await db.getTotalStudyTime();
-
-    setState(() {
-      _knowledgeCount = knowledgeCount;
-      _noteCount = noteCount;
-      _wrongQuestionCount = wrongCount;
-      _examCount = examCount;
-      _totalStudyMinutes = totalStudyTime ~/ 60; // 秒转分钟
-      _isLoading = false;
-    });
   }
 
   /// 格式化学习时长

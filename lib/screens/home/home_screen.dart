@@ -795,6 +795,18 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   _QuickEntry(
+                    icon: Icons.assignment_outlined,
+                    label: '智能组卷',
+                    color: Colors.deepPurple,
+                    onTap: () => Navigator.of(context).pushNamed('/exam'),
+                  ),
+                  _QuickEntry(
+                    icon: Icons.smart_toy,
+                    label: 'AI助手',
+                    color: Colors.blueAccent,
+                    onTap: () => Navigator.of(context).pushNamed('/ai-service'),
+                  ),
+                  _QuickEntry(
                     icon: Icons.apps,
                     label: '更多功能',
                     color: Colors.grey,
