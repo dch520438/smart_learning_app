@@ -2127,17 +2127,19 @@ class DatabaseService {
     );
   }
 
-  /// 按学科查询考试结果
+  /// 按学科查询考试结果（通过JOIN exams表获取subject）
   Future<List<Map<String, dynamic>>> queryExamResultsBySubject(
     String subject,
   ) async {
     final db = await database;
-    return await db.query(
-      tableExamResults,
-      where: 'subject = ?',
-      whereArgs: [subject],
-      orderBy: 'created_at DESC',
-    );
+    // 使用JOIN查询，从exams表获取subject
+    final results = await db.rawQuery('''
+      SELECT er.* FROM $tableExamResults er
+      INNER JOIN $tableExams e ON er.exam_id = e.id
+      WHERE e.subject = ?
+      ORDER BY er.created_at DESC
+    ''', [subject]);
+    return results;
   }
 
   /// 查询通过的考试结果
@@ -2360,19 +2362,21 @@ class DatabaseService {
     );
   }
 
-  /// 按科目和日期范围查询考试结果
+  /// 按科目和日期范围查询考试结果（通过JOIN exams表获取subject）
   Future<List<Map<String, dynamic>>> queryExamResultsBySubjectAndDateRange(
     String subject,
     String startDate,
     String endDate,
   ) async {
     final db = await database;
-    return await db.query(
-      tableExamResults,
-      where: 'subject = ? AND created_at >= ? AND created_at <= ?',
-      whereArgs: [subject, startDate, endDate],
-      orderBy: 'created_at DESC',
-    );
+    // 使用JOIN查询，从exams表获取subject
+    final results = await db.rawQuery('''
+      SELECT er.* FROM $tableExamResults er
+      INNER JOIN $tableExams e ON er.exam_id = e.id
+      WHERE e.subject = ? AND er.created_at >= ? AND er.created_at <= ?
+      ORDER BY er.created_at DESC
+    ''', [subject, startDate, endDate]);
+    return results;
   }
 
   /// 按日期范围查询试卷

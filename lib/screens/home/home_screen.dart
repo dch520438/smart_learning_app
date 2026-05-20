@@ -804,7 +804,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     icon: Icons.smart_toy,
                     label: 'AI助手',
                     color: Colors.blueAccent,
-                    onTap: () => Navigator.of(context).pushNamed('/ai-service'),
+                    onTap: () => Navigator.of(context).pushNamed('/ai/service'),
                   ),
                   _QuickEntry(
                     icon: Icons.apps,
