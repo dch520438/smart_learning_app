@@ -27,6 +27,9 @@ class _AISettingsScreenState extends State<AISettingsScreen> {
 
   // API Key控制器
   final Map<String, TextEditingController> _apiKeyControllers = {};
+  
+  // 模型名称控制器
+  final Map<String, TextEditingController> _modelNameControllers = {};
 
   @override
   void initState() {
@@ -41,12 +44,18 @@ class _AISettingsScreenState extends State<AISettingsScreen> {
       _apiKeyControllers[model.id] = TextEditingController(
         text: model.apiKey ?? '',
       );
+      _modelNameControllers[model.id] = TextEditingController(
+        text: model.defaultModel,
+      );
     }
   }
 
   @override
   void dispose() {
     for (final controller in _apiKeyControllers.values) {
+      controller.dispose();
+    }
+    for (final controller in _modelNameControllers.values) {
       controller.dispose();
     }
     super.dispose();
@@ -311,12 +320,68 @@ class _AISettingsScreenState extends State<AISettingsScreen> {
   Widget _buildApiKeySection() {
     if (_selectedModel == null) return const SizedBox.shrink();
 
-    final controller = _apiKeyControllers[_selectedModel!.id];
+    final apiKeyController = _apiKeyControllers[_selectedModel!.id];
+    final modelNameController = _modelNameControllers[_selectedModel!.id];
 
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 模型名称选择
+          Text(
+            '模型名称',
+            style: const TextStyle(
+              fontSize: AppFontSize.md,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '可选择或输入自定义模型名称',
+            style: TextStyle(
+              fontSize: AppFontSize.sm,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // 预设模型选择
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _getPresetModels(_selectedModel!.id).map((model) {
+              final isSelected = modelNameController?.text == model;
+              return ChoiceChip(
+                label: Text(model),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) {
+                    modelNameController?.text = model;
+                    setState(() {});
+                  }
+                },
+                selectedColor: AppColors.primary.withOpacity(0.2),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 12),
+          // 自定义模型输入
+          TextField(
+            controller: modelNameController,
+            decoration: InputDecoration(
+              hintText: '或输入自定义模型名称',
+              prefixIcon: const Icon(Icons.model_training),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+            ),
+            onChanged: (value) {
+              setState(() {});
+            },
+          ),
+          
+          const SizedBox(height: 24),
+          
+          // API Key输入
           Text(
             '${_selectedModel!.name} API Key',
             style: const TextStyle(
@@ -334,16 +399,16 @@ class _AISettingsScreenState extends State<AISettingsScreen> {
           ),
           const SizedBox(height: 16),
           TextField(
-            controller: controller,
+            controller: apiKeyController,
             obscureText: true,
             decoration: InputDecoration(
               hintText: '请输入API Key',
               prefixIcon: const Icon(Icons.key),
-              suffixIcon: controller!.text.isNotEmpty
+              suffixIcon: apiKeyController!.text.isNotEmpty
                   ? IconButton(
                       icon: const Icon(Icons.clear),
                       onPressed: () {
-                        controller.clear();
+                        apiKeyController.clear();
                         setState(() {});
                       },
                     )
@@ -359,6 +424,24 @@ class _AISettingsScreenState extends State<AISettingsScreen> {
         ],
       ),
     );
+  }
+  
+  /// 获取预设模型列表
+  List<String> _getPresetModels(String modelId) {
+    switch (modelId) {
+      case 'zhipu':
+        return ['glm-4-flash', 'glm-4.7-flash', 'glm-4.6v-flash', 'glm-4v-flash'];
+      case 'qwen':
+        return ['qwen-turbo', 'qwen-plus', 'qwen-max'];
+      case 'gemini':
+        return ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash'];
+      case 'groq':
+        return ['llama-3.1-8b-instant', 'llama-3.1-70b-versatile', 'mixtral-8x7b-32768'];
+      case 'ollama':
+        return ['llama3.2', 'llama3.1', 'qwen2.5', 'mistral'];
+      default:
+        return [];
+    }
   }
 
   String _getApiKeyHint(String modelId) {
@@ -559,12 +642,15 @@ class _AISettingsScreenState extends State<AISettingsScreen> {
   Future<void> _saveConfig() async {
     if (_selectedModel == null) return;
 
-    // 如果是在线模型，先更新API Key
+    // 如果是在线模型，先更新API Key和模型名称
     if (_selectedModel!.type == AIModelType.online) {
-      final controller = _apiKeyControllers[_selectedModel!.id];
-      if (controller != null && controller.text.isNotEmpty) {
-        _selectedModel = _selectedModel!.copyWith(apiKey: controller.text);
-      }
+      final apiKeyController = _apiKeyControllers[_selectedModel!.id];
+      final modelNameController = _modelNameControllers[_selectedModel!.id];
+      
+      _selectedModel = _selectedModel!.copyWith(
+        apiKey: apiKeyController?.text ?? '',
+        defaultModel: modelNameController?.text ?? _selectedModel!.defaultModel,
+      );
     }
 
     try {
