@@ -658,7 +658,7 @@ class AnalysisService {
 
           final accuracy = (r['accuracy'] as num?)?.toDouble();
           if (accuracy != null && accuracy > 0) {
-            final currentAcc = dailyData[dateStr]!['accuracy'] as double;
+            final currentAcc = (dailyData[dateStr]!['accuracy'] as num).toDouble();
             final currentCount = dailyData[dateStr]!['count'] as int;
             dailyData[dateStr]!['accuracy'] = (currentAcc * currentCount + accuracy) / (currentCount + 1);
             dailyData[dateStr]!['count'] = currentCount + 1;
@@ -847,7 +847,7 @@ class AnalysisService {
 
     // 5. 试卷得分率
     final examPapers = overallAnalysis['examPapers'] as Map<String, dynamic>;
-    data['试卷得分'] = examPapers['averageScoreRate'] as double? ?? 0;
+    data['试卷得分'] = (examPapers['averageScoreRate'] as num?)?.toDouble() ?? 0;
 
     return data;
   }
