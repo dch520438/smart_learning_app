@@ -27,6 +27,8 @@ import 'screens/mother_questions/mother_questions_screen.dart';
 import 'screens/web_knowledge/web_knowledge_screen.dart';
 import 'screens/settings/settings_screen.dart';
 import 'screens/exam_papers/exam_papers_screen.dart';
+import 'screens/ai/ai_service_screen.dart';
+import 'screens/ai/ai_settings_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -170,6 +172,10 @@ class SmartLearningApp extends StatelessWidget {
             return MaterialPageRoute(builder: (_) => const SettingsScreen());
           case '/exam_papers':
             return MaterialPageRoute(builder: (_) => const ExamPapersScreen());
+          case '/ai/service':
+            return MaterialPageRoute(builder: (_) => const AIServiceScreen());
+          case '/ai/settings':
+            return MaterialPageRoute(builder: (_) => const AISettingsScreen());
           default:
             return MaterialPageRoute(builder: (_) => const AppContent());
         }
