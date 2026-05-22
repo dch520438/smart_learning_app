@@ -727,6 +727,7 @@ ${chapter.isNotEmpty ? '重点考查知识点：$chapter' : ''}
 
   String _extractJson(String response) {
     // 尝试找到JSON对象的开始和结束
+    // 方法1: 查找标准的 { ... } 结构
     var start = response.indexOf('{');
     var end = response.lastIndexOf('}');
 
@@ -734,7 +735,30 @@ ${chapter.isNotEmpty ? '重点考查知识点：$chapter' : ''}
       return response.substring(start, end + 1);
     }
 
-    throw FormatException('无法从响应中提取JSON');
+    // 方法2: 查找数组 [ ... ] 结构
+    start = response.indexOf('[');
+    end = response.lastIndexOf(']');
+
+    if (start != -1 && end != -1 && end > start) {
+      return '{"questions":${response.substring(start, end + 1)}}';
+    }
+
+    // 方法3: 尝试移除markdown代码块标记
+    var cleanResponse = response
+        .replaceAll(RegExp(r'```json\s*'), '')
+        .replaceAll(RegExp(r'```\s*'), '')
+        .replaceAll(RegExp(r'^```\s*$', multiLine: true), '')
+        .trim();
+    
+    start = cleanResponse.indexOf('{');
+    end = cleanResponse.lastIndexOf('}');
+    
+    if (start != -1 && end != -1 && end > start) {
+      return cleanResponse.substring(start, end + 1);
+    }
+    
+    // 如果所有方法都失败，返回原始响应让jsonDecode报错（得到更清晰的错误信息）
+    throw FormatException('无法从响应中提取JSON。AI响应内容: ${response.length > 200 ? response.substring(0, 200) + "..." : response}');
   }
 }
 
@@ -1151,6 +1175,124 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
     }
   }
 
+  // AI生成新题目
+  bool _isGeneratingQuestion = false;
+
+  Future<void> _generateAiQuestion() async {
+    final aiService = AIService();
+    
+    if (!aiService.isConfigured) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('AI未配置'),
+          content: const Text('请先配置AI模型以使用AI生成功能。'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).pushNamed('/ai/settings');
+              },
+              child: const Text('去配置'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isGeneratingQuestion = true);
+
+    try {
+      final subject = widget.examData['subject'] as String? ?? '语文';
+      final description = widget.examData['description'] as String? ?? '';
+      
+      // 从描述中提取难度
+      String difficultyText = '中等';
+      if (description.contains('简单')) {
+        difficultyText = '简单';
+      } else if (description.contains('困难') || description.contains('难')) {
+        difficultyText = '困难';
+      }
+      
+      final difficulty = difficultyText == '简单' ? 1 : difficultyText == '困难' ? 3 : 2;
+
+      final prompt = '''
+请为${subject}学科生成1道${difficultyText}难度的选择题。
+
+请以JSON格式返回：
+{
+  "questions": [
+    {
+      "content": "题目内容",
+      "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"],
+      "correctAnswer": "A",
+      "analysis": "解析内容",
+      "knowledgePoint": "相关知识点"
+    }
+  ]
+}
+''';
+
+      final response = await aiService.chat(prompt);
+      
+      // 解析AI返回的JSON
+      String jsonStr = response;
+      
+      // 提取JSON
+      var start = response.indexOf('{');
+      var end = response.lastIndexOf('}');
+      if (start != -1 && end != -1 && end > start) {
+        jsonStr = response.substring(start, end + 1);
+      }
+      
+      final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+      final questions = data['questions'] as List<dynamic>?;
+      
+      if (questions == null || questions.isEmpty) {
+        throw Exception('AI未生成有效题目');
+      }
+      
+      final q = questions[0] as Map<String, dynamic>;
+      final newQuestion = {
+        'id': 'ai_${DateTime.now().millisecondsSinceEpoch}',
+        'content': q['content'] ?? '新题目',
+        'type': 'singleChoice',
+        'subject': subject,
+        'options': q['options'] ?? ['A. 选项A', 'B. 选项B', 'C. 选项C', 'D. 选项D'],
+        'correctAnswer': q['correctAnswer'] ?? 'A',
+        'analysis': q['analysis'] ?? '暂无解析',
+        'knowledgePoint': q['knowledgePoint'] ?? '',
+        'difficulty': difficulty,
+        'source': 'ai',
+        'sourceLabel': 'AI生成',
+      };
+
+      setState(() {
+        _questions.add(newQuestion);
+        _totalQuestions = _questions.length;
+        _answers[_totalQuestions] = null;
+        _currentIndex = _totalQuestions - 1; // 跳转到新题目
+      });
+
+      if (mounted) {
+        showSnackBar(context, '已生成新题目');
+      }
+    } catch (e) {
+      if (mounted) {
+        showSnackBar(context, 'AI生成题目失败: $e', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isGeneratingQuestion = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isSubmitted) {
@@ -1345,7 +1487,22 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
                           onPressed: () => setState(() => _currentIndex--),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _isGeneratingQuestion
+                            ? const SizedBox(
+                                width: 24,
+                                height: 24,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : AppButton(
+                                text: 'AI加题',
+                                icon: Icons.auto_awesome,
+                                style: AppButtonStyle.secondary,
+                                onPressed: _generateAiQuestion,
+                              ),
+                      ),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: AppButton(
                           text: _currentIndex < _totalQuestions - 1
@@ -1366,7 +1523,7 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 8),
                       IconButton(
                         icon: const Icon(Icons.grid_view_outlined),
                         onPressed: () =>
