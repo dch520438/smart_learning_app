@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import '../../services/ai_config_service.dart';
+import '../../services/database_service.dart';
 import '../../utils/constants.dart';
 import '../../widgets/common_widgets.dart';
 import 'ai_document_parser_screen.dart';
@@ -461,6 +463,7 @@ class _AIQuestionGeneratorScreenState extends State<AIQuestionGeneratorScreen> {
     {'value': 'multiple_choice', 'label': '多选题'},
     {'value': 'true_false', 'label': '判断题'},
     {'value': 'fill_blank', 'label': '填空题'},
+    {'value': 'short_answer', 'label': '简答题'},
   ];
 
   @override
@@ -614,7 +617,7 @@ class _AIQuestionGeneratorScreenState extends State<AIQuestionGeneratorScreen> {
               ),
               const Spacer(),
               Text(
-                question['type'] ?? '单选题',
+                _getTypeLabel(question['type'] ?? 'single_choice'),
                 style: TextStyle(
                   fontSize: AppFontSize.xs,
                   color: AppColors.textSecondary,
@@ -671,9 +674,156 @@ class _AIQuestionGeneratorScreenState extends State<AIQuestionGeneratorScreen> {
               ],
             ),
           ],
+          const SizedBox(height: 12),
+          // 添加到题库按钮
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _addToMotherQuestions(index - 1),
+                  icon: const Icon(Icons.collections_bookmark_outlined, size: 18),
+                  label: const Text('添加到母题'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.warning,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => _addToWrongQuestions(index - 1),
+                  icon: const Icon(Icons.error_outline, size: 18),
+                  label: const Text('添加到错题'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.error,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
+  }
+
+  String _getTypeLabel(String type) {
+    switch (type) {
+      case 'single_choice':
+        return '单选题';
+      case 'multiple_choice':
+        return '多选题';
+      case 'true_false':
+        return '判断题';
+      case 'fill_blank':
+        return '填空题';
+      case 'short_answer':
+        return '简答题';
+      default:
+        return '未知题型';
+    }
+  }
+
+  Future<void> _addToMotherQuestions(int index) async {
+    if (index < 0 || index >= _questions.length) return;
+    
+    try {
+      final question = _questions[index];
+      final db = await DatabaseService.instance.database;
+      
+      // 转换选项格式
+      List<Map<String, dynamic>> optionsList = [];
+      if (question['options'] != null) {
+        for (var option in question['options']) {
+          if (option is Map) {
+            optionsList.add({'label': option['label'] ?? '', 'content': option['text'] ?? option['content'] ?? ''});
+          } else {
+            final optStr = option.toString();
+            final label = optStr.isNotEmpty ? optStr.substring(0, 1) : '';
+            final content = optStr.length > 2 ? optStr.substring(2).trim() : optStr;
+            optionsList.add({'label': label, 'content': content});
+          }
+        }
+      }
+      
+      await db.insert('mother_questions', {
+        'uuid': DateTime.now().millisecondsSinceEpoch.toString(),
+        'title': question['knowledge_point'] ?? question['topic'] ?? 'AI生成题目',
+        'question_content': question['content'] ?? '',
+        'question_type': question['type'] ?? 'single_choice',
+        'options': jsonEncode(optionsList),
+        'correct_answer': question['answer'] ?? '',
+        'analysis': question['analysis'] ?? '',
+        'subject': _topicController.text,
+        'difficulty': 2,
+        'tags': jsonEncode(['AI生成']),
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已添加到母题库'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('添加失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  Future<void> _addToWrongQuestions(int index) async {
+    if (index < 0 || index >= _questions.length) return;
+    
+    try {
+      final question = _questions[index];
+      final db = await DatabaseService.instance.database;
+      
+      // 转换选项格式
+      List<Map<String, dynamic>> optionsList = [];
+      if (question['options'] != null) {
+        for (var option in question['options']) {
+          if (option is Map) {
+            optionsList.add({'label': option['label'] ?? '', 'content': option['text'] ?? option['content'] ?? ''});
+          } else {
+            final optStr = option.toString();
+            final label = optStr.isNotEmpty ? optStr.substring(0, 1) : '';
+            final content = optStr.length > 2 ? optStr.substring(2).trim() : optStr;
+            optionsList.add({'label': label, 'content': content});
+          }
+        }
+      }
+      
+      await db.insert('wrong_questions', {
+        'uuid': DateTime.now().millisecondsSinceEpoch.toString(),
+        'title': question['knowledge_point'] ?? question['topic'] ?? 'AI生成题目',
+        'question_content': question['content'] ?? '',
+        'question_type': question['type'] ?? 'single_choice',
+        'options': jsonEncode(optionsList),
+        'correct_answer': question['answer'] ?? '',
+        'analysis': question['analysis'] ?? '',
+        'subject': _topicController.text,
+        'error_type': '概念错误',
+        'difficulty': 2,
+        'tags': jsonEncode(['AI生成']),
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已添加到错题本'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('添加失败: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   Future<void> _generateQuestions() async {

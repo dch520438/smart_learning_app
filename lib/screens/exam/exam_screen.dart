@@ -726,39 +726,32 @@ ${chapter.isNotEmpty ? '重点考查知识点：$chapter' : ''}
   }
 
   String _extractJson(String response) {
-    // 尝试找到JSON对象的开始和结束
-    // 方法1: 查找标准的 { ... } 结构
-    var start = response.indexOf('{');
-    var end = response.lastIndexOf('}');
-
-    if (start != -1 && end != -1 && end > start) {
-      return response.substring(start, end + 1);
-    }
-
-    // 方法2: 查找数组 [ ... ] 结构
-    start = response.indexOf('[');
-    end = response.lastIndexOf(']');
-
-    if (start != -1 && end != -1 && end > start) {
-      return '{"questions":${response.substring(start, end + 1)}}';
-    }
-
-    // 方法3: 尝试移除markdown代码块标记
+    // 清理响应文本
     var cleanResponse = response
         .replaceAll(RegExp(r'```json\s*'), '')
         .replaceAll(RegExp(r'```\s*'), '')
         .replaceAll(RegExp(r'^```\s*$', multiLine: true), '')
+        .replaceAll(RegExp(r'\n'), ' ')
         .trim();
     
-    start = cleanResponse.indexOf('{');
-    end = cleanResponse.lastIndexOf('}');
-    
+    // 方法1: 查找标准的 { ... } 结构
+    var start = cleanResponse.indexOf('{');
+    var end = cleanResponse.lastIndexOf('}');
+
     if (start != -1 && end != -1 && end > start) {
       return cleanResponse.substring(start, end + 1);
     }
+
+    // 方法2: 查找数组 [ ... ] 结构
+    start = cleanResponse.indexOf('[');
+    end = cleanResponse.lastIndexOf(']');
+
+    if (start != -1 && end != -1 && end > start) {
+      return '{"questions":${cleanResponse.substring(start, end + 1)}}';
+    }
     
     // 如果所有方法都失败，返回原始响应让jsonDecode报错（得到更清晰的错误信息）
-    throw FormatException('无法从响应中提取JSON。AI响应内容: ${response.length > 200 ? response.substring(0, 200) + "..." : response}');
+    throw FormatException('无法从响应中提取JSON。AI响应内容: ${response.length > 500 ? response.substring(0, 500) + "..." : response}');
   }
 }
 
@@ -1944,7 +1937,8 @@ enum _QuestionSource {
   wrong('错题本', Icons.error_outline),
   mother('母题集', Icons.auto_awesome_outlined),
   mustRemember('必记必背', Icons.menu_book_outlined),
-  system('系统题库', Icons.cloud_outlined);
+  system('系统题库', Icons.cloud_outlined),
+  ai('AI生成', Icons.smart_toy_outlined);
 
   const _QuestionSource(this.label, this.icon);
   final String label;
@@ -1974,6 +1968,7 @@ class _PracticeTab extends StatefulWidget {
 
 class _PracticeTabState extends State<_PracticeTab> {
   final DatabaseService _db = DatabaseService();
+  final AIService _aiService = AIService();
 
   // ==================== 设置页面状态 ====================
   String _selectedSubject = kSubjectNames.first;
@@ -1985,6 +1980,10 @@ class _PracticeTabState extends State<_PracticeTab> {
   Set<_QuestionTypeFilter> _selectedTypeFilters = {}; // 多选题目类型
   Set<_QuestionSource> _selectedSources = {}; // 多选题目来源
   bool _isLoadingChapters = false;
+  
+  // AI生成相关
+  String _aiDifficulty = 'medium';
+  bool _isAiGenerating = false;
 
   // ==================== 做题状态 ====================
   bool _isInExam = false;
@@ -2010,6 +2009,7 @@ class _PracticeTabState extends State<_PracticeTab> {
   int _motherSourceCount = 0;
   int _mustRememberSourceCount = 0;
   int _systemSourceCount = 0;
+  int _aiSourceCount = 0;
 
   @override
   void initState() {
@@ -2067,11 +2067,90 @@ class _PracticeTabState extends State<_PracticeTab> {
     _motherSourceCount = 0;
     _mustRememberSourceCount = 0;
     _systemSourceCount = 0;
+    _aiSourceCount = 0;
 
     try {
       // 1. 根据来源加载题目（支持多选）
       // 如果没有选择任何来源，默认使用所有来源
       final useAllSources = _selectedSources.isEmpty;
+      final useAiSource = useAllSources || _selectedSources.contains(_QuestionSource.ai);
+
+      // 如果选择AI生成，先生成题目
+      if (useAiSource && !useAllSources && _selectedSources.contains(_QuestionSource.ai)) {
+        setState(() => _isAiGenerating = true);
+        try {
+          final difficultyText = _aiDifficulty == 'easy'
+              ? '简单'
+              : _aiDifficulty == 'hard'
+                  ? '困难'
+                  : '中等';
+          
+          final prompt = '''
+请为${_selectedSubject}学科生成${_questionCount}道${difficultyText}难度的选择题。
+${_selectedChapters.isNotEmpty ? '重点考查知识点：${_selectedChapters.join(", ")}' : ''}
+
+请以JSON格式返回，包含以下字段：
+{
+  "questions": [
+    {
+      "content": "题目内容",
+      "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"],
+      "correctAnswer": "A",
+      "analysis": "解析内容"
+    }
+  ]
+}
+
+要求：
+1. 题目内容要符合${_selectedSubject}学科特点
+2. 选项要有一定迷惑性
+3. 解析要详细说明解题思路
+4. 难度为${difficultyText}级别
+''';
+
+          final response = await _aiService.chat(prompt);
+          final jsonStr = _extractJson(response);
+          final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+          final questions = data['questions'] as List<dynamic>? ?? [];
+
+          for (int i = 0; i < questions.length; i++) {
+            final q = questions[i] as Map<String, dynamic>;
+            final questionId = 'ai_${DateTime.now().millisecondsSinceEpoch}_$i';
+            
+            // 解析选项
+            List<String>? options;
+            final rawOptions = q['options'];
+            if (rawOptions is List) {
+              options = rawOptions.map((e) => e.toString()).toList();
+            } else if (rawOptions is String) {
+              options = [rawOptions];
+            }
+            
+            loadedQuestions.add({
+              'id': questionId,
+              'content': q['content'] ?? '',
+              'type': 'singleChoice',
+              'subject': _selectedSubject,
+              'options': options,
+              'correctAnswer': q['correctAnswer'] ?? q['answer'] ?? '',
+              'analysis': q['analysis'] ?? '',
+              'difficulty': _aiDifficulty == 'easy' ? 1 : _aiDifficulty == 'hard' ? 3 : 2,
+              'source': 'ai',
+              'sourceLabel': 'AI生成',
+            });
+          }
+          _aiSourceCount = loadedQuestions.length;
+        } catch (e) {
+          debugPrint('AI生成题目失败: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('AI生成题目失败: ${e.toString().split('\n').first}'), backgroundColor: Colors.red),
+            );
+          }
+        } finally {
+          setState(() => _isAiGenerating = false);
+        }
+      }
 
       if (useAllSources || _selectedSources.contains(_QuestionSource.wrong)) {
         final wrongQuestions = await _db.queryWrongQuestionsBySubjectAndTags(
@@ -2200,6 +2279,28 @@ class _PracticeTabState extends State<_PracticeTab> {
     };
     final normalizedType = underscoreToCamel[qType] ?? qType;
     return filterName == normalizedType;
+  }
+
+  /// 构建难度选择按钮
+  Widget _buildDifficultyChip(String value, String label, Color color) {
+    final isSelected = _aiDifficulty == value;
+    return ChoiceChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? Colors.white : color,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      selected: isSelected,
+      selectedColor: color,
+      backgroundColor: color.withOpacity(0.1),
+      onSelected: (selected) {
+        if (selected) {
+          setState(() => _aiDifficulty = value);
+        }
+      },
+    );
   }
 
   Map<String, dynamic> _convertWrongQuestion(Map<String, dynamic> wq) {
@@ -2746,9 +2847,10 @@ class _PracticeTabState extends State<_PracticeTab> {
               runSpacing: 8,
               children: _QuestionSource.values.map((source) {
                 final isSelected = _selectedSources.contains(source);
+                final isAiSource = source == _QuestionSource.ai;
                 return AppTag(
                   label: source.label,
-                  color: AppColors.primary,
+                  color: isAiSource ? AppColors.success : AppColors.primary,
                   icon: source.icon,
                   selected: isSelected,
                   onTap: () {
@@ -2763,6 +2865,43 @@ class _PracticeTabState extends State<_PracticeTab> {
                 );
               }).toList(),
             ),
+            
+            // 如果选择了AI生成，显示AI设置
+            if (_selectedSources.contains(_QuestionSource.ai)) ...[
+              const SizedBox(height: 16),
+              AppCard(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'AI生成设置',
+                      style: TextStyle(
+                        fontSize: AppFontSize.md,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.success,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      '难度设置',
+                      style: TextStyle(
+                        fontSize: AppFontSize.sm,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        _buildDifficultyChip('easy', '简单', Colors.green),
+                        _buildDifficultyChip('medium', '中等', Colors.orange),
+                        _buildDifficultyChip('hard', '困难', Colors.red),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 32),
 
             // 开始按钮
