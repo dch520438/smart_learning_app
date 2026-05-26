@@ -728,7 +728,8 @@ class _AIQuestionGeneratorScreenState extends State<AIQuestionGeneratorScreen> {
     
     try {
       final question = _questions[index];
-      final db = await DatabaseService.instance.database;
+      final dbService = DatabaseService();
+      final db = await dbService.database;
       
       // 转换选项格式
       List<Map<String, dynamic>> optionsList = [];
@@ -779,7 +780,8 @@ class _AIQuestionGeneratorScreenState extends State<AIQuestionGeneratorScreen> {
     
     try {
       final question = _questions[index];
-      final db = await DatabaseService.instance.database;
+      final dbService = DatabaseService();
+      final db = await dbService.database;
       
       // 转换选项格式
       List<Map<String, dynamic>> optionsList = [];
