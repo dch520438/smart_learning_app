@@ -1,10 +1,5 @@
 import 'dart:convert';
 import 'package:csv/csv.dart';
-import '../models/knowledge_point.dart';
-import '../models/must_remember.dart';
-import '../models/wrong_question.dart';
-import '../models/mother_question.dart';
-import '../models/note.dart';
 import 'database_service.dart';
 
 /// 批量导入服务
@@ -20,8 +15,6 @@ class BatchImportService {
   static const String typeNote = 'note';
 
   /// 解析JSON数据
-  /// [json] JSON字符串
-  /// [type] 导入类型
   List<Map<String, dynamic>> parseJsonData(String json, String type) {
     try {
       final decoded = jsonDecode(json);
@@ -42,8 +35,6 @@ class BatchImportService {
   }
 
   /// 解析CSV数据
-  /// [csv] CSV字符串
-  /// [type] 导入类型
   List<Map<String, dynamic>> parseCsvData(String csv, String type) {
     try {
       final rows = const CsvToListConverter().convert(csv);
@@ -51,7 +42,6 @@ class BatchImportService {
         throw Exception('CSV数据为空');
       }
 
-      // 第一行作为表头
       final headers = rows.first.map((e) => e.toString()).toList();
       final dataRows = rows.skip(1);
 
@@ -68,9 +58,6 @@ class BatchImportService {
   }
 
   /// 验证数据格式
-  /// [data] 数据列表
-  /// [type] 导入类型
-  /// 返回验证结果，包含有效数据和错误信息
   ValidationResult validateData(List<Map<String, dynamic>> data, String type) {
     final validData = <Map<String, dynamic>>[];
     final errors = <ValidationError>[];
@@ -92,7 +79,6 @@ class BatchImportService {
     return ValidationResult(validData, errors);
   }
 
-  /// 验证并规范化单个数据项
   Map<String, dynamic>? _validateAndNormalizeItem(
     Map<String, dynamic> item,
     String type,
@@ -114,7 +100,6 @@ class BatchImportService {
     }
   }
 
-  /// 验证知识点数据
   Map<String, dynamic> _validateKnowledgePoint(
     Map<String, dynamic> item,
     int rowNum,
@@ -138,15 +123,16 @@ class BatchImportService {
       'content': content,
       'subject': subject,
       'chapter': _getStringValue(item, ['chapter', '章节']),
-      'tags': _parseListValue(item, ['tags', '标签']),
+      'tags': jsonEncode(_parseListValue(item, ['tags', '标签'])),
       'difficulty': _getIntValue(item, ['difficulty', '难度'], defaultValue: 1),
-      'masteryLevel': _getIntValue(item, ['masteryLevel', '掌握程度'], defaultValue: 0),
-      'examMethods': _parseListValue(item, ['examMethods', '考法']),
-      'keyPoints': _parseListValue(item, ['keyPoints', '考点']),
+      'mastery_level': _getIntValue(item, ['masteryLevel', '掌握程度'], defaultValue: 0),
+      'exam_methods': jsonEncode(_parseListValue(item, ['examMethods', '考法'])),
+      'key_points': jsonEncode(_parseListValue(item, ['keyPoints', '考点'])),
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
   }
 
-  /// 验证必记必背数据
   Map<String, dynamic> _validateMustRemember(
     Map<String, dynamic> item,
     int rowNum,
@@ -175,12 +161,13 @@ class BatchImportService {
       'subject': subject,
       'chapter': _getStringValue(item, ['chapter', '章节']),
       'category': category,
-      'examMethods': _parseListValue(item, ['examMethods', '考法']),
-      'keyPoints': _parseListValue(item, ['keyPoints', '考点']),
+      'exam_methods': jsonEncode(_parseListValue(item, ['examMethods', '考法'])),
+      'key_points': jsonEncode(_parseListValue(item, ['keyPoints', '考点'])),
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
   }
 
-  /// 验证错题数据
   Map<String, dynamic> _validateWrongQuestion(
     Map<String, dynamic> item,
     int rowNum,
@@ -202,24 +189,21 @@ class BatchImportService {
 
     return {
       'title': title ?? content.substring(0, content.length > 20 ? 20 : content.length),
-      'content': content,
-      'correctAnswer': correctAnswer,
+      'question_content': content,
+      'correct_answer': correctAnswer,
       'analysis': _getStringValue(item, ['analysis', '解析', 'explanation'], defaultValue: ''),
       'subject': subject,
       'chapter': _getStringValue(item, ['chapter', '章节']),
-      'errorType': _getStringValue(
-        item,
-        ['errorType', '错误类型', 'error_type'],
-        defaultValue: '知识盲区',
-      ),
-      'options': _parseOptions(item['options'] ?? item['选项']),
-      'tags': _parseListValue(item, ['tags', '标签']),
-      'examMethods': _parseListValue(item, ['examMethods', '考法']),
-      'keyPoints': _parseListValue(item, ['keyPoints', '考点']),
+      'error_type': _getStringValue(item, ['errorType', '错误类型', 'error_type'], defaultValue: '知识盲区'),
+      'options': jsonEncode(_parseOptions(item['options'] ?? item['选项'])),
+      'tags': jsonEncode(_parseListValue(item, ['tags', '标签'])),
+      'exam_methods': jsonEncode(_parseListValue(item, ['examMethods', '考法'])),
+      'key_points': jsonEncode(_parseListValue(item, ['keyPoints', '考点'])),
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
   }
 
-  /// 验证母题数据
   Map<String, dynamic> _validateMotherQuestion(
     Map<String, dynamic> item,
     int rowNum,
@@ -241,20 +225,21 @@ class BatchImportService {
 
     return {
       'title': title ?? content.substring(0, content.length > 20 ? 20 : content.length),
-      'content': content,
-      'correctAnswer': correctAnswer,
+      'question_content': content,
+      'correct_answer': correctAnswer,
       'analysis': _getStringValue(item, ['analysis', '解析', 'explanation'], defaultValue: ''),
       'subject': subject,
       'chapter': _getStringValue(item, ['chapter', '章节']),
       'difficulty': _getIntValue(item, ['difficulty', '难度'], defaultValue: 1),
-      'options': _parseOptions(item['options'] ?? item['选项']),
-      'tags': _parseListValue(item, ['tags', '标签']),
-      'examMethods': _parseListValue(item, ['examMethods', '考法']),
-      'keyPoints': _parseListValue(item, ['keyPoints', '考点']),
+      'options': jsonEncode(_parseOptions(item['options'] ?? item['选项'])),
+      'tags': jsonEncode(_parseListValue(item, ['tags', '标签'])),
+      'exam_methods': jsonEncode(_parseListValue(item, ['examMethods', '考法'])),
+      'key_points': jsonEncode(_parseListValue(item, ['keyPoints', '考点'])),
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
   }
 
-  /// 验证笔记数据
   Map<String, dynamic> _validateNote(
     Map<String, dynamic> item,
     int rowNum,
@@ -278,17 +263,15 @@ class BatchImportService {
       'content': content,
       'subject': subject,
       'chapter': _getStringValue(item, ['chapter', '章节']),
-      'tags': _parseListValue(item, ['tags', '标签']),
+      'tags': jsonEncode(_parseListValue(item, ['tags', '标签'])),
       'color': _getStringValue(item, ['color', '颜色'], defaultValue: '#FFFFFF'),
-      'examMethods': _parseListValue(item, ['examMethods', '考法']),
-      'keyPoints': _parseListValue(item, ['keyPoints', '考点']),
+      'exam_methods': jsonEncode(_parseListValue(item, ['examMethods', '考法'])),
+      'key_points': jsonEncode(_parseListValue(item, ['keyPoints', '考点'])),
+      'created_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
     };
   }
 
-  /// 批量导入数据到数据库
-  /// [data] 验证后的数据列表
-  /// [type] 导入类型
-  /// 返回导入结果
   Future<ImportResult> importData(
     List<Map<String, dynamic>> data,
     String type,
@@ -315,91 +298,30 @@ class BatchImportService {
     );
   }
 
-  /// 导入单个数据项
   Future<void> _importSingleItem(Map<String, dynamic> data, String type) async {
+    final db = await _db.database;
+    
     switch (type) {
       case typeKnowledgePoint:
-        final kp = KnowledgePoint(
-          title: data['title'],
-          content: data['content'],
-          subject: data['subject'],
-          chapter: data['chapter'],
-          tags: data['tags'],
-          difficulty: data['difficulty'],
-          masteryLevel: data['masteryLevel'],
-          examMethods: data['examMethods'],
-          keyPoints: data['keyPoints'],
-        );
-        await _db.insertKnowledgePoint(kp.toJson());
+        await db.insert('knowledge_points', data);
         break;
-
       case typeMustRemember:
-        final mr = MustRemember(
-          title: data['title'],
-          content: data['content'],
-          subject: data['subject'],
-          chapter: data['chapter'],
-          category: data['category'],
-          examMethods: data['examMethods'],
-          keyPoints: data['keyPoints'],
-        );
-        await _db.insertMustRemember(mr.toJson());
+        await db.insert('must_remembers', data);
         break;
-
       case typeWrongQuestion:
-        final wq = WrongQuestion(
-          title: data['title'],
-          content: data['content'],
-          correctAnswer: data['correctAnswer'],
-          analysis: data['analysis'],
-          subject: data['subject'],
-          chapter: data['chapter'],
-          errorType: data['errorType'],
-          options: data['options'],
-          tags: data['tags'],
-          examMethods: data['examMethods'],
-          keyPoints: data['keyPoints'],
-        );
-        await _db.insertWrongQuestion(wq.toJson());
+        await db.insert('wrong_questions', data);
         break;
-
       case typeMotherQuestion:
-        final mq = MotherQuestion(
-          title: data['title'],
-          content: data['content'],
-          correctAnswer: data['correctAnswer'],
-          analysis: data['analysis'],
-          subject: data['subject'],
-          chapter: data['chapter'],
-          difficulty: data['difficulty'],
-          options: data['options'],
-          tags: data['tags'],
-          examMethods: data['examMethods'],
-          keyPoints: data['keyPoints'],
-        );
-        await _db.insertMotherQuestion(mq.toJson());
+        await db.insert('mother_questions', data);
         break;
-
       case typeNote:
-        final note = Note(
-          title: data['title'],
-          content: data['content'],
-          subject: data['subject'],
-          chapter: data['chapter'],
-          tags: data['tags'],
-          color: data['color'],
-          examMethods: data['examMethods'],
-          keyPoints: data['keyPoints'],
-        );
-        await _db.insertNote(note.toJson());
+        await db.insert('notes', data);
         break;
-
       default:
         throw Exception('未知的导入类型: $type');
     }
   }
 
-  /// 获取字符串值（支持多个字段名）
   String? _getStringValue(
     Map<String, dynamic> item,
     List<String> keys, {
@@ -416,7 +338,6 @@ class BatchImportService {
     return defaultValue;
   }
 
-  /// 获取整数值（支持多个字段名）
   int _getIntValue(
     Map<String, dynamic> item,
     List<String> keys, {
@@ -434,7 +355,6 @@ class BatchImportService {
     return defaultValue;
   }
 
-  /// 解析列表值（支持多种格式）
   List<String> _parseListValue(Map<String, dynamic> item, List<String> keys) {
     for (final key in keys) {
       if (item.containsKey(key)) {
@@ -443,7 +363,6 @@ class BatchImportService {
           return value.map((e) => e.toString()).toList();
         }
         if (value is String && value.isNotEmpty) {
-          // 支持逗号、分号、换行分隔
           return value
               .split(RegExp(r'[,;，；\n]'))
               .map((e) => e.trim())
@@ -455,7 +374,6 @@ class BatchImportService {
     return [];
   }
 
-  /// 解析选项
   List<Map<String, dynamic>> _parseOptions(dynamic value) {
     if (value == null) return [];
 
@@ -480,7 +398,6 @@ class BatchImportService {
           }).toList();
         }
       } catch (_) {
-        // 尝试解析为逗号分隔的选项
         return value
             .split(RegExp(r'[,;，；]'))
             .map((e) => {'text': e.trim()})
@@ -492,94 +409,23 @@ class BatchImportService {
     return [];
   }
 
-  // ==================== 导入模板 ====================
-
-  /// 获取JSON导入模板
   String getJsonTemplate(String type) {
     switch (type) {
       case typeKnowledgePoint:
-        return '''[
-  {
-    "title": "知识点标题",
-    "content": "知识点内容",
-    "subject": "数学",
-    "chapter": "第一章",
-    "tags": ["重要", "常考"],
-    "difficulty": 3,
-    "masteryLevel": 50,
-    "examMethods": ["选择题", "填空题"],
-    "keyPoints": ["核心概念", "易错点"]
-  }
-]''';
+        return '''[\n  {\n    "title": "知识点标题",\n    "content": "知识点内容",\n    "subject": "数学",\n    "chapter": "第一章",\n    "tags": ["重要", "常考"],\n    "difficulty": 3,\n    "masteryLevel": 50,\n    "examMethods": ["选择题", "填空题"],\n    "keyPoints": ["核心概念", "易错点"]\n  }\n]''';
       case typeMustRemember:
-        return '''[
-  {
-    "title": "公式名称",
-    "content": "公式内容",
-    "subject": "数学",
-    "chapter": "第一章",
-    "category": "公式",
-    "examMethods": ["计算题"],
-    "keyPoints": ["适用条件"]
-  }
-]''';
+        return '''[\n  {\n    "title": "公式名称",\n    "content": "公式内容",\n    "subject": "数学",\n    "chapter": "第一章",\n    "category": "公式",\n    "examMethods": ["计算题"],\n    "keyPoints": ["适用条件"]\n  }\n]''';
       case typeWrongQuestion:
-        return '''[
-  {
-    "title": "错题标题",
-    "content": "题目内容",
-    "correctAnswer": "正确答案",
-    "analysis": "解析",
-    "subject": "数学",
-    "chapter": "第一章",
-    "errorType": "知识盲区",
-    "options": [
-      {"text": "选项A"},
-      {"text": "选项B"}
-    ],
-    "tags": ["易错"],
-    "examMethods": ["选择题"],
-    "keyPoints": ["考点1"]
-  }
-]''';
+        return '''[\n  {\n    "title": "错题标题",\n    "content": "题目内容",\n    "correctAnswer": "正确答案",\n    "analysis": "解析",\n    "subject": "数学",\n    "chapter": "第一章",\n    "errorType": "知识盲区",\n    "options": [\n      {"text": "选项A"},\n      {"text": "选项B"}\n    ],\n    "tags": ["易错"],\n    "examMethods": ["选择题"],\n    "keyPoints": ["考点1"]\n  }\n]''';
       case typeMotherQuestion:
-        return '''[
-  {
-    "title": "母题标题",
-    "content": "题目内容",
-    "correctAnswer": "正确答案",
-    "analysis": "解析",
-    "subject": "数学",
-    "chapter": "第一章",
-    "difficulty": 3,
-    "options": [
-      {"text": "选项A"},
-      {"text": "选项B"}
-    ],
-    "tags": ["经典"],
-    "examMethods": ["解答题"],
-    "keyPoints": ["核心考点"]
-  }
-]''';
+        return '''[\n  {\n    "title": "母题标题",\n    "content": "题目内容",\n    "correctAnswer": "正确答案",\n    "analysis": "解析",\n    "subject": "数学",\n    "chapter": "第一章",\n    "difficulty": 3,\n    "options": [\n      {"text": "选项A"},\n      {"text": "选项B"}\n    ],\n    "tags": ["经典"],\n    "examMethods": ["解答题"],\n    "keyPoints": ["核心考点"]\n  }\n]''';
       case typeNote:
-        return '''[
-  {
-    "title": "笔记标题",
-    "content": "笔记内容（支持Markdown）",
-    "subject": "数学",
-    "chapter": "第一章",
-    "tags": ["课堂笔记"],
-    "color": "#FFFFFF",
-    "examMethods": ["复习用"],
-    "keyPoints": ["重点"]
-  }
-]''';
+        return '''[\n  {\n    "title": "笔记标题",\n    "content": "笔记内容（支持Markdown）",\n    "subject": "数学",\n    "chapter": "第一章",\n    "tags": ["课堂笔记"],\n    "color": "#FFFFFF",\n    "examMethods": ["复习用"],\n    "keyPoints": ["重点"]\n  }\n]''';
       default:
         return '[]';
     }
   }
 
-  /// 获取CSV导入模板
   String getCsvTemplate(String type) {
     switch (type) {
       case typeKnowledgePoint:
@@ -602,7 +448,6 @@ class BatchImportService {
     }
   }
 
-  /// 获取导入类型显示名称
   static String getTypeDisplayName(String type) {
     switch (type) {
       case typeKnowledgePoint:
@@ -621,7 +466,6 @@ class BatchImportService {
   }
 }
 
-/// 验证结果
 class ValidationResult {
   final List<Map<String, dynamic>> validData;
   final List<ValidationError> errors;
@@ -633,7 +477,6 @@ class ValidationResult {
   int get errorCount => errors.length;
 }
 
-/// 验证错误
 class ValidationError {
   final int rowNum;
   final String message;
@@ -641,7 +484,6 @@ class ValidationError {
   ValidationError(this.rowNum, this.message);
 }
 
-/// 验证异常
 class ValidationException implements Exception {
   final String message;
 
@@ -651,7 +493,6 @@ class ValidationException implements Exception {
   String toString() => message;
 }
 
-/// 导入结果
 class ImportResult {
   final int totalCount;
   final int successCount;
