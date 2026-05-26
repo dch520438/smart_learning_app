@@ -374,6 +374,8 @@ class BatchImportService {
           difficulty: data['difficulty'],
           options: data['options'],
           tags: data['tags'],
+          examMethods: data['examMethods'],
+          keyPoints: data['keyPoints'],
         );
         await _db.insertMotherQuestion(mq.toJson());
         break;
