@@ -14,7 +14,7 @@ class DatabaseService {
 
   // 数据库名称和版本
   static const String _databaseName = 'smart_learning.db';
-  static const int _databaseVersion = 7;
+  static const int _databaseVersion = 8;
 
   // 表名常量
   static const String tableKnowledgePoints = 'knowledge_points';
@@ -1001,6 +1001,11 @@ class DatabaseService {
       await db.execute(
         'CREATE INDEX idx_attachments_type ON $tableAttachments (parent_type)',
       );
+    }
+
+    // 版本7 -> 版本8：为 exams 表添加 ai_questions 列
+    if (oldVersion < 8) {
+      await _addColumnSafe(db, tableExams, 'ai_questions', 'TEXT');
     }
   }
 
