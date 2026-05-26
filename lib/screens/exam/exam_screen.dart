@@ -2303,6 +2303,32 @@ ${_selectedChapters.isNotEmpty ? '重点考查知识点：${_selectedChapters.jo
     );
   }
 
+  /// 从AI响应中提取JSON字符串
+  String _extractJson(String response) {
+    var cleanResponse = response
+        .replaceAll(RegExp(r'```json\s*'), '')
+        .replaceAll(RegExp(r'```\s*'), '')
+        .replaceAll(RegExp(r'^```\s*$', multiLine: true), '')
+        .replaceAll(RegExp(r'\n'), ' ')
+        .trim();
+
+    var start = cleanResponse.indexOf('{');
+    var end = cleanResponse.lastIndexOf('}');
+
+    if (start != -1 && end != -1 && end > start) {
+      return cleanResponse.substring(start, end + 1);
+    }
+
+    start = cleanResponse.indexOf('[');
+    end = cleanResponse.lastIndexOf(']');
+
+    if (start != -1 && end != -1 && end > start) {
+      return '{"questions":${cleanResponse.substring(start, end + 1)}}';
+    }
+
+    throw FormatException('无法从响应中提取JSON。AI响应内容: ${response.length > 500 ? response.substring(0, 500) + "..." : response}');
+  }
+
   Map<String, dynamic> _convertWrongQuestion(Map<String, dynamic> wq) {
     return {
       'id': 'wrong_${wq['id']}',
