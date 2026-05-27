@@ -206,6 +206,7 @@ class DatabaseService {
         time_limit INTEGER,
         passing_score REAL DEFAULT 60.0,
         question_ids TEXT,
+        ai_questions TEXT,
         is_completed INTEGER DEFAULT 0,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL

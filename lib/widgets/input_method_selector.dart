@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/ocr_service.dart';
 import '../utils/constants.dart';
 import '../utils/helpers.dart';
@@ -300,6 +302,20 @@ class InputMethodHandler {
       }
       return null;
     }
+
+    // 检查相机权限
+    final cameraStatus = await Permission.camera.status;
+    if (!cameraStatus.isGranted) {
+      final result = await Permission.camera.request();
+      if (!result.isGranted) {
+        if (context.mounted) {
+          showSnackBar(context, '需要相机权限才能拍照，请在设置中开启', isError: true);
+        }
+        return null;
+      }
+    }
+
+    BuildContext? loadingContext;
     try {
       final picker = ImagePicker();
       final pickedFile = await picker.pickImage(
@@ -312,30 +328,38 @@ class InputMethodHandler {
       if (pickedFile == null) return null;
 
       // 显示加载对话框
-      showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+      if (context.mounted) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) {
+            loadingContext = context;
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          },
+        );
+      }
 
       // OCR 识别
       final text = await _ocrService.recognizeText(pickedFile.path);
 
       // 关闭加载对话框
-      if (context.mounted) {
-        Navigator.of(context).pop();
+      if (loadingContext != null && loadingContext!.mounted) {
+        Navigator.of(loadingContext!).pop();
       }
 
       return text;
-    } catch (e) {
+    } catch (e, stackTrace) {
       // 确保关闭加载对话框
-      if (context.mounted) {
+      if (loadingContext != null && loadingContext!.mounted) {
         try {
-          Navigator.of(context).pop();
+          Navigator.of(loadingContext!).pop();
         } catch (_) {}
-        showSnackBar(context, '拍照识别失败: $e', isError: true);
+      }
+      if (context.mounted) {
+        debugPrint('拍照识别错误: $e\n$stackTrace');
+        showSnackBar(context, '拍照识别失败: ${e.toString().split('\n').first}', isError: true);
       }
       return null;
     }

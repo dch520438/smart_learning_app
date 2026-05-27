@@ -630,7 +630,7 @@ class _AIQuestionGeneratorScreenState extends State<AIQuestionGeneratorScreen> {
             question['content'] ?? '',
             style: const TextStyle(fontSize: AppFontSize.md),
           ),
-          if (question['options'] != null) ...[
+          if (question['options'] != null && (question['options'] as List).isNotEmpty) ...[
             const SizedBox(height: 12),
             ...((question['options'] as List).map((option) {
               return Padding(
@@ -640,40 +640,57 @@ class _AIQuestionGeneratorScreenState extends State<AIQuestionGeneratorScreen> {
             })),
           ],
           const Divider(),
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: AppColors.success.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(AppRadius.sm),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.check_circle, color: AppColors.success, size: 16),
-                const SizedBox(width: 8),
-                Text(
-                  '答案: ${question['answer'] ?? ''}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.success,
-                  ),
+          // 答案和解析折叠显示
+          ExpansionTile(
+            title: const Text('查看答案与解析'),
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: AppColors.success.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
-              ],
-            ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.check_circle, color: AppColors.success, size: 16),
+                        const SizedBox(width: 8),
+                        Text(
+                          '答案: ${question['answer'] ?? ''}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.success,
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (question['analysis'] != null) ...[
+                      const SizedBox(height: 8),
+                      const Divider(height: 1),
+                      const SizedBox(height: 8),
+                      Text(
+                        '解析：',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        question['analysis'].toString(),
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-          if (question['analysis'] != null) ...[
-            const SizedBox(height: 12),
-            ExpansionTile(
-              title: const Text('查看解析'),
-              tilePadding: EdgeInsets.zero,
-              childrenPadding: EdgeInsets.zero,
-              children: [
-                Text(
-                  question['analysis'].toString(),
-                  style: TextStyle(color: AppColors.textSecondary),
-                ),
-              ],
-            ),
-          ],
           const SizedBox(height: 12),
           // 添加到题库按钮
           Row(

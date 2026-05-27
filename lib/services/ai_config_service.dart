@@ -556,32 +556,108 @@ class AIService {
     int count = 5,
     String type = 'single_choice',
   }) async {
-    final prompt = '''
-请为"$topic"生成$count道$type类型的题目。
+    String typeDescription;
+    String example;
+    String specialInstructions;
 
-请以JSON数组格式返回，数组中每个元素包含：
-- content: 题目内容
-- options: 选项数组（如果是选择题）
-- answer: 正确答案
-- analysis: 解析内容
-- type: 题目类型
-
-示例格式：
-[
-  {
+    switch (type) {
+      case 'single_choice':
+        typeDescription = '单选题';
+        specialInstructions = '每道题必须有4个选项，选项格式为"A. 内容"、"B. 内容"、"C. 内容"、"D. 内容"。';
+        example = '''{
     "content": "以下关于...的说法正确的是？",
     "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"],
     "answer": "A",
     "analysis": "解析：...",
     "type": "single_choice"
-  }
+  }''';
+        break;
+      case 'multiple_choice':
+        typeDescription = '多选题';
+        specialInstructions = '每道题必须有4-5个选项，选项格式为"A. 内容"、"B. 内容"等。正确答案可能是多个选项的组合，如"AB"、"ACD"。';
+        example = '''{
+    "content": "以下关于...的说法正确的有？",
+    "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"],
+    "answer": "ABD",
+    "analysis": "解析：...",
+    "type": "multiple_choice"
+  }''';
+        break;
+      case 'true_false':
+        typeDescription = '判断题';
+        specialInstructions = '题目应该是陈述句，让用户判断对错。options字段为空数组。';
+        example = '''{
+    "content": "地球是太阳系中最大的行星。",
+    "options": [],
+    "answer": "错误",
+    "analysis": "解析：木星才是太阳系中最大的行星。",
+    "type": "true_false"
+  }''';
+        break;
+      case 'fill_blank':
+        typeDescription = '填空题';
+        specialInstructions = '题目内容中必须使用"____"表示填空位置。options字段为空数组。';
+        example = '''{
+    "content": "中国的首都是____。",
+    "options": [],
+    "answer": "北京",
+    "analysis": "解析：北京是中华人民共和国的首都。",
+    "type": "fill_blank"
+  }''';
+        break;
+      case 'short_answer':
+        typeDescription = '简答题';
+        specialInstructions = '题目应该是开放性问题，需要文字回答。options字段为空数组。';
+        example = '''{
+    "content": "请简述光合作用的过程。",
+    "options": [],
+    "answer": "光合作用是植物利用光能将二氧化碳和水转化为有机物和氧气的过程...",
+    "analysis": "解析：光合作用主要包括光反应和暗反应两个阶段...",
+    "type": "short_answer"
+  }''';
+        break;
+      default:
+        typeDescription = '单选题';
+        specialInstructions = '每道题必须有4个选项。';
+        example = '''{
+    "content": "以下关于...的说法正确的是？",
+    "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"],
+    "answer": "A",
+    "analysis": "解析：...",
+    "type": "single_choice"
+  }''';
+    }
+
+    final prompt = '''
+请为"$topic"生成$count道$typeDescription。
+
+要求：
+1. $specialInstructions
+2. 题目难度适中，符合教学要求
+3. 题目内容准确，无知识性错误
+
+请以JSON数组格式返回，数组中每个元素包含：
+- content: 题目内容
+- options: 选项数组（$typeDescription的options按上述要求）
+- answer: 正确答案
+- analysis: 解析内容（详细说明解题思路）
+- type: "$type"
+
+示例格式：
+[
+  $example
 ]
 
 只返回JSON数组，不要添加任何说明文字。''';
 
     try {
       final response = await chat(prompt);
-      return _parseJsonArray(response);
+      final questions = _parseJsonArray(response);
+      // 确保每道题都有正确的type字段
+      for (var q in questions) {
+        q['type'] = type;
+      }
+      return questions;
     } catch (e) {
       rethrow;
     }

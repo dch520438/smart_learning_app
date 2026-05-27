@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/batch_import_service.dart';
+import '../../services/document_import_service.dart';
 import '../../widgets/common_widgets.dart';
 
 // ============================================================
@@ -19,6 +20,7 @@ class BatchImportScreen extends StatefulWidget {
 class _BatchImportScreenState extends State<BatchImportScreen>
     with SingleTickerProviderStateMixin {
   final BatchImportService _importService = BatchImportService();
+  final DocumentImportService _documentService = DocumentImportService();
   final TextEditingController _dataController = TextEditingController();
 
   late TabController _tabController;
@@ -32,8 +34,12 @@ class _BatchImportScreenState extends State<BatchImportScreen>
   // 状态
   bool _isValidating = false;
   bool _isImporting = false;
+  bool _isLoadingDocument = false;
   ValidationResult? _validationResult;
   ImportResult? _importResult;
+  
+  // 文档导入结果
+  DocumentImportResult? _documentResult;
 
   // 可用的导入类型
   final List<Map<String, String>> _importTypes = [
@@ -47,7 +53,7 @@ class _BatchImportScreenState extends State<BatchImportScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     _tabController.addListener(_onTabChanged);
 
     if (widget.initialType != null) {
@@ -68,10 +74,16 @@ class _BatchImportScreenState extends State<BatchImportScreen>
   void _onTabChanged() {
     if (_tabController.indexIsChanging) {
       setState(() {
-        _dataFormat = _tabController.index == 0 ? DataFormat.json : DataFormat.csv;
+        if (_tabController.index == 0) {
+          _dataFormat = DataFormat.json;
+        } else if (_tabController.index == 1) {
+          _dataFormat = DataFormat.csv;
+        }
         _validationResult = null;
         _importResult = null;
-        _loadTemplate();
+        if (_tabController.index < 2) {
+          _loadTemplate();
+        }
       });
     }
   }
@@ -248,28 +260,290 @@ class _BatchImportScreenState extends State<BatchImportScreen>
           tabs: const [
             Tab(icon: Icon(Icons.code), text: 'JSON'),
             Tab(icon: Icon(Icons.table_chart), text: 'CSV'),
+            Tab(icon: Icon(Icons.upload_file), text: '文档'),
           ],
         ),
       ),
-      body: Column(
+      body: TabBarView(
+        controller: _tabController,
         children: [
-          // 类型选择
-          _buildTypeSelector(),
+          // JSON Tab
+          _buildJsonCsvTab(),
+          // CSV Tab
+          _buildJsonCsvTab(),
+          // 文档 Tab
+          _buildDocumentTab(),
+        ],
+      ),
+    );
+  }
 
-          // 数据输入区域
-          Expanded(
-            child: _buildDataInputArea(),
+  Widget _buildJsonCsvTab() {
+    return Column(
+      children: [
+        // 类型选择
+        _buildTypeSelector(),
+
+        // 数据输入区域
+        Expanded(
+          child: _buildDataInputArea(),
+        ),
+
+        // 验证结果
+        if (_validationResult != null) _buildValidationResult(),
+
+        // 导入结果
+        if (_importResult != null) _buildImportResult(),
+
+        // 操作按钮
+        _buildActionButtons(),
+      ],
+    );
+  }
+
+  Widget _buildDocumentTab() {
+    return Column(
+      children: [
+        // 类型选择
+        _buildTypeSelector(),
+
+        // 文档导入区域
+        Expanded(
+          child: _buildDocumentImportArea(),
+        ),
+
+        // 验证结果
+        if (_validationResult != null) _buildValidationResult(),
+
+        // 导入结果
+        if (_importResult != null) _buildImportResult(),
+
+        // 操作按钮
+        _buildDocumentActionButtons(),
+      ],
+    );
+  }
+
+  Widget _buildDocumentImportArea() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 说明卡片
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.upload_file,
+                    size: 48,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    '支持导入 Word、Excel、PDF、TXT 等文档',
+                    style: Theme.of(context).textTheme.titleMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    DocumentImportService.getSupportedTypesDescription(),
+                    style: Theme.of(context).textTheme.bodySmall,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: _isLoadingDocument ? null : _pickDocument,
+                    icon: _isLoadingDocument
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.folder_open),
+                    label: Text(_isLoadingDocument ? '读取中...' : '选择文档'),
+                  ),
+                ],
+              ),
+            ),
           ),
 
-          // 验证结果
-          if (_validationResult != null) _buildValidationResult(),
+          // 已选择的文档信息
+          if (_documentResult != null) ...[
+            const SizedBox(height: 16),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.description),
+                title: Text(_documentResult!.fileName),
+                subtitle: Text('大小: ${_documentResult!.formattedSize}'),
+                trailing: IconButton(
+                  icon: const Icon(Icons.close),
+                  onPressed: () {
+                    setState(() {
+                      _documentResult = null;
+                      _dataController.clear();
+                      _validationResult = null;
+                    });
+                  },
+                ),
+              ),
+            ),
+          ],
 
-          // 导入结果
-          if (_importResult != null) _buildImportResult(),
-
-          // 操作按钮
-          _buildActionButtons(),
+          // 文档内容编辑区域
+          if (_documentResult != null) ...[
+            const SizedBox(height: 16),
+            Expanded(
+              child: Card(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.edit, size: 16, color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: 8),
+                          Text(
+                            '文档内容（可编辑）',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                          const Spacer(),
+                          TextButton.icon(
+                            onPressed: _parseDocumentToQuestions,
+                            icon: const Icon(Icons.auto_fix_high, size: 16),
+                            label: const Text('智能解析'),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _dataController,
+                        maxLines: null,
+                        expands: true,
+                        textAlignVertical: TextAlignVertical.top,
+                        decoration: const InputDecoration(
+                          hintText: '文档内容将显示在这里，您可以编辑后导入...',
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.all(12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
+      ),
+    );
+  }
+
+  Future<void> _pickDocument() async {
+    setState(() => _isLoadingDocument = true);
+    try {
+      final result = await _documentService.pickAndReadDocument();
+      if (result != null) {
+        setState(() {
+          _documentResult = result;
+          _dataController.text = result.content;
+          _validationResult = null;
+          _importResult = null;
+        });
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('导入失败: $e')),
+      );
+    } finally {
+      setState(() => _isLoadingDocument = false);
+    }
+  }
+
+  void _parseDocumentToQuestions() {
+    if (_dataController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('文档内容为空')),
+      );
+      return;
+    }
+
+    final questions = _documentService.parseDocumentContent(
+      _dataController.text,
+      type: _selectedType,
+    );
+
+    if (questions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('未能从文档中解析出题目，请检查格式')),
+      );
+      return;
+    }
+
+    // 转换为JSON格式显示
+    final jsonContent = const JsonEncoder.withIndent('  ').convert(questions);
+    setState(() {
+      _dataController.text = jsonContent;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('已解析出 ${questions.length} 道题目，请验证后导入')),
+    );
+  }
+
+  Widget _buildDocumentActionButtons() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        border: Border(
+          top: BorderSide(color: Theme.of(context).dividerColor),
+        ),
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _isValidating || _documentResult == null ? null : _validateData,
+                icon: _isValidating
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.check_circle),
+                label: const Text('验证数据'),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: _isImporting || _validationResult == null || !_validationResult!.isValid
+                    ? null
+                    : _importData,
+                icon: _isImporting
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.upload),
+                label: const Text('确认导入'),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
