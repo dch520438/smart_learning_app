@@ -22,6 +22,7 @@ class _BatchImportScreenState extends State<BatchImportScreen>
   final BatchImportService _importService = BatchImportService();
   final DocumentImportService _documentService = DocumentImportService();
   final TextEditingController _dataController = TextEditingController();
+  final TextEditingController _markerController = TextEditingController(text: '【题目');
 
   late TabController _tabController;
 
@@ -31,10 +32,14 @@ class _BatchImportScreenState extends State<BatchImportScreen>
   // 数据格式
   DataFormat _dataFormat = DataFormat.json;
 
+  // 文档拆分方式
+  SplitMode _splitMode = SplitMode.byMarker;
+
   // 状态
   bool _isValidating = false;
   bool _isImporting = false;
   bool _isLoadingDocument = false;
+  bool _showTemplate = false;
   ValidationResult? _validationResult;
   ImportResult? _importResult;
   
@@ -370,6 +375,58 @@ class _BatchImportScreenState extends State<BatchImportScreen>
             ),
           ),
 
+          // 拆分方式选择
+          if (_documentResult != null) ...[
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '拆分方式',
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // 拆分方式选项
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: SplitMode.values.map((mode) {
+                        final isSelected = _splitMode == mode;
+                        return ChoiceChip(
+                          label: Text(DocumentImportService.getSplitModeDescription(mode)),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            if (selected) {
+                              setState(() => _splitMode = mode);
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    // 自定义标识输入
+                    if (_splitMode == SplitMode.byMarker) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: _markerController,
+                        decoration: const InputDecoration(
+                          labelText: '自定义标识（如：【题目】）',
+                          hintText: '输入题目开始标识',
+                          prefixIcon: Icon(Icons.bookmark),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+
           // 已选择的文档信息
           if (_documentResult != null) ...[
             const SizedBox(height: 16),
@@ -419,6 +476,11 @@ class _BatchImportScreenState extends State<BatchImportScreen>
                           ),
                           const Spacer(),
                           TextButton.icon(
+                            onPressed: _showDocumentTemplate,
+                            icon: const Icon(Icons.help_outline, size: 16),
+                            label: const Text('查看模板'),
+                          ),
+                          TextButton.icon(
                             onPressed: _parseDocumentToQuestions,
                             icon: const Icon(Icons.auto_fix_high, size: 16),
                             label: const Text('智能解析'),
@@ -444,6 +506,31 @@ class _BatchImportScreenState extends State<BatchImportScreen>
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  void _showDocumentTemplate() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('文档导入格式模板'),
+        content: SingleChildScrollView(
+          child: Text(DocumentImportService.getDocumentTemplate()),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('关闭'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _dataController.text = DocumentImportService.getDocumentTemplate();
+              Navigator.of(context).pop();
+            },
+            child: const Text('使用模板'),
+          ),
         ],
       ),
     );
@@ -478,14 +565,21 @@ class _BatchImportScreenState extends State<BatchImportScreen>
       return;
     }
 
+    // 根据拆分方式解析
+    final customMarker = _markerController.text.trim().isNotEmpty 
+        ? _markerController.text.trim() 
+        : null;
+
     final questions = _documentService.parseDocumentContent(
       _dataController.text,
       type: _selectedType,
+      splitMode: _splitMode,
+      customMarker: customMarker,
     );
 
     if (questions.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('未能从文档中解析出题目，请检查格式')),
+        const SnackBar(content: Text('未能从文档中解析出题目，请检查格式或使用其他拆分方式')),
       );
       return;
     }
