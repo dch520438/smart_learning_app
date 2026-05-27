@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/batch_import_service.dart';
@@ -585,7 +586,7 @@ class _BatchImportScreenState extends State<BatchImportScreen>
     }
 
     // 转换为JSON格式显示
-    final jsonContent = const JsonEncoder.withIndent('  ').convert(questions);
+    final jsonContent = JsonEncoder.withIndent('  ').convert(questions);
     setState(() {
       _dataController.text = jsonContent;
     });
