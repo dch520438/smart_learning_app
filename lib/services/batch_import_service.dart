@@ -441,7 +441,7 @@ class BatchImportService {
         // 按分隔符拆分
         return str
             .split(RegExp(r'[,;，；\n]'))
-            .map((e) => e.trim().replaceAll(RegExp(r'^["\'\[\]]+|["\'\[\]]+$'), ''))
+            .map((e) => e.trim().replaceAll(RegExp(r'^["\'\[\]]+|["\'\[\]]+\$'), ''))
             .where((e) => e.isNotEmpty)
             .toList();
       }
