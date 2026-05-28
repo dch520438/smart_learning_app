@@ -438,10 +438,20 @@ class BatchImportService {
           }
         }
         
-        // 按分隔符拆分
+        // 按分隔符拆分，并清理首尾的引号和方括号
         return str
             .split(RegExp(r'[,;，；\n]'))
-            .map((e) => e.trim().replaceAll(RegExp(r"^['\"\[\]]+|['\"\[\]]+$"), ''))
+            .map((e) {
+              var s = e.trim();
+              // 移除首尾的引号和方括号
+              while (s.isNotEmpty && (s.startsWith('"') || s.startsWith("'") || s.startsWith('[') || s.startsWith(']'))) {
+                s = s.substring(1);
+              }
+              while (s.isNotEmpty && (s.endsWith('"') || s.endsWith("'") || s.endsWith(']') || s.endsWith('['))) {
+                s = s.substring(0, s.length - 1);
+              }
+              return s;
+            })
             .where((e) => e.isNotEmpty)
             .toList();
       }
