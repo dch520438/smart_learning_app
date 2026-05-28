@@ -636,32 +636,33 @@ class _CreateExamDialogState extends State<_CreateExamDialog> {
 请为${_selectedSubject}学科生成${_questionCount}道${difficultyText}难度的选择题。
 ${chapter.isNotEmpty ? '重点考查知识点：$chapter' : ''}
 
-请以JSON格式返回，包含以下字段：
-{
-  "questions": [
-    {
-      "content": "题目内容",
-      "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"],
-      "correctAnswer": "A",
-      "analysis": "解析内容",
-      "knowledgePoint": "相关知识点"
-    }
-  ]
-}
+请严格以JSON格式返回，不要添加任何其他文字说明。格式如下：
+{"questions": [{"content": "题目内容", "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"], "correctAnswer": "A", "analysis": "解析内容", "knowledgePoint": "相关知识点"}]}
 
 要求：
 1. 题目内容要符合${_selectedSubject}学科特点
 2. 选项要有一定迷惑性
 3. 解析要详细说明解题思路
 4. 难度为${difficultyText}级别
+5. 必须返回有效的JSON格式
 ''';      
 
       final response = await _aiService.chat(prompt);
+      debugPrint('模拟测试AI响应: ${response.length > 200 ? response.substring(0, 200) : response}');
 
       // 解析AI返回的JSON
       final jsonStr = _extractJson(response);
       final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-      final questions = data['questions'] as List<dynamic>?;
+      
+      // 兼容多种返回格式
+      List<dynamic>? questions;
+      if (data.containsKey('questions')) {
+        questions = data['questions'] as List<dynamic>?;
+      } else if (data.containsKey('data')) {
+        questions = data['data'] as List<dynamic>?;
+      } else {
+        questions = [data];
+      }
 
       if (questions == null || questions.isEmpty) {
         throw Exception('AI未生成有效题目');
@@ -676,19 +677,35 @@ ${chapter.isNotEmpty ? '重点考查知识点：$chapter' : ''}
         final questionId = 'ai_${DateTime.now().millisecondsSinceEpoch}_$i';
         questionIds.add(questionId);
 
+        // 解析选项 - 兼容多种格式
+        List<String>? options;
+        final rawOptions = q['options'];
+        if (rawOptions is List) {
+          options = rawOptions.map((e) => e.toString()).toList();
+        } else if (rawOptions is String) {
+          options = [rawOptions];
+        }
+        
+        final content = q['content'] ?? q['question'] ?? q['question_content'] ?? '';
+        if (content.trim().isEmpty) continue;
+
         questionDataList.add({
           'id': questionId,
-          'content': q['content'] ?? '第${i + 1}题',
+          'content': content,
           'type': 'singleChoice',
           'subject': _selectedSubject,
-          'options': q['options'] ?? ['A. 选项A', 'B. 选项B', 'C. 选项C', 'D. 选项D'],
-          'correctAnswer': q['correctAnswer'] ?? 'A',
-          'analysis': q['analysis'] ?? '暂无解析',
-          'knowledgePoint': q['knowledgePoint'] ?? '',
+          'options': options ?? ['A. 选项A', 'B. 选项B', 'C. 选项C', 'D. 选项D'],
+          'correctAnswer': q['correctAnswer'] ?? q['answer'] ?? q['correct_answer'] ?? 'A',
+          'analysis': q['analysis'] ?? q['explanation'] ?? '暂无解析',
+          'knowledgePoint': q['knowledgePoint'] ?? q['knowledge_point'] ?? '',
           'difficulty': _selectedDifficulty == 'easy' ? 1 : _selectedDifficulty == 'hard' ? 3 : 2,
           'source': 'ai',
           'sourceLabel': 'AI生成',
         });
+      }
+      
+      if (questionDataList.isEmpty) {
+        throw Exception('AI生成的题目内容为空');
       }
 
       final examData = {
@@ -2071,12 +2088,13 @@ class _PracticeTabState extends State<_PracticeTab> {
 
     try {
       // 1. 根据来源加载题目（支持多选）
-      // 如果没有选择任何来源，默认使用所有来源
+      // 如果没有选择任何来源，默认使用所有来源（不包含AI）
       final useAllSources = _selectedSources.isEmpty;
-      final useAiSource = useAllSources || _selectedSources.contains(_QuestionSource.ai);
+      final onlyAiSource = _selectedSources.length == 1 && _selectedSources.contains(_QuestionSource.ai);
+      final useAiSource = _selectedSources.contains(_QuestionSource.ai);
 
       // 如果选择AI生成，先生成题目
-      if (useAiSource && !useAllSources && _selectedSources.contains(_QuestionSource.ai)) {
+      if (useAiSource) {
         setState(() => _isAiGenerating = true);
         try {
           final difficultyText = _aiDifficulty == 'easy'
@@ -2089,35 +2107,43 @@ class _PracticeTabState extends State<_PracticeTab> {
 请为${_selectedSubject}学科生成${_questionCount}道${difficultyText}难度的选择题。
 ${_selectedChapters.isNotEmpty ? '重点考查知识点：${_selectedChapters.join(", ")}' : ''}
 
-请以JSON格式返回，包含以下字段：
-{
-  "questions": [
-    {
-      "content": "题目内容",
-      "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"],
-      "correctAnswer": "A",
-      "analysis": "解析内容"
-    }
-  ]
-}
+请严格以JSON格式返回，不要添加任何其他文字说明。格式如下：
+{"questions": [{"content": "题目内容", "options": ["A. 选项1", "B. 选项2", "C. 选项3", "D. 选项4"], "correctAnswer": "A", "analysis": "解析内容"}]}
 
 要求：
 1. 题目内容要符合${_selectedSubject}学科特点
 2. 选项要有一定迷惑性
 3. 解析要详细说明解题思路
 4. 难度为${difficultyText}级别
+5. 必须返回有效的JSON格式
 ''';
 
           final response = await _aiService.chat(prompt);
+          debugPrint('AI响应: ${response.length > 200 ? response.substring(0, 200) : response}');
+          
           final jsonStr = _extractJson(response);
           final data = jsonDecode(jsonStr) as Map<String, dynamic>;
-          final questions = data['questions'] as List<dynamic>? ?? [];
+          
+          // 兼容多种返回格式
+          List<dynamic>? questions;
+          if (data.containsKey('questions')) {
+            questions = data['questions'] as List<dynamic>?;
+          } else if (data.containsKey('data')) {
+            questions = data['data'] as List<dynamic>?;
+          } else {
+            // 如果返回的是数组直接包装
+            questions = [data];
+          }
+          
+          if (questions == null || questions.isEmpty) {
+            throw Exception('AI未返回有效题目数据');
+          }
 
           for (int i = 0; i < questions.length; i++) {
             final q = questions[i] as Map<String, dynamic>;
             final questionId = 'ai_${DateTime.now().millisecondsSinceEpoch}_$i';
             
-            // 解析选项
+            // 解析选项 - 兼容多种格式
             List<String>? options;
             final rawOptions = q['options'];
             if (rawOptions is List) {
@@ -2126,14 +2152,17 @@ ${_selectedChapters.isNotEmpty ? '重点考查知识点：${_selectedChapters.jo
               options = [rawOptions];
             }
             
+            final content = q['content'] ?? q['question'] ?? q['question_content'] ?? '';
+            if (content.trim().isEmpty) continue;
+            
             loadedQuestions.add({
               'id': questionId,
-              'content': q['content'] ?? '',
+              'content': content,
               'type': 'singleChoice',
               'subject': _selectedSubject,
               'options': options,
-              'correctAnswer': q['correctAnswer'] ?? q['answer'] ?? '',
-              'analysis': q['analysis'] ?? '',
+              'correctAnswer': q['correctAnswer'] ?? q['answer'] ?? q['correct_answer'] ?? '',
+              'analysis': q['analysis'] ?? q['explanation'] ?? '',
               'difficulty': _aiDifficulty == 'easy' ? 1 : _aiDifficulty == 'hard' ? 3 : 2,
               'source': 'ai',
               'sourceLabel': 'AI生成',
@@ -2144,8 +2173,21 @@ ${_selectedChapters.isNotEmpty ? '重点考查知识点：${_selectedChapters.jo
           debugPrint('AI生成题目失败: $e');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('AI生成题目失败: ${e.toString().split('\n').first}'), backgroundColor: Colors.red),
+              SnackBar(
+                content: Text('AI生成题目失败: ${e.toString().split('\n').first}'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 5),
+              ),
             );
+          }
+          // 如果只选了AI生成，生成失败则直接返回
+          if (onlyAiSource) {
+            setState(() {
+              _questions = [];
+              _isInExam = false;
+              _isExamSubmitted = false;
+            });
+            return;
           }
         } finally {
           setState(() => _isAiGenerating = false);
