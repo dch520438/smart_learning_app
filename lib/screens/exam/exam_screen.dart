@@ -1031,8 +1031,11 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
     for (int i = 0; i < _questions.length; i++) {
       final q = _questions[i];
       final userAnswer = _answers[i + 1];
-      final correctAnswer = (q['correctAnswer'] as String?) ?? '';
+      var correctAnswer = (q['correctAnswer'] as String?) ?? '';
       final type = q['type'] as String? ?? 'singleChoice';
+
+      // 标准化 correctAnswer：如果存储的是选项内容而非标签，尝试转换为标签
+      correctAnswer = _normalizeCorrectAnswer(correctAnswer, q['options']);
 
       if (userAnswer == null || userAnswer.isEmpty) {
         wrong++;
@@ -2537,8 +2540,11 @@ ${_selectedChapters.isNotEmpty ? '重点考查知识点：${_selectedChapters.jo
     for (int i = 0; i < _questions.length; i++) {
       final q = _questions[i];
       final userAnswer = _answers[i + 1];
-      final correctAnswer = (q['correctAnswer'] as String?) ?? '';
+      var correctAnswer = (q['correctAnswer'] as String?) ?? '';
       final type = q['type'] as String? ?? 'singleChoice';
+
+      // 标准化 correctAnswer：如果存储的是选项内容而非标签，尝试转换为标签
+      correctAnswer = _normalizeCorrectAnswer(correctAnswer, q['options']);
 
       if (userAnswer == null || userAnswer.isEmpty) {
         wrong++;
@@ -2549,7 +2555,7 @@ ${_selectedChapters.isNotEmpty ? '重点考查知识点：${_selectedChapters.jo
         case 'singleChoice':
         case 'trueFalse':
           // 单选/判断：选对得分
-          if (userAnswer == correctAnswer) {
+          if (userAnswer.trim() == correctAnswer.trim()) {
             correct++;
             totalScore += _scorePerQuestion;
           } else {
@@ -2610,6 +2616,63 @@ ${_selectedChapters.isNotEmpty ? '重点考查知识点：${_selectedChapters.jo
   bool _setEquals<T>(Set<T> a, Set<T> b) {
     if (a.length != b.length) return false;
     return a.containsAll(b);
+  }
+
+  /// 标准化正确答案：如果存储的是选项内容而非标签，尝试转换为标签
+  String _normalizeCorrectAnswer(String correctAnswer, dynamic options) {
+    // 如果已经是标签格式（A/B/C/D/T/F），直接返回
+    if (RegExp(r'^[A-D]$').hasMatch(correctAnswer.trim()) ||
+        RegExp(r'^[TF]$').hasMatch(correctAnswer.trim())) {
+      return correctAnswer.trim();
+    }
+
+    // 如果 options 为空，无法转换，返回原值
+    if (options == null) return correctAnswer;
+
+    try {
+      List<String> optionList;
+      if (options is String) {
+        final decoded = jsonDecode(options);
+        if (decoded is List) {
+          optionList = decoded.map((e) => e?.toString() ?? '').toList();
+        } else {
+          return correctAnswer;
+        }
+      } else if (options is List) {
+        optionList = options.map((e) => e?.toString() ?? '').toList();
+      } else {
+        return correctAnswer;
+      }
+
+      // 遍历选项，找到内容与 correctAnswer 匹配的选项，返回其标签
+      const labels = ['A', 'B', 'C', 'D', 'E', 'F'];
+      for (int i = 0; i < optionList.length && i < labels.length; i++) {
+        final optionText = optionList[i];
+        // 提取选项的 text/content 部分
+        String extractedText = optionText;
+        final textMatch = RegExp(r'text:\s*([^,]+?)(?:,|$)').firstMatch(optionText);
+        if (textMatch != null) {
+          extractedText = textMatch.group(1)?.trim() ?? optionText;
+        }
+        final contentMatch = RegExp(r'content:\s*(.+?)(?:\}|$)').firstMatch(optionText);
+        if (contentMatch != null) {
+          extractedText = contentMatch.group(1)?.trim() ?? optionText;
+        }
+        // 移除引号
+        if ((extractedText.startsWith('"') && extractedText.endsWith('"')) ||
+            (extractedText.startsWith("'") && extractedText.endsWith("'"))) {
+          extractedText = extractedText.substring(1, extractedText.length - 1);
+        }
+
+        if (extractedText.trim() == correctAnswer.trim()) {
+          return labels[i];
+        }
+      }
+    } catch (e) {
+      debugPrint('标准化 correctAnswer 失败: $e');
+    }
+
+    return correctAnswer;
   }
 
   /// 保存练习结果

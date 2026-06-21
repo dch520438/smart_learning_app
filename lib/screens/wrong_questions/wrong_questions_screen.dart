@@ -139,9 +139,14 @@ class _WrongQuestionsScreenState extends State<WrongQuestionsScreen> {
   }
 
   String _mapErrorType(Map<String, dynamic> r) {
-    // 从数据库行推断错误类型
+    // 优先使用数据库中存储的错误类型字段
+    final storedErrorType = r['error_type'] as String?;
+    if (storedErrorType != null && storedErrorType.isNotEmpty) {
+      return storedErrorType;
+    }
+    // 兼容旧数据：从错误次数推断错误类型
     final errorCount = r['error_count'] as int? ?? 1;
-    if (errorCount <= 1) return '粗心';
+    if (errorCount <= 1) return '粗心大意';
     if (errorCount <= 2) return '知识盲区';
     return '方法错误';
   }

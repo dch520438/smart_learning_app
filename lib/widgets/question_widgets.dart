@@ -234,17 +234,31 @@ class _QuestionCardState extends State<QuestionCard> {
     return content.replaceAll(hintPattern, '').trim();
   }
 
-  /// 解析选项文本，处理 {label: A, content: ...} 格式
+
+  /// 解析选项文本，处理 {label: A, text: ..., content: ...} 格式
   String _parseOptionText(String optionText) {
     final trimmedText = optionText.trim();
 
+    // 尝试匹配 {label: A, text: xxx, content: yyy} 格式（优先取 text）
+    final pattern3 = RegExp(
+      r'^\{label:\s*([^,]+?),\s*text:\s*([^,]+?)(?:,\s*content:\s*(.+))?\}$',
+      caseSensitive: false,
+    );
+    final match3 = pattern3.firstMatch(trimmedText);
+    if (match3 != null && match3.groupCount >= 2) {
+      var text = match3.group(2)?.trim() ?? '';
+      if ((text.startsWith('"') && text.endsWith('"')) ||
+          (text.startsWith("'") && text.endsWith("'"))) {
+        text = text.substring(1, text.length - 1);
+      }
+      return text;
+    }
+
     // 尝试匹配 {label: A, content: xxx} 格式
-    // 使用贪婪匹配 content 部分，从最后一个 } 倒推
     final pattern = RegExp(r'^\{label:\s*([^,]+?),\s*content:\s*(.+)\}$', caseSensitive: false);
     final match = pattern.firstMatch(trimmedText);
     if (match != null && match.groupCount >= 2) {
       var content = match.group(2)?.trim() ?? '';
-      // 移除 content 值两端可能存在的引号
       if ((content.startsWith('"') && content.endsWith('"')) ||
           (content.startsWith("'") && content.endsWith("'"))) {
         content = content.substring(1, content.length - 1);
@@ -253,7 +267,7 @@ class _QuestionCardState extends State<QuestionCard> {
     }
 
     // 尝试匹配 {"label": "A", "content": "xxx"} 格式
-    final jsonPattern = RegExp(r"""^["']?\{["']?label["']?\s*:\s*["']([^"']+)["']\s*,\s*["']content["']\s*:\s*["'](.+)["']\s*\}""", caseSensitive: false);
+    final jsonPattern = RegExp(r"""^["']?\{"["']?label["']?\s*:\s*["']([^"']+)["']\s*,\s*["']content["']\s*:\s*["'](.+)["']\s*\}""", caseSensitive: false);
     final jsonMatch = jsonPattern.firstMatch(trimmedText);
     if (jsonMatch != null && jsonMatch.groupCount >= 2) {
       return jsonMatch.group(2)?.trim() ?? trimmedText;
