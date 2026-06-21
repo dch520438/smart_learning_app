@@ -1156,6 +1156,53 @@ class _ExamTakingScreenState extends State<_ExamTakingScreen> {
     }
   }
 
+  /// 标准化正确答案：如果存储的是选项内容而非标签，尝试转换为标签
+  String _normalizeCorrectAnswer(String correctAnswer, dynamic options) {
+    if (RegExp(r'^[A-D]$').hasMatch(correctAnswer.trim()) ||
+        RegExp(r'^[TF]$').hasMatch(correctAnswer.trim())) {
+      return correctAnswer.trim();
+    }
+    if (options == null) return correctAnswer;
+    try {
+      List<String> optionList;
+      if (options is String) {
+        final decoded = jsonDecode(options);
+        if (decoded is List) {
+          optionList = decoded.map((e) => e?.toString() ?? '').toList();
+        } else {
+          return correctAnswer;
+        }
+      } else if (options is List) {
+        optionList = options.map((e) => e?.toString() ?? '').toList();
+      } else {
+        return correctAnswer;
+      }
+      const labels = ['A', 'B', 'C', 'D', 'E', 'F'];
+      for (int i = 0; i < optionList.length && i < labels.length; i++) {
+        final optionText = optionList[i];
+        String extractedText = optionText;
+        final textMatch = RegExp(r'text:\s*([^,]+?)(?:,|$)').firstMatch(optionText);
+        if (textMatch != null) {
+          extractedText = textMatch.group(1)?.trim() ?? optionText;
+        }
+        final contentMatch = RegExp(r'content:\s*(.+?)(?:\}|$)').firstMatch(optionText);
+        if (contentMatch != null) {
+          extractedText = contentMatch.group(1)?.trim() ?? optionText;
+        }
+        if ((extractedText.startsWith('"') && extractedText.endsWith('"')) ||
+            (extractedText.startsWith("'") && extractedText.endsWith("'"))) {
+          extractedText = extractedText.substring(1, extractedText.length - 1);
+        }
+        if (extractedText.trim() == correctAnswer.trim()) {
+          return labels[i];
+        }
+      }
+    } catch (e) {
+      debugPrint('标准化 correctAnswer 失败: $e');
+    }
+    return correctAnswer;
+  }
+
   Future<void> _addWrongQuestionsToBook() async {
     try {
       final db = DatabaseService();
