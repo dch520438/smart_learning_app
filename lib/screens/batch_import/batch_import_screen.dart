@@ -324,7 +324,7 @@ class _BatchImportScreenState extends State<BatchImportScreen>
   }
 
   void _loadDocumentTemplate() {
-    final template = _documentService.getDocumentTemplate();
+    final template = DocumentImportService.getDocumentTemplate();
     setState(() {
       _dataController.text = template;
       _documentResult = DocumentImportResult(
